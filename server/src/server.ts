@@ -14,17 +14,19 @@ app.use(express.json());
 app.get("/health", (req: Request, res: Response) => {
   res.send("Server is healthy");
 });
+
 app.use("/api", appRoutes);
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found" });
 });
 
+const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
     await connectDB(); // Ensure the database is connected before starting the server
-    app.listen(3000, () => {
-      console.log("Server is running on port 3000");
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
