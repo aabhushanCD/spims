@@ -1,0 +1,19 @@
+import { z } from "zod";
+
+export const CreateUnitSchema = z.object({
+  name: z.string().min(1, { message: "Unit name is required" }),
+  abbreviation: z.string().min(1, { message: "Unit abbreviation is required" }),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const UpdateUnitSchema = z.object({
+  name: z.string().min(1, { message: "Unit name is required" }).optional(),
+  abbreviation: z
+    .string()
+    .min(1, { message: "Unit abbreviation is required" })
+    .optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type CreateUnitDto = z.infer<typeof CreateUnitSchema>;
+export type UpdateUnitDto = z.infer<typeof UpdateUnitSchema>;
