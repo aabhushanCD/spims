@@ -15,7 +15,7 @@ export class UserRepository {
   }
 
   async findByEmail(email: string): Promise<IUser | null> {
-    return await this.userModel.findOne({ email }).exec();
+    return await this.userModel.findOne({ email }).lean();
   }
 
   async update(id: string, updateData: UpdateUserDto): Promise<IUser | null> {
