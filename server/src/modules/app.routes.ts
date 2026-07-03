@@ -10,6 +10,7 @@ import brandRoutes from "./medicine/routes/brand.route.js";
 import genericNameRoutes from "./medicine/routes/genericName.route.js";
 import { authorize } from "../shared/middleware/authorize.js";
 import { verifyToken } from "../shared/middleware/verifyToken.js";
+import supplierRoutes from "./supplier/routes/supplier.route.js";
 
 const router = express.Router();
 
@@ -48,5 +49,16 @@ router.use(
   authorize(["owner", "inventory-manager"]),
   genericNameRoutes,
 );
+
+// supplier-related routes
+
+router.use(
+  "/suppliers",
+  verifyToken,
+  authorize(["owner", "inventory-manager"]),
+  supplierRoutes,
+);
+
+
 
 export default router;
