@@ -14,7 +14,7 @@ const supplierSchema = new Schema<ISupplier>(
   {
     companyName: { type: String, required: true },
     contactPerson: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true, lowercase: true, unique: true },
     phone: { type: String, required: true },
     address: { type: String, required: true },
     leadTime: { type: Number, required: true },
