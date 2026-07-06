@@ -16,6 +16,7 @@ import purchaseRoutes from "./purchase/routes/purchase.route.js";
 import { buildSalesRouter } from "./sales/routes/sales.routes.ts";
 import { buildSaleItemRouter } from "./sales/routes/saleItem.routes.ts";
 import { buildReturnRouter } from "./sales/routes/return.routes.ts";
+import reportRoutes from "./smartReorder/routes/smartReorder.routes.ts";
 import {
   returnController,
   saleController,
@@ -92,4 +93,12 @@ router.use("/sales", buildSalesRouter(saleController));
 router.use("/sale-items", buildSaleItemRouter(saleItemController));
 router.use("/returns", buildReturnRouter(returnController));
 
+// smart reorder routes
+
+router.use(
+  "/smart-reorders",
+  verifyToken,
+  authorize(["owner", "inventory_manager"]),
+  reportRoutes,
+);
 export default router;
