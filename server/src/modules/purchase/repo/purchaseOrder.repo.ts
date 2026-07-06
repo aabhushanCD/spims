@@ -16,27 +16,58 @@ export class PurchaseOrderRepo {
     return await purchaseOrder.save();
   }
 
-  async findById(id: string): Promise<IPurchaseOrder | null> {
+  async findById(
+    id: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrder | null> {
+    if (session) {
+      return await this.purchaseOrderModel.findById(id).session(session).exec();
+    }
     return await this.purchaseOrderModel.findById(id).exec();
   }
-  async findAll(): Promise<IPurchaseOrder[]> {
+  async findAll(session?: mongoose.ClientSession): Promise<IPurchaseOrder[]> {
+    if (session) {
+      return await this.purchaseOrderModel.find().session(session).exec();
+    }
     return await this.purchaseOrderModel.find().exec();
   }
 
-  async findBySupplierId(supplierId: string): Promise<IPurchaseOrder[]> {
+  async findBySupplierId(
+    supplierId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrder[]> {
+    if (session) {
+      return await this.purchaseOrderModel
+        .find({ supplierId })
+        .session(session)
+        .exec();
+    }
     return await this.purchaseOrderModel.find({ supplierId }).exec();
   }
 
   async update(
     id: string,
     updateData: Partial<IPurchaseOrder>,
+    session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrder | null> {
-    return await this.purchaseOrderModel
-      .findByIdAndUpdate(id, updateData, { new: true })
+    const options: any = { new: true };
+    if (session) {
+      options.session = session;
+    }
+    return this.purchaseOrderModel
+      .findByIdAndUpdate(id, updateData, options)
       .exec();
   }
 
-  async delete(id: string): Promise<IPurchaseOrder | null> {
+  async delete(
+    id: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrder | null> {
+    if (session) {
+      return await this.purchaseOrderModel
+        .findByIdAndDelete(id, { session })
+        .exec();
+    }
     return await this.purchaseOrderModel.findByIdAndDelete(id).exec();
   }
 }
