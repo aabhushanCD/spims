@@ -1,6 +1,9 @@
 import type { IPurchaseOrderItem } from "../model/purchaseOrderItem.model.ts";
 import type PurchaseOrderItem from "../model/purchaseOrderItem.model.ts";
-import type { CreatePurchaseOrderItemDto, UpdatePurchaseOrderItemDto } from "../schema/purchaseOrderItem.schama.js";
+import type {
+  CreatePurchaseOrderItemDto,
+  UpdatePurchaseOrderItemDto,
+} from "../schema/purchaseOrderItem.schema.js";
 
 export class PurchaseOrderItemRepo {
   constructor(
@@ -23,8 +26,12 @@ export class PurchaseOrderItemRepo {
   async findByPurchaseOrderId(
     purchaseOrderId: string,
   ): Promise<IPurchaseOrderItem[]> {
-    return await this.purchaseOrderItemModel.find({ purchaseOrderId }).exec();
+    return await this.purchaseOrderItemModel
+      .find({ purchaseOrderId })
+      .lean()
+      .exec();
   }
+  
   async findByPurchaseOrderAndMedicine(
     purchaseOrderId: string,
     medicineId: string,
