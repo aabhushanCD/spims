@@ -15,17 +15,19 @@ import { CategoryController } from "./controller/category.controller.js";
 import { GenericNameController } from "./controller/genericName.controller.js";
 import { UnitController } from "./controller/unit.controller.js";
 import { MedicineController } from "./controller/medicine.controller.js";
+import { Medicine } from "./models/medicine.model.js";
 
 const brandService = new BrandService(BrandRepo, AppError);
 const categoryService = new CategoryService(CategoryRepo, AppError);
 const genericNameService = new GenericNameService(GenericNameRepo, AppError);
 const unitService = new UnitService(UnitRepo, AppError);
+const medicineRepo = new MedicineRepo(Medicine);
 const medicineService = new MedicineService(
-  MedicineRepo,
+  medicineRepo,
   AppError,
-  GenericNameService,
-  BrandService,
-  CategoryService,
+  genericNameService,
+  brandService,
+  categoryService,
 );
 
 const brandController = new BrandController(brandService);
@@ -34,6 +36,7 @@ const genericNameController = new GenericNameController(genericNameService);
 const unitController = new UnitController(unitService);
 const medicineController = new MedicineController(medicineService);
 export {
+  medicineRepo,
   brandService,
   categoryService,
   genericNameService,
