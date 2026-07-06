@@ -10,11 +10,11 @@ import type { GenericNameService } from "./genericName.service.js";
 
 export class MedicineService {
   constructor(
-    private readonly medicineRepo: typeof MedicineRepo,
+    private readonly medicineRepo: MedicineRepo,
     private readonly appError: typeof AppError,
-    private readonly genericNameService:typeof GenericNameService,
-    private readonly brandService:typeof BrandService,
-    private readonly categoryService:typeof CategoryService,
+    private readonly genericNameService: GenericNameService,
+    private readonly brandService: BrandService,
+    private readonly categoryService: CategoryService,
   ) {}
 
   async createMedicine(medicineData: CreateMedicineDto) {
