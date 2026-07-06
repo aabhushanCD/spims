@@ -1,4 +1,5 @@
 import mongoose, { Types } from "mongoose";
+
 import type { AppError } from "../../../shared/error.ts";
 import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
@@ -8,14 +9,23 @@ import type { CreatePurchaseOrderDto } from "../schema/purchaseOrder.schema.ts";
 import type {
   CreatePurchaseOrderItemDto,
   UpdatePurchaseOrderItemDto,
-} from "../schema/purchaseOrderItem.schama.ts";
+} from "../schema/purchaseOrderItem.schema.ts";
+
+import type { BatchService } from "../../batch/service/batch.service.ts";
+import type { ReceivePurchaseOrderDto } from "../schema/receivePurchaseOrder.type.ts";
+import type { InventoryService } from "../../inventory/services/inventory.service.ts";
+import type { InventoryMovementService } from "../../inventory/services/inventoryMovement.service.ts";
+import type { UserRepository } from "../../user/repo/user.repo.ts";
 
 export class PurchaseOrderService {
   constructor(
     private readonly purchaseOrderRepo: PurchaseOrderRepo,
     private readonly supplierRepo: SupplierRepo,
     private readonly purchaseOrderItemRepo: PurchaseOrderItemRepo,
-    private readonly medicineRepo: MedicineRepo,
+    private readonly inventoryService: InventoryService,
+    private readonly inventoryMovementService: InventoryMovementService,
+    private readonly batchService: BatchService,
+    private readonly userRepo: UserRepository,
     private readonly appError: typeof AppError,
   ) {}
 
@@ -62,6 +72,15 @@ export class PurchaseOrderService {
     return purchaseOrder;
   }
 
+  async getAllPurchaseOrderItems(purchaseOrderId: string) {
+    const purchaseOrder =
+      await this.purchaseOrderRepo.findById(purchaseOrderId);
+    if (!purchaseOrder) {
+      throw this.appError.notFound("Purchase order not found");
+    }
+    return this.purchaseOrderItemRepo.findByPurchaseOrderId(purchaseOrderId);
+  }
+
   async getPurchaseOrders() {
     return this.purchaseOrderRepo.findAll();
   }
@@ -81,20 +100,6 @@ export class PurchaseOrderService {
       throw this.appError.notFound("Purchase order not found");
     }
     return this.purchaseOrderRepo.delete(id);
-  }
-
-  async receivedPurchaseOrder(id: string) {
-    const existing = await this.purchaseOrderRepo.findById(id);
-
-    if (!existing) {
-      throw this.appError.notFound("Purchase order not found");
-    }
-    if (existing.status !== "approved") {
-      throw this.appError.badRequest(
-        "Only approved purchase orders can be received",
-      );
-    }
-    await this.purchaseOrderRepo.update(id, { status: "received" });
   }
 
   async cancelPurchaseOrder(id: string) {
@@ -249,22 +254,116 @@ export class PurchaseOrderService {
     });
   }
 
-  async receivePurchaseOrder(purchaseOrderId: string) {
-    const purchaseOrder =
-      await this.purchaseOrderRepo.findById(purchaseOrderId);
+  async receivePurchaseOrder(
+    purchaseOrderId: string,
+    data: ReceivePurchaseOrderDto,
+    performedBy: string,
+  ) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const user = await this.userRepo.findById(performedBy);
 
-    if (!purchaseOrder) {
-      throw this.appError.notFound("Purchase order not found");
-    }
+      if (!user) {
+        throw this.appError.notFound("User not found");
+      }
+      const purchaseOrder =
+        await this.purchaseOrderRepo.findById(purchaseOrderId);
 
-    if (purchaseOrder.status !== "approved") {
-      throw this.appError.badRequest(
-        "Only approved purchase orders can be received",
+      if (!purchaseOrder) {
+        throw this.appError.notFound("Purchase order not found");
+      }
+
+      if (purchaseOrder.status !== "approved") {
+        throw this.appError.badRequest(
+          "Only approved purchase orders can be received",
+        );
+      }
+
+      const purchaseOrderItems =
+        await this.purchaseOrderItemRepo.findByPurchaseOrderId(purchaseOrderId);
+
+      if (!purchaseOrderItems.length) {
+        throw this.appError.badRequest(
+          "Cannot receive a purchase order with no items",
+        );
+      }
+      const batchMap = new Map(
+        data.items.map((item) => [item.medicineId, item]),
       );
-    }
+      const ids = data.items.map((i) => i.medicineId);
 
-    await this.purchaseOrderRepo.update(purchaseOrderId, {
-      status: "received",
-    });
+      if (new Set(ids).size !== ids.length) {
+        throw this.appError.badRequest(
+          "Duplicate medicine found in batch data",
+        );
+      }
+      for (const poItem of purchaseOrderItems) {
+        const batch = batchMap.get(poItem.medicineId.toString());
+
+        if (!batch) {
+          throw this.appError.badRequest(
+            `No batch data provided for medicine with ID ${poItem.medicineId}`,
+          );
+        }
+        if (batch.quantityReceived !== poItem.quantity) {
+          throw this.appError.badRequest(
+            `Quantity received for medicine with ID ${poItem.medicineId} does not match the ordered quantity`,
+          );
+        }
+        if (batch.sellingPrice < poItem.purchasePrice) {
+          throw this.appError.badRequest(
+            "Selling price cannot be less than purchase price",
+          );
+        }
+        if (data.items.length !== purchaseOrderItems.length) {
+          throw this.appError.badRequest(
+            "Batch data does not match purchase order",
+          );
+        }
+        const batchRecord = await this.batchService.createBatch(
+          {
+            medicineId: poItem.medicineId.toString(),
+            purchaseOrderId,
+            batchNumber: batch.batchNumber,
+            manufacturingDate: batch.manufacturingDate,
+            expiryDate: batch.expiryDate,
+            purchasePrice: poItem.purchasePrice,
+            sellingPrice: batch.sellingPrice,
+            quantityReceived: batch.quantityReceived,
+            quantityRemaining: batch.quantityReceived,
+          },
+          session,
+        );
+        await this.inventoryService.syncInventoryFromBatch(
+          poItem.medicineId.toString(),
+          {
+            batchId: batchRecord._id.toString(),
+            movementType: "PURCHASE",
+            referenceId: purchaseOrderId,
+            referenceType: "PURCHASE_ORDER",
+            performedBy,
+            remarks: `Received from PO ${purchaseOrder.invoiceNumber}`,
+          },
+          session,
+        );
+      }
+      await this.purchaseOrderRepo.update(
+        purchaseOrderId,
+        {
+          status: "received",
+        },
+        session,
+      );
+      await session.commitTransaction();
+      return {
+        message: "Purchase order received successfully",
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 }
