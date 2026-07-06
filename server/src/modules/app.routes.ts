@@ -10,7 +10,17 @@ import brandRoutes from "./medicine/routes/brand.route.js";
 import genericNameRoutes from "./medicine/routes/genericName.route.js";
 import { authorize } from "../shared/middleware/authorize.js";
 import { verifyToken } from "../shared/middleware/verifyToken.js";
+import inventoryRoutes from "./inventory/routes/inventory.routes.ts";
 import supplierRoutes from "./supplier/routes/supplier.route.js";
+import purchaseRoutes from "./purchase/routes/purchase.route.js";
+import { buildSalesRouter } from "./sales/routes/sales.routes.ts";
+import { buildSaleItemRouter } from "./sales/routes/saleItem.routes.ts";
+import { buildReturnRouter } from "./sales/routes/return.routes.ts";
+import {
+  returnController,
+  saleController,
+  saleItemController,
+} from "./sales/sales.module.ts";
 
 const router = express.Router();
 
@@ -58,7 +68,28 @@ router.use(
   authorize(["owner", "inventory-manager"]),
   supplierRoutes,
 );
+// inventory-related routes
 
+router.use(
+  "/inventory",
+  verifyToken,
+  authorize(["owner", "inventory-manager"]),
+  inventoryRoutes,
+);
 
+// purchase-related routes
+
+router.use(
+  "/purchases",
+  verifyToken,
+  authorize(["owner", "inventory-manager"]),
+  purchaseRoutes,
+);
+
+// sales routes
+
+router.use("/sales", buildSalesRouter(saleController));
+router.use("/sale-items", buildSaleItemRouter(saleItemController));
+router.use("/returns", buildReturnRouter(returnController));
 
 export default router;
