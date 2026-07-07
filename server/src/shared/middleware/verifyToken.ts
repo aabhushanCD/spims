@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { JWTUserPayload } from "../../types/global.js";
 import dotenv from "dotenv";
+import { verifyJwt } from "./verifyJwt.ts";
 dotenv.config();
 
 export const verifyToken = (
@@ -11,12 +12,7 @@ export const verifyToken = (
 ) => {
   try {
     const token = req.cookies.token;
-    if (!token) {
-      throw new Error("Unauthorized: No token provided");
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-
-    req.user = decoded as JWTUserPayload;
+    req.user = verifyJwt(token) as JWTUserPayload;
     next();
   } catch (error) {
     console.error("Failed to verify JWT token:", error);
