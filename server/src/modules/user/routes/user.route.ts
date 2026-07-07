@@ -1,8 +1,7 @@
 import express from "express";
+import { userController } from "../../../app/container.ts";
 
 const router = express.Router();
-
-import { userController } from "../user.module.js";
 
 router.post("/", (req, res) => userController.createUser(req, res));
 router.get("/:id", (req, res) => userController.getUserById(req, res));

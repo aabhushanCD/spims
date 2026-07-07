@@ -4,10 +4,11 @@ import {
   updatePurchaseOrderItemSchema,
 } from "../schema/purchaseOrderItem.schema.js";
 import { createPurchaseOrderSchema } from "../schema/purchaseOrder.schema.ts";
-import { purchaseOrderController } from "../purchase.module.ts";
+
 import { validate } from "../../../shared/middleware/validate.middleware.ts";
 import { authorize } from "../../../shared/middleware/authorize.ts";
 import { verifyToken } from "../../../shared/middleware/verifyToken.ts";
+import { purchaseOrderController } from "../../../app/container.ts";
 
 const router = Router();
 

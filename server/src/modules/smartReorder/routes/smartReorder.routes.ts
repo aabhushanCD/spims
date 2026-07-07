@@ -1,7 +1,8 @@
 // smartReorder.routes.ts
 import { Router } from "express";
-import { smartReorderController } from "../smartReorder.module.ts";
+
 import { authorize } from "../../../shared/middleware/authorize.ts";
+import { smartReorderController } from "../../../app/container.ts";
 const router = Router();
 
 router.get("/pending", smartReorderController.getPending);

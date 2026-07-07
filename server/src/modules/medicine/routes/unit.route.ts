@@ -1,10 +1,10 @@
 import express from "express";
 
 const router = express.Router();
-import { unitController } from "../medicine.module.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import { CreateUnitSchema, UpdateUnitSchema } from "../schema/unit.schema.js";
+import { unitController } from "../../../app/container.ts";
 
 router.post("/", validate(CreateUnitSchema), verifyToken, (req, res) => {
   unitController.createUnit(req, res);

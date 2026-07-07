@@ -4,7 +4,7 @@ import type { CreateBrandDto, UpdateBrandDto } from "../schema/brand.schema.js";
 
 export class BrandService {
   constructor(
-    private readonly brandRepo:typeof BrandRepo,
+    private readonly brandRepo: BrandRepo,
     private readonly appError: typeof AppError,
   ) {}
 

@@ -8,6 +8,8 @@ import dotenv from "dotenv";
 import WebSocket, { WebSocketServer } from "ws";
 import { verifyJwt } from "./shared/middleware/verifyJwt.ts";
 import { register } from "./shared/provider/websocker.provider.ts";
+import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryCheck.job.ts";
+import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
 
 dotenv.config();
 const app = express();
@@ -76,7 +78,9 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
-    await connectDB(); // Ensure the database is connected before starting the server
+    await connectDB();
+    scheduleExpiryCheckJob();
+    scheduleReorderCalculationJob(); // Ensure the database is connected before starting the server
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

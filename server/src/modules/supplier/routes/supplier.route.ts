@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { supplierController } from "../supplier.module.js";
 import {
   createSupplierSchema,
   updateSupplierSchema,
 } from "../schema/supplier.schema.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
+import { supplierController } from "../../../app/container.ts";
 
 const supplierRouter = Router();
 

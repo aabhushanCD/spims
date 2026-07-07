@@ -7,7 +7,7 @@ import type {
 
 export class GenericNameService {
   constructor(
-    private readonly genericNameRepo:typeof GenericNameRepo,
+    private readonly genericNameRepo: GenericNameRepo,
     private readonly appError: typeof AppError,
   ) {}
 

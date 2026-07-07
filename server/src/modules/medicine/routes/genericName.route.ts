@@ -2,13 +2,13 @@ import express from "express";
 
 const router = express.Router();
 
-import { genericNameController } from "../medicine.module.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import {
   CreateGenericNameSchema,
   UpdateGenericNameSchema,
 } from "../schema/genericName.schema.js";
+import { genericNameController } from "../../../app/container.ts";
 
 router.post("/", validate(CreateGenericNameSchema), verifyToken, (req, res) => {
   genericNameController.createGenericName(req, res);

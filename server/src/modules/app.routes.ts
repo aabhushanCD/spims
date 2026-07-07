@@ -22,7 +22,7 @@ import {
   returnController,
   saleController,
   saleItemController,
-} from "./sales/sales.module.ts";
+} from "../app/container.ts";
 
 const router = express.Router();
 
@@ -70,14 +70,6 @@ router.use(
   authorize(["owner", "inventory-manager"]),
   supplierRoutes,
 );
-// inventory-related routes
-
-router.use(
-  "/inventory",
-  verifyToken,
-  authorize(["owner", "inventory-manager"]),
-  inventoryRoutes,
-);
 
 // purchase-related routes
 
@@ -86,6 +78,15 @@ router.use(
   verifyToken,
   authorize(["owner", "inventory-manager"]),
   purchaseRoutes,
+);
+
+// inventory-related routes
+
+router.use(
+  "/inventory",
+  verifyToken,
+  authorize(["owner", "inventory-manager"]),
+  inventoryRoutes,
 );
 
 // sales routes

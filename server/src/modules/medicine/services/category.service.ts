@@ -8,7 +8,7 @@ import type {
 
 export class CategoryService {
   constructor(
-    private readonly categoryRepo:typeof CategoryRepo,
+    private readonly categoryRepo:CategoryRepo,
     private readonly appError: typeof AppError,
   ) {}
 

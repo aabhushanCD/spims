@@ -1,11 +1,11 @@
 import express from "express";
-import { medicineController } from "../medicine.module.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import {
   createMedicineSchema,
   updateMedicineSchema,
 } from "../schema/medicine.schema.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
+import { medicineController } from "../../../app/container.ts";
 
 const router = express.Router();
 

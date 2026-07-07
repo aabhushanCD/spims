@@ -46,6 +46,18 @@ export class UserRepository {
     return await this.userModel.find({ isActive: false }).exec();
   }
 
+  async findIdsByRole(
+    role: "owner" | "pharmacist" | "inventory_manager",
+  ): Promise<string[]> {
+    const users = await this.userModel
+      .find({ role })
+      .select("_id")
+      .lean()
+      .exec();
+
+    return users.map((user) => user._id.toString());
+  }
+
   async findUsersByLastLogin(date: Date): Promise<IUser[]> {
     return await this.userModel.find({ lastLogin: { $gte: date } }).exec();
   }

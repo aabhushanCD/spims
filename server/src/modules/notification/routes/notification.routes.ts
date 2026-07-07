@@ -1,6 +1,7 @@
 // notification.routes.ts
 import { Router } from "express"; // adjust to your actual module file
-import { notificationController } from "../notification.module.ts";
+import { notificationController } from "../../../app/container.ts";
+
 
 const router = Router();
 

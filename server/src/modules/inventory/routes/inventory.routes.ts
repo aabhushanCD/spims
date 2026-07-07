@@ -1,6 +1,6 @@
 // inventory.routes.ts
 import { Router } from "express";
-import { inventoryController } from "../inventory.module.ts";
+import { inventoryController } from "../../../app/container.ts";
 
 const router = Router();
 

@@ -2,13 +2,13 @@ import express from "express";
 
 const router = express.Router();
 
-import { brandController } from "../medicine.module.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import {
   CreateBrandSchema,
   UpdateBrandSchema,
 } from "../schema/brand.schema.js";
+import { brandController } from "../../../app/container.ts";
 
 router.post("/", validate(CreateBrandSchema), verifyToken, (req, res) => {
   brandController.createBrand(req, res);

@@ -2,10 +2,10 @@ import express from "express";
 
 const router = express.Router();
 
-import { categoryController } from "../medicine.module.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import { createCategorySchema, updateCategorySchema } from "../schema/category.schema.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
+import { categoryController } from "../../../app/container.ts";
 
 router.post("/", validate(createCategorySchema), verifyToken, (req, res) => {
   categoryController.createCategory(req, res);

@@ -5,7 +5,7 @@ import type { CreateUnitDto, UpdateUnitDto } from "../schema/unit.schema.js";
 
 export class UnitService {
   constructor(
-    private readonly unitRepo:typeof UnitRepo,
+    private readonly unitRepo: UnitRepo,
     private readonly appError: typeof AppError,
   ) {}
 
