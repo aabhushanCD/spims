@@ -70,4 +70,37 @@ export class PurchaseOrderRepo {
     }
     return await this.purchaseOrderModel.findByIdAndDelete(id).exec();
   }
+
+  async getTotalPurchases(session?: mongoose.ClientSession): Promise<number> {
+    const [result] = await this.purchaseOrderModel
+      .aggregate([
+        { $match: { status: { $ne: "cancelled" } } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ])
+      .session(session ?? null);
+    return result?.total ?? 0;
+  }
+
+  async getPurchasesByStatus(
+    session?: mongoose.ClientSession,
+  ): Promise<{ status: string; count: number }[]> {
+    const results = await this.purchaseOrderModel
+      .aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
+      .session(session ?? null);
+    return results.map((r) => ({ status: r._id, count: r.count }));
+  }
+
+  async findRecentBySupplier(
+    supplierId: string,
+    limit: number,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrder[]> {
+    return this.purchaseOrderModel
+      .find({ supplierId, status: "received", receivedDate: { $exists: true } })
+      .sort({ receivedDate: -1 })
+      .limit(limit)
+      .session(session ?? null)
+      .lean()
+      .exec();
+  }
 }

@@ -72,6 +72,8 @@ import { SaleItemService } from "../modules/sales/services/saleItem.service.ts";
 import { SaleItemController } from "../modules/sales/controller/salesItem.controller.ts";
 import { SalesController } from "../modules/sales/controller/sales.controller.ts";
 import { SalesService } from "../modules/sales/services/sales.service.ts";
+import { DashboardService } from "../modules/dashboard/service/dashboard.service.ts";
+import { DashboardController } from "../modules/dashboard/controller/dashboard.controller.ts";
 
 // This file serves as a centralized container for all repository instances used throughout the application. It imports the necessary models and repository classes, then creates instances of each repository, which can be exported and used in other parts of the application. This approach promotes modularity and makes it easier to manage dependencies.
 const userRepo = new UserRepository(User);
@@ -178,11 +180,27 @@ const smartReorderService = new SmartReorderService(
   smartReorderRepo,
   medicineBatchService,
   medicineRepo,
+  saleItemRepo,
+  medicineBatchRepo,
+  purchaseOrderRepo,
+  supplierRepo,
   AppError,
 );
 
 const supplierService = new SupplierService(supplierRepo, AppError);
-
+const dashboardService = new DashboardService(
+  saleRepo,
+  saleItemRepo,
+  purchaseOrderRepo,
+  inventoryRepo,
+  medicineBatchRepo,
+  supplierRepo,
+  smartReorderService,
+  medicineBatchService,
+  inventoryMovementService,
+  backgroundJobService,
+  notificationRecipientRepo,
+);
 // controllers
 const authController = new AuthController(authService);
 const userController = new UserController(userService);
@@ -201,7 +219,7 @@ const categoryController = new CategoryController(categoryService);
 const brandController = new BrandController(brandService);
 const unitController = new UnitController(unitService);
 const medicineController = new MedicineController(medicineService);
-
+const dashboardController = new DashboardController(dashboardService);
 export {
   userRepo,
   authService,
@@ -257,4 +275,6 @@ export {
   returnController,
   smartReorderController,
   supplierController,
+  dashboardService,
+  dashboardController,
 };

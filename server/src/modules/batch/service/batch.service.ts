@@ -150,18 +150,28 @@ export class BatchService {
     return updated;
   }
 
-  async markExpiredBatches(session?: mongoose.ClientSession): Promise<void> {
+  async markExpiredBatches(
+    session?: mongoose.ClientSession,
+  ): Promise<{ batchId: string; medicineId: string }[]> {
     const batches = await this.batchRepo.findAll(session);
     const now = new Date();
+    const newlyExpired: { batchId: string; medicineId: string }[] = [];
+
     for (const batch of batches) {
-      if (batch.expiryDate < now) {
+      if (batch.expiryDate < now && !batch.isExpired) {
         await this.batchRepo.update(
           batch._id.toString(),
           { isExpired: true },
           session,
         );
+        newlyExpired.push({
+          batchId: batch._id.toString(),
+          medicineId: batch.medicineId.toString(),
+        });
       }
     }
+
+    return newlyExpired; // caller (the job) logs movements + notifies using this list
   }
 
   async getExpiredBatches(session?: mongoose.ClientSession): Promise<any[]> {
@@ -169,6 +179,56 @@ export class BatchService {
     const now = new Date();
     const expiredBatches = batches.filter((batch) => batch.expiryDate < now);
     return expiredBatches;
+  }
+
+  async confirmDisposal(
+    batchId: string,
+    performedBy: string,
+    remarks?: string,
+    session?: mongoose.ClientSession,
+  ): Promise<any> {
+    const batch = await this.batchRepo.findById(batchId, session);
+    if (!batch) throw new Error("Batch not found");
+    if (!batch.isExpired)
+      throw new Error("Batch is not marked as expired — cannot dispose");
+    if (batch.quantityRemaining <= 0)
+      throw new Error("Batch has no remaining quantity to dispose");
+
+    const disposedQuantity = batch.quantityRemaining;
+
+    const updated = await this.batchRepo.update(
+      batchId,
+      { quantityRemaining: 0 },
+      session,
+    );
+
+    // This both deducts and logs the movement — single source of truth,
+    // consistent with how sales/purchases already flow through InventoryService.
+    await this.inventoryService.decreaseStock(
+      batch.medicineId.toString(),
+      disposedQuantity,
+      {
+        batchId,
+        referenceId: batchId,
+        referenceType: "ADJUSTMENT",
+        performedBy,
+        movementType: "EXPIRED",
+        remarks:
+          remarks ??
+          `Disposal confirmed for expired batch ${batch.batchNumber}`,
+      },
+      session,
+    );
+
+    return updated;
+  }
+
+  async getExpiredAwaitingDisposal(
+    session?: mongoose.ClientSession,
+  ): Promise<any[]> {
+    return (await this.batchRepo.findAll(session)).filter(
+      (b) => b.isExpired && b.quantityRemaining > 0,
+    );
   }
 
   async getLowStockBatches(

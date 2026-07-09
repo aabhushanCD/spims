@@ -8,6 +8,7 @@ export interface ISupplier extends Document {
   address: string;
   leadTime: number;
   status: "active" | "inactive";
+  reliabilityScore?: number;
 }
 
 const supplierSchema = new Schema<ISupplier>(
@@ -19,6 +20,7 @@ const supplierSchema = new Schema<ISupplier>(
     address: { type: String, required: true },
     leadTime: { type: Number, required: true },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
+    reliabilityScore: { type: Number, default: 0, max: 100, min: 0 },
   },
   {
     timestamps: true,

@@ -10,25 +10,16 @@ import {
 const NEARING_EXPIRY_DAYS = 30;
 
 export function scheduleExpiryCheckJob() {
-  // Runs daily at 1 AM
   cron.schedule("0 1 * * *", async () => {
     try {
       await backgroundJobService.runJob("expiry-check", async () => {
-        await medicineBatchService.markExpiredBatches();
+        const newlyExpired = await medicineBatchService.markExpiredBatches();
 
-        const allBatches = await medicineBatchService.getAllBatches();
-        const now = new Date();
-        const nearingExpiry = allBatches.filter((b) => {
-          const daysUntilExpiry =
-            (b.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-          return daysUntilExpiry > 0 && daysUntilExpiry <= NEARING_EXPIRY_DAYS;
-        });
-
-        if (nearingExpiry.length > 0) {
+        if (newlyExpired.length > 0) {
           const pharmacistIds = await userRepo.findIdsByRole("pharmacist");
           await notificationService.createNotification({
-            title: "Batches nearing expiry",
-            message: `${nearingExpiry.length} batch(es) will expire within ${NEARING_EXPIRY_DAYS} days.`,
+            title: "Expired batches require disposal confirmation",
+            message: `${newlyExpired.length} batch(es) expired overnight and are pulled from sellable stock. Please confirm disposal to complete write-off.`,
             type: "InApp",
             userIds: pharmacistIds,
           });

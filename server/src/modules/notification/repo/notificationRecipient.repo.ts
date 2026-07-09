@@ -101,4 +101,14 @@ export class NotificationRecipientRepo {
     }
     return this.recipientModel.findByIdAndDelete(id).lean().exec();
   }
+
+  async countByStatus(
+    status: "Pending" | "Sent" | "Failed",
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    return this.recipientModel
+      .countDocuments({ status })
+      .session(session ?? null)
+      .exec();
+  }
 }

@@ -10,6 +10,7 @@ import { verifyJwt } from "./shared/middleware/verifyJwt.ts";
 import { register } from "./shared/provider/websocker.provider.ts";
 import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryCheck.job.ts";
 import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
+import redis from "./config/redis.config.ts";
 
 dotenv.config();
 const app = express();
@@ -78,6 +79,7 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
+    await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();
     scheduleReorderCalculationJob(); // Ensure the database is connected before starting the server

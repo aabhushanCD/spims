@@ -4,6 +4,7 @@ import type {
   CreateSupplierDto,
   UpdateSupplierDto,
 } from "../schema/supplier.schema.js";
+import type mongoose from "mongoose";
 
 export class SupplierRepo {
   constructor(private supplierModel: Model<ISupplier>) {}
@@ -41,5 +42,16 @@ export class SupplierRepo {
 
   async delete(id: string): Promise<ISupplier | null> {
     return this.supplierModel.findByIdAndDelete(id).lean().exec();
+  }
+
+  async getTotalSuppliers(
+    status?: "active" | "inactive",
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const filter = status ? { status } : {};
+    return this.supplierModel
+      .countDocuments(filter)
+      .session(session ?? null)
+      .exec();
   }
 }

@@ -63,14 +63,15 @@ export class MedicineBatchRepo {
     medicineId: string,
     session?: mongoose.ClientSession,
   ): Promise<number> {
-    const findOptions: any = { medicineId };
-    if (session) {
-      findOptions.session = session;
-    }
-    const batches = await this.batchModel.find(findOptions).lean().exec();
+    const batches = session
+      ? await this.batchModel
+          .find({ medicineId })
+          .session(session)
+          .lean()
+          .exec()
+      : await this.batchModel.find({ medicineId }).lean().exec();
 
     if (!batches.length) return 0;
-
     return batches.reduce((total, batch) => total + batch.quantityRemaining, 0);
   }
 
@@ -102,5 +103,76 @@ export class MedicineBatchRepo {
         .exec();
     }
     return await this.batchModel.findByIdAndDelete(id).lean().exec();
+  }
+
+  async getTotalMedicineBatches(
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    return this.batchModel
+      .countDocuments()
+      .session(session ?? null)
+      .exec();
+  }
+
+  async getExpiringSoonCount(
+    days: number,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    return this.batchModel
+      .countDocuments({
+        expiryDate: { $gte: now, $lte: cutoff },
+        quantityRemaining: { $gt: 0 },
+      })
+      .session(session ?? null)
+      .exec();
+  }
+
+  async findMostRecentPurchaseOrderId(
+    medicineId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<mongoose.Types.ObjectId | null> {
+    const query = this.batchModel
+      .findOne({ medicineId })
+      .sort({ createdAt: -1 });
+
+    const batch = session
+      ? await query.session(session).lean().exec()
+      : await query.lean().exec();
+
+    return batch?.purchaseOrderId ?? null;
+  }
+
+  async getUsableStock(
+    medicineId: string,
+    expiryCutoff: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const filter = { medicineId, expiryDate: { $gt: expiryCutoff } };
+    const batches = session
+      ? await this.batchModel.find(filter).session(session).lean().exec()
+      : await this.batchModel.find(filter).lean().exec();
+
+    if (!batches.length) return 0;
+    return batches.reduce((total, batch) => total + batch.quantityRemaining, 0);
+  }
+
+  async getExpiringUnits(
+    medicineId: string,
+    expiryCutoff: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const filter = {
+      medicineId,
+      expiryDate: { $lte: expiryCutoff },
+      quantityRemaining: { $gt: 0 },
+    };
+    const batches = session
+      ? await this.batchModel.find(filter).session(session).lean().exec()
+      : await this.batchModel.find(filter).lean().exec();
+
+    if (!batches.length) return 0;
+    return batches.reduce((total, batch) => total + batch.quantityRemaining, 0);
   }
 }

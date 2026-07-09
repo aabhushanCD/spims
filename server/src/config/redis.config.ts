@@ -7,4 +7,9 @@ const options: RedisOptions = {
   maxRetriesPerRequest: null,
 };
 
-export const redis = new Redis(options);
+const redis = new Redis(options);
+
+redis.on("error", (err) => console.error("[Redis] Connection error:", err));
+redis.on("connect", () => console.log("[Redis] Connected"));
+
+export default redis;

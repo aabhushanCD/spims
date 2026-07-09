@@ -18,6 +18,7 @@ import { buildSaleItemRouter } from "./sales/routes/saleItem.routes.ts";
 import { buildReturnRouter } from "./sales/routes/return.routes.ts";
 import reportRoutes from "./smartReorder/routes/smartReorder.routes.ts";
 import notificationRoutes from "./notification/routes/notification.routes.ts";
+import dashboardRoutes from "./dashboard/routes/dashboard.routes.ts";
 import {
   returnController,
   saleController,
@@ -110,5 +111,12 @@ router.use(
   verifyToken,
   authorize(["owner", "inventory_manager"]),
   notificationRoutes,
+);
+
+router.use(
+  "/dashboard",
+  verifyToken,
+  authorize(["owner", "inventory_manager", "pharmacist"]),
+  dashboardRoutes,
 );
 export default router;

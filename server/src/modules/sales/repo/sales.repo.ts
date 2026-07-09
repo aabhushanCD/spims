@@ -60,4 +60,64 @@ export class SalesRepo {
     }
     return this.salesModel.findByIdAndDelete(salesId).lean().exec();
   }
+
+  async getTotalSales(session?: mongoose.ClientSession): Promise<number> {
+    if (session) {
+      const result = await this.salesModel
+        .aggregate([
+          { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
+        ])
+        .session(session)
+        .exec();
+      return result[0]?.totalSales || 0;
+    }
+    const result = await this.salesModel
+      .aggregate([
+        { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
+      ])
+      .exec();
+    return result[0]?.totalSales || 0;
+  }
+
+  async getSalesByMonth(
+    monthsBack: number,
+    year: number,
+    session?: mongoose.ClientSession,
+  ): Promise<{ month: number; total: number; count: number }[]> {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const results = await this.salesModel
+      .aggregate([
+        { $match: { saleDate: { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: { $month: "$saleDate" },
+            total: { $sum: "$totalAmount" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ])
+      .session(session ?? null);
+
+    return results.map((r) => ({
+      month: r._id,
+      total: r.total,
+      count: r.count,
+    }));
+  }
+  async getTotalSalesInRange(
+    startDate: Date,
+    endDate: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const [result] = await this.salesModel
+      .aggregate([
+        { $match: { saleDate: { $gte: startDate, $lte: endDate } } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ])
+      .session(session ?? null);
+    return result?.total ?? 0;
+  }
 }

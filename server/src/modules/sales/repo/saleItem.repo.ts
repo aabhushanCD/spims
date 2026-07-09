@@ -1,7 +1,8 @@
-import type mongoose from "mongoose";
+import mongoose from "mongoose";
 import { Types } from "mongoose";
 import type { ISalesItem } from "../model/salesItem.model.ts";
 import type SaleItem from "../model/salesItem.model.ts";
+import { Mongoose } from "mongoose";
 export class SaleItemRepo {
   // Implementation for sale item repository
 
@@ -85,5 +86,79 @@ export class SaleItemRepo {
         .exec();
     }
     return this.saleItemModel.findByIdAndDelete(saleItemId).lean().exec();
+  }
+
+  async getTopSellingMedicines(
+    limit: number,
+    session?: mongoose.ClientSession,
+  ): Promise<
+    { medicineId: string; totalQuantitySold: number; totalRevenue: number }[]
+  > {
+    const results = await this.saleItemModel
+      .aggregate([
+        {
+          $group: {
+            _id: "$medicineId",
+            totalQuantitySold: { $sum: "$quantity" },
+            totalRevenue: { $sum: "$totalPrice" },
+          },
+        },
+        { $sort: { totalQuantitySold: -1 } },
+        { $limit: limit },
+      ])
+      .session(session ?? null);
+
+    return results.map((r) => ({
+      medicineId: r._id.toString(),
+      totalQuantitySold: r.totalQuantitySold,
+      totalRevenue: r.totalRevenue,
+    }));
+  }
+
+  async getDailySalesForMedicine(
+    medicineId: string,
+    days: number,
+    session?: mongoose.ClientSession,
+  ): Promise<number[]> {
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    startDate.setHours(0, 0, 0, 0);
+
+    const results = await this.saleItemModel
+      .aggregate([
+        { $match: { medicineId: new mongoose.Types.ObjectId(medicineId) } },
+        {
+          $lookup: {
+            from: "sales",
+            localField: "salesId",
+            foreignField: "_id",
+            as: "sale",
+          },
+        },
+        { $unwind: "$sale" },
+        { $match: { "sale.saleDate": { $gte: startDate, $lte: endDate } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$sale.saleDate" },
+            },
+            totalQuantity: { $sum: "$quantity" },
+          },
+        },
+      ])
+      .session(session ?? null);
+
+    // Zero-fill days with no sales so the array always has exactly `days` entries
+    const salesByDate = new Map(results.map((r) => [r._id, r.totalQuantity]));
+    const dailySales: number[] = [];
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const key = date.toISOString().slice(0, 10);
+      dailySales.push(salesByDate.get(key) ?? 0);
+    }
+    return dailySales; // index 0 = oldest (day 1), last index = today (day 30)
   }
 }

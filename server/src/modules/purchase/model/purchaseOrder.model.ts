@@ -8,6 +8,7 @@ export interface IPurchaseOrder extends Document {
   invoiceNumber: string;
   invoiceFile: string;
   totalAmount: number;
+  receivedDate?: Date;
   status: "pending" | "approved" | "received" | "cancelled";
   VAT: number;
   discount: number;
@@ -27,6 +28,7 @@ const purchaseSchema = new Schema<IPurchaseOrder>(
     invoiceNumber: { type: String, required: true },
     invoiceFile: { type: String, required: true },
     totalAmount: { type: Number, required: true },
+    receivedDate: { type: Date},
     status: {
       type: String,
       enum: ["pending", "approved", "received", "cancelled"],

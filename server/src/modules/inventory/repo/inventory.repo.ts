@@ -52,4 +52,53 @@ export class InventoryRepo {
     }
     return await this.inventoryModel.findByIdAndDelete(id).exec();
   }
+
+  async getTotalInventoryValue(
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const [result] = await this.inventoryModel
+      .aggregate([
+        {
+          $lookup: {
+            from: "medicinebatches",
+            localField: "medicineId",
+            foreignField: "medicineId",
+            as: "batches",
+          },
+        },
+        { $unwind: { path: "$batches", preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $multiply: [
+                  "$batches.quantityRemaining",
+                  "$batches.sellingPrice",
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .session(session ?? null);
+    return result?.total ?? 0;
+  }
+
+  async getLowStockCount(
+    threshold: number,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    return this.inventoryModel
+      .countDocuments({ availableStock: { $lte: threshold, $gt: 0 } })
+      .session(session ?? null)
+      .exec();
+  }
+
+  async getOutOfStockCount(session?: mongoose.ClientSession): Promise<number> {
+    return this.inventoryModel
+      .countDocuments({ availableStock: { $lte: 0 } })
+      .session(session ?? null)
+      .exec();
+  }
 }

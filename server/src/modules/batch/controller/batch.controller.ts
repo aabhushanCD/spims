@@ -30,7 +30,29 @@ export class BatchController {
     const batches = await this.batchService.getAllBatches();
     res.status(200).json({ success: true, data: batches });
   });
+  // GET /batches/expired/awaiting-disposal
+  getExpiredAwaitingDisposal = asyncHandler(
+    async (_req: Request, res: Response) => {
+      const batches = await this.batchService.getExpiredAwaitingDisposal();
+      res.status(200).json({ success: true, data: batches });
+    },
+  );
 
+  // POST /batches/:id/confirm-disposal
+  // body: { remarks? }
+  confirmDisposal = asyncHandler(async (req: Request, res: Response) => {
+    const performedBy = req.user?.userId;
+    if (!performedBy)
+      throw AppError.unauthorized("Authenticated user required");
+
+    const { remarks } = req.body ?? {};
+    const updated = await this.batchService.confirmDisposal(
+      req.params.id as string,
+      performedBy,
+      remarks,
+    );
+    res.status(200).json({ success: true, data: updated });
+  });
   // GET /batches/medicine/:medicineId/available
   getAvailableBatches = asyncHandler(async (req: Request, res: Response) => {
     const batches = await this.batchService.getAvailableBatches(

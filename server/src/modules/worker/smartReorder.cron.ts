@@ -1,6 +1,7 @@
 // smartReorder.cron.ts
 import cron from "node-cron";
-import { smartReorderService } from "../smartReorder/smartReorder.module.ts";
+import { smartReorderService } from "../../app/container.ts";
+
 export function scheduleSmartReorderJob() {
   // Runs once daily at 2 AM server time
   cron.schedule("0 2 * * *", async () => {
