@@ -41,4 +41,14 @@ export class AuthController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  async getCurrentUser(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      const user = await this.authService.getCurrentUser(userId as string);
+      res.json(user);
+    } catch (error: any) {
+      res.status(404).json({ error: error.message });
+    }
+  }
 }

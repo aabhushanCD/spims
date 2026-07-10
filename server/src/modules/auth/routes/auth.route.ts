@@ -20,4 +20,8 @@ router.post("/logout", verifyToken, (req, res) => {
   authController.logoutUser(req, res);
 });
 
+router.get("/me", verifyToken, (req, res) => {
+  authController.getCurrentUser(req, res);
+});
+
 export default router;

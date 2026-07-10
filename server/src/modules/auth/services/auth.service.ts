@@ -61,4 +61,12 @@ export class AuthService {
     const newAccessToken = "newAccessToken"; // Replace with actual token generation logic
     return { accessToken: newAccessToken };
   }
+
+  async getCurrentUser(userId: string) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw this.appError.notFound("User not found");
+    }
+    return user;
+  }
 }
