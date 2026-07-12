@@ -1,7 +1,16 @@
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Sidebar from "@/components/Sidebar";
+// import ProtectedRoute from "@/components/ProtectedRoute";
+
 import Login from "@/features/auth/pages/login.page";
 import Signup from "@/features/auth/pages/Signup";
+
+import DashboardLayout from "@/features/dashboard/layouts/DashboardLayout";
+import Dashboard from "@/features/dashboard/pages/Dashboard.page";
+import BrandPage from "@/features/genericName/pages/BrandPage";
+import CategoryPage from "@/features/genericName/pages/CategoryPage";
+import GenericNamePage from "@/features/genericName/pages/GenericNamePage";
+import UnitPage from "@/features/genericName/pages/UnitPage";
+import MedicinePage from "@/features/medicine/pages/Medicine.page";
+import SupplierPage from "@/features/seller/pages/SupplierPage";
 import { BrowserRouter, Routes, Route } from "react-router";
 
 export default function AppRoutes() {
@@ -11,7 +20,18 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
-        <Route path="/" element={<ProtectedRoute><Sidebar/></ProtectedRoute>} />
+        <Route path="/" element={<DashboardLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="/medicines" element={<MedicinePage />} />
+          <Route path="/generic-names" element={<GenericNamePage />} />
+
+          <Route path="/categories" element={<CategoryPage />} />
+
+          <Route path="/brands" element={<BrandPage />} />
+
+          <Route path="/units" element={<UnitPage />} />
+          <Route path="/suppliers" element={<SupplierPage />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
