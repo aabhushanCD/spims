@@ -129,6 +129,10 @@ export default function Sidebar() {
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-red-500 hover:text-red-600"
+          onClick={() => {
+            
+            // Handle logout logic here
+          }
         >
           <LogOut size={18} />
           Logout

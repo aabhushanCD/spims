@@ -1,10 +1,14 @@
+import { useAuth } from "./features/auth/context/authContext";
 import AppRoutes from "./routes/appRoutes";
 import { ToastContainer } from 'react-toastify';
 function App() {
+  const { theme } = useAuth();
   return (
     <>
-      <ToastContainer />
-      <AppRoutes />
+      <div className={` ${theme === "dark" ? "dark" : ""}`}>
+        <ToastContainer />
+        <AppRoutes />
+      </div>
     </>
   );
 }

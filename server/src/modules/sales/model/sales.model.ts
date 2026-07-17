@@ -3,7 +3,6 @@ import { Document, Schema, model, Types } from "mongoose";
 export interface ISales extends Document {
   invoiceNumber: string;
   customerName: string;
-
   subTotal: number;
   VAT: number;
   discount: number;
@@ -11,6 +10,7 @@ export interface ISales extends Document {
   paymentMethod: string;
   cashierId: Types.ObjectId;
   saleDate: Date;
+  status: "COMPLETED" | "PARTIALLY_RETURNED" | "RETURNED" | "CANCELLED" | "PENDING";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +26,7 @@ const salesSchema = new Schema<ISales>(
     paymentMethod: { type: String, required: true },
     cashierId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     saleDate: { type: Date, required: true },
+    status: { type: String, enum: ["COMPLETED", "PARTIALLY_RETURNED", "RETURNED", "CANCELLED", "PENDING"], default: "PENDING" },
   },
   { timestamps: true },
 );

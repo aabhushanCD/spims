@@ -41,36 +41,52 @@ export class PurchaseOrderService {
 
       const { items, ...purchaseOrderData } = data;
 
+      const totalAmount = items.reduce(
+        (sum, item) => sum + item.quantity * item.purchasePrice,
+        0,
+      );
+
+      const purchaseOrderPayload = {
+        ...purchaseOrderData,
+        supplierId: new Types.ObjectId(data.supplierId),
+        totalAmount,
+        ...(purchaseOrderData.orderDate !== undefined
+          ? { orderDate: purchaseOrderData.orderDate }
+          : {}),
+      };
+
       const purchaseOrder = await this.purchaseOrderRepo.create(
-        {
-          ...purchaseOrderData,
-          supplierId: new Types.ObjectId(data.supplierId),
-          orderDate: new Date(data.orderDate),
-        },
+        purchaseOrderPayload,
         session,
       );
 
       for (const item of data.items) {
-        await this.purchaseOrderItemRepo.create({
-          purchaseOrderId: purchaseOrder._id.toString(),
-          ...item,
-        });
+        await this.purchaseOrderItemRepo.create(
+          {
+            purchaseOrderId: purchaseOrder._id.toString(),
+            ...item,
+          },
+          session,
+        );
       }
-      await this.recalculateTotals(purchaseOrder._id.toString());
-    } finally {
       await session.commitTransaction();
+      return purchaseOrder;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
       await session.endSession();
     }
   }
 
-  async getPurchaseOrderById(id: string) {
-    const purchaseOrder = await this.purchaseOrderRepo.findById(id);
+  // async getPurchaseOrderById(id: string) {
+  //   const purchaseOrder = await this.purchaseOrderRepo.findById(id);
 
-    if (!purchaseOrder) {
-      throw this.appError.notFound("Purchase order not found");
-    }
-    return purchaseOrder;
-  }
+  //   if (!purchaseOrder) {
+  //     throw this.appError.notFound("Purchase order not found");
+  //   }
+  //   return purchaseOrder;
+  // }
 
   async getAllPurchaseOrderItems(purchaseOrderId: string) {
     const purchaseOrder =
@@ -92,7 +108,55 @@ export class PurchaseOrderService {
     }
     return this.purchaseOrderRepo.findBySupplierId(supplierId);
   }
+  async getPurchaseOrderById(id: string) {
+    const purchase = await this.purchaseOrderRepo.findByIdWithSupplier(id);
 
+    if (!purchase) {
+      throw this.appError.notFound("Purchase Order not found");
+    }
+
+    const items = await this.purchaseOrderItemRepo.findByPurchaseOrderId(id);
+
+    return {
+      _id: purchase._id,
+
+      supplier: purchase.supplierId,
+
+      orderDate: purchase.orderDate,
+
+      expectedDeliveryDate: purchase.expectedDeliveryDate,
+
+      invoiceNumber: purchase.invoiceNumber,
+
+      invoiceFile: purchase.invoiceFile,
+
+      totalAmount: purchase.totalAmount,
+
+      receivedDate: purchase.receivedDate,
+
+      status: purchase.status,
+
+      VAT: purchase.VAT,
+
+      discount: purchase.discount,
+
+      createdAt: purchase.createdAt,
+
+      updatedAt: purchase.updatedAt,
+
+      items: items.map((item) => ({
+        _id: item._id,
+
+        medicine: item.medicineId,
+
+        quantity: item.quantity,
+
+        purchasePrice: item.purchasePrice,
+
+        subtotal: item.quantity * item.purchasePrice,
+      })),
+    };
+  }
   async deletePurchaseOrder(id: string) {
     const existing = await this.purchaseOrderRepo.findById(id);
 
@@ -283,6 +347,7 @@ export class PurchaseOrderService {
       const purchaseOrderItems =
         await this.purchaseOrderItemRepo.findByPurchaseOrderId(purchaseOrderId);
 
+        
       if (!purchaseOrderItems.length) {
         throw this.appError.badRequest(
           "Cannot receive a purchase order with no items",
@@ -291,6 +356,7 @@ export class PurchaseOrderService {
       const batchMap = new Map(
         data.items.map((item) => [item.medicineId, item]),
       );
+
       const ids = data.items.map((i) => i.medicineId);
 
       if (new Set(ids).size !== ids.length) {
@@ -298,9 +364,14 @@ export class PurchaseOrderService {
           "Duplicate medicine found in batch data",
         );
       }
+      if (data.items.length !== purchaseOrderItems.length) {
+        throw this.appError.badRequest(
+          "Batch data does not match purchase order",
+        );
+      }
       for (const poItem of purchaseOrderItems) {
-        const batch = batchMap.get(poItem.medicineId.toString());
-
+        const batch = batchMap.get(poItem.medicineId._id.toString());
+       
         if (!batch) {
           throw this.appError.badRequest(
             `No batch data provided for medicine with ID ${poItem.medicineId}`,
@@ -316,14 +387,10 @@ export class PurchaseOrderService {
             "Selling price cannot be less than purchase price",
           );
         }
-        if (data.items.length !== purchaseOrderItems.length) {
-          throw this.appError.badRequest(
-            "Batch data does not match purchase order",
-          );
-        }
+
         const batchRecord = await this.batchService.createBatch(
           {
-            medicineId: poItem.medicineId.toString(),
+            medicineId: poItem.medicineId._id.toString(),
             purchaseOrderId,
             batchNumber: batch.batchNumber,
             manufacturingDate: batch.manufacturingDate,
@@ -335,10 +402,11 @@ export class PurchaseOrderService {
           },
           session,
         );
+        
         await this.inventoryService.syncInventoryFromBatch(
-          poItem.medicineId.toString(),
+          poItem.medicineId._id.toString(),
           {
-            batchId: batchRecord._id.toString(),
+            batchId: batchRecord.id,
             movementType: "PURCHASE",
             referenceId: purchaseOrderId,
             referenceType: "PURCHASE_ORDER",
@@ -348,10 +416,12 @@ export class PurchaseOrderService {
           session,
         );
       }
+
       await this.purchaseOrderRepo.update(
         purchaseOrderId,
         {
           status: "received",
+          receivedDate: new Date(),
         },
         session,
       );

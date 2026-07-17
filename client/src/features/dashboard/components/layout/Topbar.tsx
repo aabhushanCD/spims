@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import {  ChevronDown,  Moon, Search } from "lucide-react";
+import { ChevronDown, Moon, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,15 +14,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import NotificationDropdown from "@/components/dashboard/NotificationDropdown";
 import MobileSidebar from "@/components/MobileSidebar";
+import { useAuth } from "@/features/auth/context/authContext";
 
 export default function Topbar() {
+  const { currentUser, toggleTheme, theme } = useAuth();
   return (
-    <header className="bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md">
+    <header className={`bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md ${theme === "dark" ? "gray text-white " : ""}`}>
       {/* Left */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <MobileSidebar />
-        </Button>
+        <MobileSidebar />
 
         <div className="hidden md:flex md:w-96">
           <div className="relative w-full">
@@ -46,31 +46,34 @@ export default function Topbar() {
           </p>
         </div>
 
-        <Button variant="ghost" size="icon" className="relative">
-          <NotificationDropdown  />
+       
+          <NotificationDropdown />
 
-          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500" />
-        </Button>
+          
 
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
           <Moon className="h-5 w-5" />
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" className="gap-2 px-2"></Button>}
-          >
-            <Avatar className="h-9 w-9">
-              <AvatarFallback>AD</AvatarFallback>
-            </Avatar>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="flex items-center gap-2 px-2">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback>
+                  {currentUser?.name[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
 
-            <div className="hidden text-left md:block">
-              <p className="text-sm font-medium">Admin</p>
+              <div className="hidden text-left md:block">
+                <p className="text-sm font-medium">{currentUser?.name}</p>
 
-              <p className="text-muted-foreground text-xs">Owner</p>
-            </div>
+                <p className="text-muted-foreground text-xs">
+                  {currentUser?.role}
+                </p>
+              </div>
 
-            <ChevronDown className="hidden h-4 w-4 md:block" />
+              <ChevronDown className="hidden h-4 w-4 md:block" />
+            </Button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-56">

@@ -33,7 +33,7 @@ export class MedicineService {
       }
     }
     const existingMedicine = await this.medicineRepo.findByNameAndStrength(
-      medicineData.name,
+      medicineData.medicineName,
       medicineData.strength,
       medicineData.brandId,
     );
@@ -47,6 +47,12 @@ export class MedicineService {
     return this.medicineRepo.create(medicineData);
   }
 
+  async searchMedicines(query: string) {
+    return await this.medicineRepo.searchMedicines(query);
+  }
+
+ 
+
   async getMedicineById(id: string) {
     const medicine = await this.medicineRepo.findById(id);
     if (!medicine) {
@@ -55,9 +61,7 @@ export class MedicineService {
     return medicine;
   }
 
-  async getAllMedicines() {
-    return this.medicineRepo.findAll();
-  }
+  
 
   async updateMedicine(id: string, updateData: UpdateMedicineDto) {
     await this.getMedicineById(id);
@@ -93,5 +97,9 @@ export class MedicineService {
     const medicine = await this.getMedicineById(id);
 
     return this.medicineRepo.update(id, { isActive: false });
+  }
+
+  async getMedicines() {
+    return await this.medicineRepo.findAllWithInventory();
   }
 }

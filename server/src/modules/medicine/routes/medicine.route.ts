@@ -13,9 +13,15 @@ router.post("/", validate(createMedicineSchema), (req, res) => {
   medicineController.createMedicine(req, res);
 });
 
+router.get("/search", (req, res) => {
+  medicineController.searchMedicines(req, res);
+});
+
 router.get("/:id", (req, res) => {
   medicineController.getMedicineById(req, res);
 });
+
+
 
 router.get("/", (req, res) => {
   medicineController.getAllMedicines(req, res);

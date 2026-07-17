@@ -1,3 +1,4 @@
+import type mongoose from "mongoose";
 import type { IPurchaseOrderItem } from "../model/purchaseOrderItem.model.ts";
 import type PurchaseOrderItem from "../model/purchaseOrderItem.model.ts";
 import type {
@@ -12,10 +13,14 @@ export class PurchaseOrderItemRepo {
 
   async create(
     purchaseOrderItemData: CreatePurchaseOrderItemDto,
+    session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem> {
     const purchaseOrderItem = new this.purchaseOrderItemModel(
       purchaseOrderItemData,
     );
+    if (session) {
+      await purchaseOrderItem.save({ session });
+    }
     return await purchaseOrderItem.save();
   }
 
@@ -28,9 +33,11 @@ export class PurchaseOrderItemRepo {
   ): Promise<IPurchaseOrderItem[]> {
     return await this.purchaseOrderItemModel
       .find({ purchaseOrderId })
+      .populate("medicineId")
       .lean()
       .exec();
   }
+  
   
   async findByPurchaseOrderAndMedicine(
     purchaseOrderId: string,

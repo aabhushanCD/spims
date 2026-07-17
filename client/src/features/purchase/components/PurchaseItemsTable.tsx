@@ -17,13 +17,13 @@ export default function PurchaseItemsTable({ form, fieldArray }: Props) {
 
   const items = form.watch("items");
 
-  const grandTotal = items.reduce(
+  const grandTotal = items?.reduce(
     (total, item) => total + item.quantity * item.purchasePrice,
     0,
   );
 
   return (
-    <Card>
+    <Card className="">
       <CardHeader>
         <CardTitle>Purchase Items</CardTitle>
       </CardHeader>
@@ -79,7 +79,7 @@ export default function PurchaseItemsTable({ form, fieldArray }: Props) {
 
         <div className="flex justify-end border-t pt-4">
           <div className="text-lg font-bold">
-            Grand Total: Rs. {grandTotal.toFixed(2)}
+            Grand Total: Rs. {grandTotal?.toFixed(2)}
           </div>
         </div>
       </CardContent>

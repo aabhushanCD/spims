@@ -5,6 +5,7 @@ export class PurchaseController {
   constructor(private readonly purchaseService: PurchaseOrderService) {}
 
   async createPurchaseOrder(req: Request, res: Response) {
+    console.log("Request body:", req.body);
     try {
       const purchaseOrder = await this.purchaseService.createPurchaseOrder(
         req.body,
@@ -35,7 +36,6 @@ export class PurchaseController {
       });
     }
   }
- 
 
   async getPurchaseOrderById(req: Request, res: Response) {
     try {

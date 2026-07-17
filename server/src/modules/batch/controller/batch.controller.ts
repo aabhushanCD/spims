@@ -23,8 +23,13 @@ export class BatchController {
   getBatchById = asyncHandler(async (req: Request, res: Response) => {
     const batch = await this.batchService.getBatchById(req.params.id as string);
     res.status(200).json({ success: true, data: batch });
+  }); 
+  getBatchByMedicineId = asyncHandler(async (req: Request, res: Response) => {
+    const batch = await this.batchService.getBatchByMedicineId(
+      req.params.medicineId as string,
+    );
+    res.status(200).json({ success: true, data: batch });
   });
-
   // GET /batches
   getAllBatches = asyncHandler(async (_req: Request, res: Response) => {
     const batches = await this.batchService.getAllBatches();

@@ -13,17 +13,13 @@ import { verifyToken } from "../shared/middleware/verifyToken.js";
 import inventoryRoutes from "./inventory/routes/inventory.routes.ts";
 import supplierRoutes from "./supplier/routes/supplier.route.js";
 import purchaseRoutes from "./purchase/routes/purchase.route.js";
-import { buildSalesRouter } from "./sales/routes/sales.routes.ts";
+import salesRoutes from "./sales/routes/sales.routes.ts";
 import { buildSaleItemRouter } from "./sales/routes/saleItem.routes.ts";
 import { buildReturnRouter } from "./sales/routes/return.routes.ts";
 import reportRoutes from "./smartReorder/routes/smartReorder.routes.ts";
 import notificationRoutes from "./notification/routes/notification.routes.ts";
 import dashboardRoutes from "./dashboard/routes/dashboard.routes.ts";
-import {
-  returnController,
-  saleController,
-  saleItemController,
-} from "../app/container.ts";
+import { returnController, saleItemController } from "../app/container.ts";
 
 const router = express.Router();
 
@@ -35,31 +31,31 @@ router.use("/users", verifyToken, authorize(["owner"]), userRoutes);
 router.use(
   "/medicines",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   medicineRoutes,
 );
 router.use(
   "/units",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   unitRoutes,
 );
 router.use(
   "/categories",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   categoryRoutes,
 );
 router.use(
   "/brands",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   brandRoutes,
 );
 router.use(
   "/generic-names",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   genericNameRoutes,
 );
 
@@ -68,7 +64,7 @@ router.use(
 router.use(
   "/suppliers",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   supplierRoutes,
 );
 
@@ -77,7 +73,7 @@ router.use(
 router.use(
   "/purchases",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   purchaseRoutes,
 );
 
@@ -86,15 +82,31 @@ router.use(
 router.use(
   "/inventory",
   verifyToken,
-  authorize(["owner", "inventory-manager"]),
+  authorize(["owner", "inventory-manager", "pharmacist"]),
   inventoryRoutes,
 );
 
 // sales routes
 
-router.use("/sales", buildSalesRouter(saleController));
-router.use("/sale-items", buildSaleItemRouter(saleItemController));
-router.use("/returns", buildReturnRouter(returnController));
+router.use(
+  "/sales",
+  verifyToken,
+  authorize(["owner", "inventory-manager", "pharmacist"]),
+  salesRoutes,
+);
+
+router.use(
+  "/sale-items",
+  verifyToken,
+  authorize(["owner", "inventory-manager", "pharmacist"]),
+  buildSaleItemRouter(saleItemController),
+);
+router.use(
+  "/returns",
+  verifyToken,
+  authorize(["owner", "inventory-manager", "pharmacist"]),
+  buildReturnRouter(returnController),
+);
 
 // smart reorder routes
 

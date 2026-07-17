@@ -1,10 +1,9 @@
 import { Schema, model, Document, Types } from "mongoose";
 
 export interface IPurchaseOrder extends Document {
-  _id: Types.ObjectId;
   supplierId: Types.ObjectId;
   orderDate: Date;
-  expectedDeliveryDate: Date;
+  expectedDeliveryDate?: Date;
   invoiceNumber: string;
   invoiceFile: string;
   totalAmount: number;
@@ -24,17 +23,18 @@ const purchaseSchema = new Schema<IPurchaseOrder>(
       required: true,
     },
     orderDate: { type: Date, required: true },
-    expectedDeliveryDate: { type: Date, required: true },
+    expectedDeliveryDate: { type: Date },
     invoiceNumber: { type: String, required: true },
-    invoiceFile: { type: String, required: true },
+    invoiceFile: { type: String, required: false },
     totalAmount: { type: Number, required: true },
-    receivedDate: { type: Date},
+    receivedDate: { type: Date },
     status: {
       type: String,
       enum: ["pending", "approved", "received", "cancelled"],
+      required: true,
       default: "pending",
     },
-    VAT: { type: Number, default: 0 },
+    VAT: { type: Number, default: 13 },
     discount: { type: Number, default: 0 },
   },
   { timestamps: true },

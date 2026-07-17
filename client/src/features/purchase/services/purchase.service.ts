@@ -1,4 +1,5 @@
 import { api } from "@/api/fetch.api";
+import type { ReceivePurchaseForm } from "../schema/receivePurchase.schema";
 
 const createPurchaseOrder = async (purchaseOrderData: any) => {
   const response = await api.post("/purchases", purchaseOrderData);
@@ -7,7 +8,7 @@ const createPurchaseOrder = async (purchaseOrderData: any) => {
 
 const getPurchaseOrders = async () => {
   const response = await api.get("/purchases");
-  return response.data;
+  return response.data.data;
 };
 
 const getPurchaseOrderById = async (id: string) => {
@@ -25,10 +26,22 @@ const deletePurchaseOrder = async (id: string) => {
   return response.data;
 };
 
+const receivePurchase = async (id: string, data: ReceivePurchaseForm) => {
+  const response = await api.post(`/purchases/${id}/receive`, data);
+  return response.data;
+};
+
+const approvePurchaseOrder = async (id: string) => {
+  const response = await api.patch(`/purchases/${id}/approve`);
+  return response.data;
+};
+
 export const purchaseService = {
   createPurchaseOrder,
   getPurchaseOrders,
   getPurchaseOrderById,
   updatePurchaseOrder,
   deletePurchaseOrder,
+  receivePurchase,
+  approvePurchaseOrder,
 };

@@ -7,7 +7,7 @@ interface Props {
 
 export default function PurchaseFooter({ isLoading, onCancel }: Props) {
   return (
-    <div className="flex justify-end gap-3 border-t pt-6">
+    <div className="flex justify-end gap-3 border-t pt-6 ">
       <Button
         type="button"
         variant="outline"
@@ -19,10 +19,6 @@ export default function PurchaseFooter({ isLoading, onCancel }: Props) {
 
       <Button type="submit" disabled={isLoading}>
         {isLoading ? "Saving..." : "Draft Purchase"}
-      </Button>
-
-      <Button type="submit" disabled={isLoading}>
-        {isLoading ? "Placing..." : "Place Order"}
       </Button>
     </div>
   );

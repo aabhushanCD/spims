@@ -16,11 +16,24 @@ export class InventoryRepo {
     return await inventory.save();
   }
 
-  async findById(id: string): Promise<IInventory | null> {
+  async findById(id: string,session?: mongoose.ClientSession): Promise<IInventory | null> {
+    if (session) {
+      return await this.inventoryModel.findById(id).session(session).exec();
+    }
     return await this.inventoryModel.findById(id).exec();
   }
 
-  async findByMedicineId(medicineId: string): Promise<IInventory | null> {
+  async findByMedicineId(
+    medicineId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory | null> {
+    if (session) {
+      return await this.inventoryModel
+        .findOne({ medicineId })
+        .session(session)
+        .exec();
+    }
+
     return await this.inventoryModel.findOne({ medicineId }).exec();
   }
 
@@ -100,5 +113,117 @@ export class InventoryRepo {
       .countDocuments({ availableStock: { $lte: 0 } })
       .session(session ?? null)
       .exec();
+  }
+
+  async searchMedicines(query: string) {
+    return this.inventoryModel.aggregate([
+      // Only medicines with stock
+      {
+        $match: {
+          availableStock: { $gt: 0 },
+        },
+      },
+
+      // Join medicine
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "medicineId",
+          foreignField: "_id",
+          as: "medicine",
+        },
+      },
+      {
+        $unwind: "$medicine",
+      },
+
+      // Search by medicine fields
+      {
+        $match: {
+          $or: [
+            {
+              "medicine.medicineName": {
+                $regex: query,
+                $options: "i",
+              },
+            },
+            {
+              "medicine.strength": {
+                $regex: query,
+                $options: "i",
+              },
+            },
+            {
+              "medicine.barcode": {
+                $regex: query,
+                $options: "i",
+              },
+            },
+          ],
+        },
+      },
+
+      // Fetch the first FEFO batch
+      {
+        $lookup: {
+          from: "batches",
+          let: {
+            medicineId: "$medicineId",
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$medicineId", "$$medicineId"],
+                },
+                quantityRemaining: {
+                  $gt: 0,
+                },
+                isExpired: false,
+              },
+            },
+            {
+              $sort: {
+                expiryDate: 1, // FEFO
+              },
+            },
+            {
+              $limit: 1,
+            },
+          ],
+          as: "nextBatch",
+        },
+      },
+
+      {
+        $unwind: "$nextBatch",
+      },
+
+      // Return only required fields
+      {
+        $project: {
+          _id: 1,
+          medicineId: 1,
+          currentStock: 1,
+          availableStock: 1,
+
+          medicine: {
+            _id: "$medicine._id",
+            medicineName: "$medicine.medicineName",
+            strength: "$medicine.strength",
+            dosageForm: "$medicine.dosageForm",
+            barcode: "$medicine.barcode",
+          },
+
+          nextBatch: {
+            _id: "$nextBatch._id",
+            batchNumber: "$nextBatch.batchNumber",
+            expiryDate: "$nextBatch.expiryDate",
+            sellingPrice: "$nextBatch.sellingPrice",
+            quantityRemaining: "$nextBatch.quantityRemaining",
+          },
+        },
+      },
+    ]);
   }
 }

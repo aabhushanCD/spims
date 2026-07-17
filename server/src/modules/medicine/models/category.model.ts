@@ -1,14 +1,11 @@
 import { model, Document, Schema, Types } from "mongoose";
 
 export interface ICategory extends Document {
-  _id: Types.ObjectId;
+ 
   name: string;
   description?: string;
   isActive: boolean;
-  createdBy: Types.ObjectId;
-  updatedBy?: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
+
 }
 
 const CategorySchema = new Schema(
@@ -28,15 +25,6 @@ const CategorySchema = new Schema(
     isActive: {
       type: Boolean,
       default: true,
-    },
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    updatedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
     },
   },
   {

@@ -29,7 +29,18 @@ export class PurchaseOrderRepo {
     if (session) {
       return await this.purchaseOrderModel.find().session(session).exec();
     }
-    return await this.purchaseOrderModel.find().exec();
+    return await this.purchaseOrderModel
+      .find()
+      .populate("supplierId", "companyName")
+      .lean();
+  }
+  
+  async findByIdWithSupplier(id: string): Promise<IPurchaseOrder | null> {
+    return await this.purchaseOrderModel
+      .findById(id)
+      .populate("supplierId")
+      .lean()
+      .exec();
   }
 
   async findBySupplierId(

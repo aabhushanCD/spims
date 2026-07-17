@@ -8,8 +8,14 @@ export class SalesRepo {
     salesData: Partial<ISales>,
     session?: mongoose.ClientSession,
   ): Promise<ISales> {
-    const sales = new this.salesModel(salesData, { session });
-    return await sales.save();
+    if (session) {
+      const sales = new this.salesModel(salesData);
+      await sales.save({ session });
+      return sales;
+    }
+    const sales = new this.salesModel(salesData);
+    await sales.save();
+    return sales;
   }
 
   async findById(
@@ -24,9 +30,18 @@ export class SalesRepo {
 
   async findAll(session?: mongoose.ClientSession): Promise<ISales[]> {
     if (session) {
-      return this.salesModel.find().session(session).lean().exec();
+      return this.salesModel
+        .find()
+        .populate("cashierId", "name email role")
+        .session(session)
+        .lean()
+        .exec();
     }
-    return this.salesModel.find().lean().exec();
+    return this.salesModel
+      .find()
+      .populate("cashierId", "name email role")
+      .lean()
+      .exec();
   }
 
   async update(

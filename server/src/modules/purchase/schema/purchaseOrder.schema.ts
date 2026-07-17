@@ -2,7 +2,23 @@ import { z } from "zod";
 
 export const createPurchaseOrderSchema = z.object({
   supplierId: z.string().nonempty("Supplier ID is required"),
-  orderDate: z.string().nonempty("Order date is required"),
+  orderDate: z.coerce.date(),
+  expectedDeliveryDate: z.coerce.date(),
+  invoiceNumber: z.string().nonempty("Invoice number is required"),
+  discount: z
+    .number()
+    .nonnegative("Discount must be greater than or equal to zero")
+    .default(0),
+  invoiceFile: z.string().default(""),
+
+  receivedDate: z.coerce.date(),
+  status: z
+    .enum(["pending", "approved", "received", "cancelled"])
+    .default("pending"),
+  VAT: z
+    .number()
+    .nonnegative("VAT must be greater than or equal to zero")
+    .default(13),
   items: z.array(
     z.object({
       medicineId: z.string().nonempty("Medicine ID is required"),

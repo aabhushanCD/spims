@@ -11,7 +11,7 @@ export const generateJwtToken = (
 ): string => {
   try {
     const token: string = jwt.sign(payload, secret ,{
-        expiresIn: "15m"
+        expiresIn: "15d"
     });
     return token;
   } catch (error) {

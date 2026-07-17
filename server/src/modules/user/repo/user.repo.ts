@@ -1,6 +1,7 @@
 import type { Model } from "mongoose";
 import type { IUser } from "../model/user.model.js";
 import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
+import type mongoose from "mongoose";
 
 export class UserRepository {
   constructor(private readonly userModel: Model<IUser>) {}
@@ -10,7 +11,13 @@ export class UserRepository {
     return await user.save();
   }
 
-  async findById(id: string): Promise<IUser | null> {
+  async findById(
+    id: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IUser | null> {
+    if (session) {
+      return await this.userModel.findById(id).session(session).exec();
+    }
     return await this.userModel.findById(id).exec();
   }
 

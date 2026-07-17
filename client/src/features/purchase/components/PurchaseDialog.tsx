@@ -19,10 +19,14 @@ import { purchaseSchema, type PurchaseForm } from "../schema/purchase.schema";
 
 import { Button } from "@/components/ui/button";
 import { useCreatePurchase } from "../hooks/useCreatePurchase";
+import { useEffect } from "react";
+import { usePurchase } from "../hooks/usePurchase";
+import { useUpdatePurchase } from "../hooks/useUpdatePurchase";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  editingPurchase?: any | null;
 }
 
 const defaultValues: PurchaseForm = {
@@ -44,13 +48,44 @@ const defaultValues: PurchaseForm = {
   ],
 };
 
-
-export default function PurchaseDialog({ open, onOpenChange }: Props) {
+export default function PurchaseDialog({
+  open,
+  onOpenChange,
+  editingPurchase,
+}: Props) {
   const createPurchase = useCreatePurchase();
+
+  const purchase = usePurchase(editingPurchase?._id || undefined);
+  const updatePurchase = useUpdatePurchase();
   const form = useForm<PurchaseForm>({
     resolver: zodResolver(purchaseSchema) as Resolver<PurchaseForm>,
     defaultValues,
   });
+  console.log("dialog", purchase?.data?.data);
+
+  useEffect(() => {
+    if (!editingPurchase || !purchase.data.data) {
+      form.reset(defaultValues);
+      return;
+    }
+
+    form.reset({
+      supplierId: { ...purchase.data.supplierId },
+      VAT: purchase.data.data.VAT,
+      discount: purchase.data.data.discount,
+      orderDate: new Date(purchase.data.data.orderDate),
+      expectedDeliveryDate: new Date(purchase.data.data.expectedDeliveryDate),
+      receivedDate: new Date(purchase.data.data.receivedDate),
+      invoiceNumber: purchase.data.data.invoiceNumber,
+      invoiceFile: purchase.data.data.invoiceFile,
+      status: purchase.data.data.status,
+      items: purchase.data.data.items.map((item: any) => ({
+        medicineId: item.medicine.medicineName,
+        quantity: item.quantity,
+        purchasePrice: item.purchasePrice,
+      })),
+    });
+  }, [editingPurchase, purchase.data, form]);
 
   const fieldArray = useFieldArray({
     control: form.control,
@@ -58,20 +93,27 @@ export default function PurchaseDialog({ open, onOpenChange }: Props) {
   });
 
   async function onSubmit(values: PurchaseForm) {
-    await createPurchase.mutateAsync(values);
+    if (editingPurchase) {
+      await updatePurchase.mutateAsync({
+        id: editingPurchase._id,
+        data: values,
+      });
+    } else {
+      await createPurchase.mutateAsync(values);
+    }
 
     form.reset(defaultValues);
-
     onOpenChange(false);
   }
-  console.log("form", form.formState.errors);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="secondary">Create Purchase Order</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-6xl">
+      {!editingPurchase && (
+        <DialogTrigger asChild>
+          <Button variant="secondary">Create Purchase Order</Button>
+        </DialogTrigger>
+      )}
+      <DialogContent className="!max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Purchase Order</DialogTitle>
         </DialogHeader>

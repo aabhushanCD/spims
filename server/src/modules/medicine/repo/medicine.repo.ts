@@ -19,6 +19,21 @@ export class MedicineRepo {
     return this.medicineModel.findById(id).lean().exec();
   }
 
+  async searchMedicines(query: string): Promise<IMedicine[]> {
+    const regex = new RegExp(query, "i");
+    return this.medicineModel
+      .find({
+        $or: [
+          { medicineName: regex },
+          { strength: regex },
+          { manufacturer: regex },
+          { barcode: regex },
+        ],
+      })
+      .lean()
+      .exec();
+  }
+
   async findAll(): Promise<IMedicine[]> {
     return this.medicineModel.find().lean().exec();
   }
@@ -60,5 +75,106 @@ export class MedicineRepo {
       .findByIdAndUpdate(id, { updateData }, { new: true })
       .lean()
       .exec();
+  }
+  async findAllWithInventory() {
+    return this.medicineModel.aggregate([
+      {
+        $lookup: {
+          from: "Inventory",
+          localField: "_id",
+          foreignField: "medicineId",
+          as: "inventory",
+        },
+      },
+
+      {
+        $unwind: {
+          path: "$inventory",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $lookup: {
+          from: "genericnames",
+          localField: "genericNameId",
+          foreignField: "_id",
+          as: "genericName",
+        },
+      },
+
+      {
+        $unwind: "$genericName",
+      },
+
+      {
+        $lookup: {
+          from: "brands",
+          localField: "brandId",
+          foreignField: "_id",
+          as: "brand",
+        },
+      },
+
+      {
+        $unwind: "$brand",
+      },
+
+      {
+        $lookup: {
+          from: "categories",
+          localField: "categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+
+      {
+        $unwind: "$category",
+      },
+
+      {
+        $lookup: {
+          from: "units",
+          localField: "unitId",
+          foreignField: "_id",
+          as: "unit",
+        },
+      },
+
+      {
+        $unwind: "$unit",
+      },
+
+      {
+        $project: {
+          medicineName: 1,
+
+          strength: 1,
+
+          reorderLevel: 1,
+
+          manufacturer: 1,
+
+          barcode: 1,
+
+          genericName: "$genericName.name",
+
+          brand: "$brand.name",
+
+          category: "$category.name",
+
+          unit: "$unit.name",
+
+          currentStock: {
+            $ifNull: ["$inventory.currentStock", 0],
+          },
+
+          availableStock: {
+            $ifNull: ["$inventory.availableStock", 0],
+          },
+        },
+      },
+    ]);
   }
 }

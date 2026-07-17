@@ -9,7 +9,7 @@ export default function DashboardHeader() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="via-background flex flex-col gap-6 rounded-2xl border bg-linear-to-r from-emerald-50 to-cyan-50 p-6 shadow-sm md:flex-row md:items-center md:justify-between"
+      className="via-background  flex flex-col gap-6 rounded-2xl border bg-linear-to-r from-emerald-50 to-cyan-50 p-6 shadow-sm md:flex-row md:items-center md:justify-between"
     >
       {/* Welcome section */}
 

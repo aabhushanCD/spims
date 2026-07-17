@@ -9,10 +9,12 @@ import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
 import QuickActions from "@/components/dashboard/QuickActions";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import NotificationsPanel from "@/components/dashboard/NotificationsPanel";
+import { useAuth } from "@/features/auth/context/authContext";
 
 export default function Dashboard() {
+  const { theme } = useAuth();
   return (
-    <div className="space-y-8">
+    <div className={`space-y-8 ${theme === "dark" ? "dark" : ""}`}>
       {/* Header */}
       <DashboardHeader />
 

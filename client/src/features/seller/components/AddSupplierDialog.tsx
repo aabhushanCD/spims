@@ -34,9 +34,15 @@ import { Plus } from "lucide-react";
 
 interface Props {
   editingSupplier?: Supplier | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function AddSupplierDialog({ editingSupplier }: Props) {
+export default function AddSupplierDialog({
+  editingSupplier,
+  open,
+  onOpenChange,
+}: Props) {
   const createSupplier = useCreateSupplier();
   const updateSupplier = useUpdateSupplier();
 
@@ -71,6 +77,7 @@ export default function AddSupplierDialog({ editingSupplier }: Props) {
       });
     } else {
       form.reset();
+      onOpenChange?.(false);
     }
   }, [editingSupplier, form]);
 
@@ -83,13 +90,15 @@ export default function AddSupplierDialog({ editingSupplier }: Props) {
   }
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button className="gap-2 bg-emerald-600">
-          <Plus size={18} />
-          Add Supplier
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {!editingSupplier && (
+        <DialogTrigger asChild>
+          <Button className="gap-2 bg-emerald-600">
+            <Plus />
+            Add Supplier
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>

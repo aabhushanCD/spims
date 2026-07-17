@@ -5,6 +5,8 @@ import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
 import type { CreateInventoryMovementDto } from "../schema/inventoryMovement.schema.ts";
+type ReferenceType = "SALE" | "RETURN" | "ADJUSTMENT" | "SYSTEM" | "PURCHASE_ORDER";
+
 
 export class InventoryMovementService {
   constructor(
@@ -23,7 +25,7 @@ export class InventoryMovementService {
     const batchId = movementData.batchId.toString();
     const userId = movementData.performedBy.toString();
     const medicine = await this.medicineRepo.findById(medicineId);
-    const referenceType = movementData.referenceType || "SYSTEM"; // Default to "SYSTEM" if not provided
+    const referenceType: ReferenceType = movementData.referenceType; // Default to "SYSTEM" if not provided
     if (!medicine) {
       throw this.appError.notFound("Medicine not found");
     }
@@ -32,7 +34,7 @@ export class InventoryMovementService {
       throw this.appError.badRequest("Batch ID is required");
     }
 
-    const batch = await this.batchRepo.findById(batchId);
+    const batch = await this.batchRepo.findById(batchId,session);
 
     if (!batch) {
       throw this.appError.notFound("Batch not found");
@@ -42,11 +44,12 @@ export class InventoryMovementService {
         "Batch does not belong to the specified medicine",
       );
     }
-    const user = await this.userRepo.findById(userId);
+    const user = await this.userRepo.findById(userId,session);
 
     if (!user) {
       throw this.appError.notFound("User not found");
     }
+    console.log("Creating inventory movement:", movementData);
     return await this.inventoryMovementRepo.create(
       {
         medicineId: medicine._id,
@@ -54,6 +57,7 @@ export class InventoryMovementService {
         movementType: movementData.movementType,
         quantity: movementData.quantity,
         referenceId: new Types.ObjectId(movementData.referenceId),
+        referenceType: referenceType,
         performedBy: user._id,
         remarks: movementData.remarks,
       },

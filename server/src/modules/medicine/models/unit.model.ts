@@ -2,7 +2,7 @@ import { Schema, Document, model } from "mongoose";
 
 export interface IUnit extends Document {
   name: string;
-  abbreviation: string;
+  description: string;
   isActive: boolean;
 }
 
@@ -15,7 +15,7 @@ const unitSchema = new Schema<IUnit>(
       trim: true,
       maxlength: 100,
     },
-    abbreviation: {
+    description: {
       type: String,
       required: true,
       unique: true,

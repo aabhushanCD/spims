@@ -10,7 +10,7 @@ export const createSupplierSchema = z.object({
     .number()
     .int()
     .positive({ message: "Lead time must be a positive integer" }),
-  status: z.enum(["active", "inactive"]).default("active"),
+  status: z.enum(["active", "inActive"]).default("active"),
 });
 
 export const updateSupplierSchema = z.object({
@@ -30,7 +30,7 @@ export const updateSupplierSchema = z.object({
     .int()
     .positive({ message: "Lead time must be a positive integer" })
     .optional(),
-  status: z.enum(["active", "inactive"]).optional(),
+  status: z.enum(["active", "inActive"]).optional(),
 });
 
 export type CreateSupplierDto = z.infer<typeof createSupplierSchema>;

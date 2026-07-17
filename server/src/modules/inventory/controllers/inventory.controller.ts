@@ -68,6 +68,12 @@ export class InventoryController {
     res.status(201).json({ success: true, data: inventory });
   });
 
+  searchMedicines = asyncHandler(async (req: Request, res: Response) => {
+    const { query } = req.query as { query: string };
+    const medicines = await this.inventoryService.searchMedicines(query);
+    res.status(200).json({ success: true, data: medicines });
+  });
+
   // GET /inventory/:id
   getInventoryById = asyncHandler(async (req: Request, res: Response) => {
     const inventory = await this.inventoryService.getInventoryById(

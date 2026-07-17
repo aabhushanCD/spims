@@ -2,13 +2,13 @@ import { z } from "zod";
 
 export const CreateBrandSchema = z.object({
   name: z.string().min(1, { message: "Brand name is required" }),
-  manufacturer: z.string(),
+  description: z.string(),
   isActive: z.boolean().optional().default(true),
 });
 
 export const UpdateBrandSchema = z.object({
   name: z.string().min(1, { message: "Brand name is required" }).optional(),
-  manufacturer: z.string().optional(),
+  description: z.string().optional(),
   isActive: z.boolean().optional(),
 });
 

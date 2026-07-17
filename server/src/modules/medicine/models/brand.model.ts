@@ -1,9 +1,8 @@
 import mongoose, { Schema, Document, model } from "mongoose";
-import { required } from "zod/mini";
 
 export interface IBrand extends Document {
   name: string;
-  manufacturer: string;
+  description: string;
   isActive: boolean;
 }
 
@@ -16,7 +15,7 @@ const BrandSchema = new Schema(
       trim: true,
       maxlength: 100,
     },
-    manufacturer: {
+    description: {
       type: String,
       trim: true,
       required: true,

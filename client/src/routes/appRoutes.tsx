@@ -11,6 +11,9 @@ import GenericNamePage from "@/features/genericName/pages/GenericNamePage";
 import UnitPage from "@/features/genericName/pages/UnitPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import PurchasePage from "@/features/purchase/pages/PurchasePage";
+import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
+import SalesPage from "@/features/sales/pages/SalesPage";
+
 import SupplierPage from "@/features/seller/pages/SupplierPage";
 import { BrowserRouter, Routes, Route } from "react-router";
 
@@ -33,6 +36,8 @@ export default function AppRoutes() {
           <Route path="/units" element={<UnitPage />} />
           <Route path="/suppliers" element={<SupplierPage />} />
           <Route path="/purchase-orders" element={<PurchasePage />} />
+          <Route path="/sales" element={<SalesPage />} />
+          <Route path="/sales/:id" element={<SaleDetailsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

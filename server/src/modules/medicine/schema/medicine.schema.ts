@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createMedicineSchema = z.object({
-  name: z
+  medicineName: z
     .string()
     .trim()
     .min(1, "Medicine name is required")

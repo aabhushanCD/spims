@@ -103,6 +103,36 @@ export default function PurchaseInformation({ form }: Props) {
       />
 
       {/* Expected Delivery */}
+
+      <FormField
+        control={form.control}
+        name="expectedDeliveryDate"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Expected Delivery Date</FormLabel>
+
+            <FormControl>
+              <Input
+                type="date"
+                value={
+                  field.value ? field.value.toISOString().split("T")[0] : ""
+                }
+                onChange={(e) => {
+                  const dateVal = e.target.value
+                    ? new Date(e.target.value)
+                    : null;
+                  field.onChange(dateVal);
+                }}
+                onBlur={field.onBlur}
+                ref={field.ref}
+                disabled={field.disabled}
+              />
+            </FormControl>
+
+            <FormMessage />
+          </FormItem>
+        )}
+      />
     </div>
   );
 }

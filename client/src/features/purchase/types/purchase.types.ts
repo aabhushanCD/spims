@@ -17,7 +17,7 @@ export interface Purchase {
 
   expectedDeliveryDate?: string;
 
-  status: "PENDING" | "RECEIVED" | "CANCELLED";
+  status: "pending" | "received" | "cancelled";
 
   totalAmount: number;
 

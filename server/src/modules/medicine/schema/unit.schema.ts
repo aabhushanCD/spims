@@ -2,15 +2,15 @@ import { z } from "zod";
 
 export const CreateUnitSchema = z.object({
   name: z.string().min(1, { message: "Unit name is required" }),
-  abbreviation: z.string().min(1, { message: "Unit abbreviation is required" }),
+  description: z.string().min(1, { message: "Unit description is required" }),
   isActive: z.boolean().optional().default(true),
 });
 
 export const UpdateUnitSchema = z.object({
   name: z.string().min(1, { message: "Unit name is required" }).optional(),
-  abbreviation: z
+  description: z
     .string()
-    .min(1, { message: "Unit abbreviation is required" })
+    .min(1, { message: "Unit description is required" })
     .optional(),
   isActive: z.boolean().optional(),
 });

@@ -1,5 +1,5 @@
-import { NavLink } from "react-router";
-import { LogOut, ChevronRight } from "lucide-react";
+
+import { LogOut } from "lucide-react";
 
 import { sidebarItems } from "../../data/sidebar";
 
@@ -7,10 +7,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import SidebarItem from "@/components/dashboard/SidebarItem";
+import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useAuth } from "@/features/auth/context/authContext";
 
 export default function Sidebar() {
+  const logout = useLogout();
+  const { theme } = useAuth();
   return (
-    <aside className="bg-background hidden h-screen w-72 shrink-0 border-r lg:block">
+    <aside className={`bg-background hidden h-screen w-72 shrink-0 border-r lg:block ${theme === "dark" ? "dark text-white " : ""}`}>
       {/* Logo */}
 
       <div className="flex h-20 items-center gap-3 border-b px-6 py-5">
@@ -44,7 +48,13 @@ export default function Sidebar() {
 
       {/* User */}
       <div className="space-y-5 p-4">
-        <Button variant="outline" className="w-full justify-start gap-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => {
+            logout.mutate();
+          }}
+        >
           <LogOut size={18} />
           Logout
         </Button>

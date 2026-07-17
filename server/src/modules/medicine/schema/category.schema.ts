@@ -15,12 +15,6 @@ export const createCategorySchema = z.object({
 
   isActive: z.boolean("Category isActive must be a boolean").optional(),
 
-  createdBy: z
-    .string("Category createdBy must be a string")
-    .trim()
-    .min(1, "Category createdBy is required"),
-
-  updatedBy: z.string("Category updatedBy must be a string").trim().optional(),
 });
 
 export const updateCategorySchema = z.object({

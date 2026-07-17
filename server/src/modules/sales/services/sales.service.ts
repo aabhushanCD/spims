@@ -5,26 +5,10 @@ import type { SalesRepo } from "../repo/sales.repo.ts";
 import type { SaleItemRepo } from "../repo/saleItem.repo.ts";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { InventoryService } from "../../inventory/services/inventory.service.ts";
+import type { CounterRepository } from "../repo/counter.repo.ts";
+import type { CreateSaleDto } from "../schema/sales.schema.ts";
 
 const VAT_RATE = 0.13; // Nepal standard VAT — move to config if this can vary
-
-export interface SaleItemInput {
-  medicineId: string;
-  batchId: string;
-  quantity: number;
-  unitPrice: number;
-  discount?: number;
-}
-
-export interface CreateSaleDto {
-  invoiceNumber: string;
-  customerName: string;
-  paymentMethod: string;
-  saleDate: string;
-  cashierId: string;
-  items: SaleItemInput[];
-  overallDiscount?: number; // discount applied on top of subtotal, if any
-}
 
 export class SalesService {
   constructor(
@@ -32,97 +16,162 @@ export class SalesService {
     private readonly saleItemRepo: SaleItemRepo,
     private readonly inventoryService: InventoryService,
     private readonly batchRepo: MedicineBatchRepo,
+    private readonly counterRepo: CounterRepository,
     private readonly appError: typeof AppError,
+
     private readonly connection: mongoose.Connection,
   ) {}
+  private mergeDuplicateItems(items: CreateSaleDto["items"]) {
+    const map = new Map<string, (typeof items)[number]>();
 
-  async createSale(dto: CreateSaleDto) {
-    if (!dto.items || dto.items.length === 0) {
-      throw this.appError.badRequest("Sale must include at least one item");
+    for (const item of items) {
+      const existing = map.get(item.medicineId);
+
+      if (!existing) {
+        map.set(item.medicineId, { ...item });
+        continue;
+      }
+
+      existing.quantity += item.quantity;
+
+      existing.discountPercentage = Math.max(
+        existing.discountPercentage,
+        item.discountPercentage,
+      );
     }
 
+    return [...map.values()];
+  }
+  async createSale(dto: CreateSaleDto) {
+    if (!dto.items.length) {
+      throw this.appError.badRequest("Cart is empty");
+    }
+
+    dto.items = this.mergeDuplicateItems(dto.items);
+
     const session = await this.connection.startSession();
-    try {
-      let sale;
-      await session.withTransaction(async () => {
-        const itemTotals = dto.items.map((item) => {
-          const discount = item.discount ?? 0;
-          const totalPrice = item.quantity * item.unitPrice - discount;
-          if (totalPrice < 0) {
-            throw this.appError.badRequest(
-              `Discount exceeds line total for medicine ${item.medicineId}`,
-            );
-          }
-          return { ...item, discount, totalPrice };
-        });
 
-        const subTotal = itemTotals.reduce((sum, i) => sum + i.totalPrice, 0);
-        const overallDiscount = dto.overallDiscount ?? 0;
-        const taxableAmount = subTotal - overallDiscount;
-        const VAT = Math.round(taxableAmount * VAT_RATE * 100) / 100;
-        const totalAmount = taxableAmount + VAT;
+    let sale;
 
-        sale = await this.salesRepo.create(
+    await session.withTransaction(async () => {
+      const invoiceNumber =
+        await this.counterRepo.generateInvoiceNumber(session);
+      sale = await this.salesRepo.create(
+        {
+          invoiceNumber,
+
+          cashierId: new Types.ObjectId(dto.cashierId),
+
+          customerName: dto.customerName,
+
+          paymentMethod: dto.paymentMethod,
+
+          saleDate: dto.saleDate,
+
+          status: "COMPLETED",
+
+          subTotal: 0,
+
+          discount: 0,
+
+          VAT: 0,
+
+          totalAmount: 0,
+        },
+        session,
+      );
+
+      let subtotal = 0;
+
+      let totalDiscount = 0;
+
+      for (const item of dto.items) {
+        const allocations = await this.inventoryService.sellMedicine(
+          item.medicineId,
+
+          item.quantity,
+
           {
-            invoiceNumber: dto.invoiceNumber,
-            customerName: dto.customerName,
-            subTotal,
-            VAT,
-            discount: overallDiscount,
-            totalAmount,
-            paymentMethod: dto.paymentMethod,
-            cashierId: new Types.ObjectId(dto.cashierId),
-            saleDate: new Date(dto.saleDate),
+            batchId: "",
+
+            referenceId: sale._id.toString(),
+
+            referenceType: "SALE",
+
+            movementType: "SALE",
+
+            performedBy: dto.cashierId,
+
+            remarks: `Sale ${invoiceNumber}`,
           },
+
           session,
         );
 
-        for (const item of itemTotals) {
-          const batch = await this.batchRepo.findById(item.batchId);
-          if (!batch) {
-            throw this.appError.notFound(`Batch not found: ${item.batchId}`);
-          }
-          if (batch.medicineId.toString() !== item.medicineId) {
-            throw this.appError.badRequest(
-              `Batch ${item.batchId} does not belong to medicine ${item.medicineId}`,
-            );
-          }
+        for (const allocation of allocations) {
+          const lineTotal = allocation.unitPrice * allocation.quantity;
+
+          const lineDiscount = (lineTotal * item.discountPercentage) / 100;
+
+          subtotal += lineTotal;
+
+          totalDiscount += lineDiscount;
 
           await this.saleItemRepo.create(
             {
               salesId: sale._id,
-              batchId: new Types.ObjectId(item.batchId),
-              medicineId: new Types.ObjectId(item.medicineId),
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              totalPrice: item.totalPrice,
-            },
-            session,
-          );
 
-          // decreaseStock validates availableStock internally and throws
-          // if insufficient — that failure will abort the whole transaction.
-          await this.inventoryService.decreaseStock(
-            item.medicineId,
-            item.quantity,
-            {
-              batchId: item.batchId,
-              referenceId: sale._id.toString(),
-              referenceType: "SALE",
-              movementType: "SALE",
-              performedBy: dto.cashierId,
-              remarks: `Sale ${dto.invoiceNumber}`,
+              medicineId: new Types.ObjectId(allocation.medicineId),
+
+              batchId: new Types.ObjectId(allocation.batchId),
+
+              quantity: allocation.quantity,
+
+              unitPrice: allocation.unitPrice,
+
+              discount: lineDiscount,
+
+              totalPrice: lineTotal - lineDiscount,
             },
             session,
           );
         }
-      });
+      }
 
-      return sale;
-    } finally {
-      await session.endSession();
-    }
+      const invoiceDiscount = dto.discount ?? 0;
+
+      if (invoiceDiscount < 0) {
+        throw this.appError.badRequest("Invalid discount");
+      }
+
+      if (invoiceDiscount > subtotal) {
+        throw this.appError.badRequest("Discount exceeds subtotal");
+      }
+
+      const taxable = subtotal - totalDiscount - invoiceDiscount;
+
+      const vat = Math.round(taxable * 0.13 * 100) / 100;
+
+      const total = taxable + vat;
+
+      await this.salesRepo.update(
+        sale._id.toString(),
+
+        {
+          subTotal: subtotal,
+
+          discount: invoiceDiscount + totalDiscount,
+
+          VAT: vat,
+
+          totalAmount: total,
+        },
+
+        session,
+      );
+    });
+
+    return await this.salesRepo.findById(sale!._id.toString(), session);
   }
 
   async getSaleById(id: string) {

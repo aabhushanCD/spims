@@ -16,6 +16,23 @@ export class MedicineBatchRepo {
     return batch.save();
   }
 
+  async increaseBatchStock(
+    batchId: string,
+    quantity: number,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch | null> {
+    const options = { new: true, session: session ?? null };
+    const updatedBatch = await this.batchModel
+      .findByIdAndUpdate(
+        batchId,
+        { $inc: { quantityRemaining: quantity } },
+        options,
+      )
+      .lean()
+      .exec();
+    return updatedBatch;
+  }
+
   async findById(
     id: string,
     session?: mongoose.ClientSession,
@@ -65,7 +82,16 @@ export class MedicineBatchRepo {
   ): Promise<number> {
     const batches = session
       ? await this.batchModel
-          .find({ medicineId })
+          .find({
+            medicineId,
+            quantityRemaining: {
+              $gt: 0,
+            },
+            expiryDate: {
+              $gt: new Date(),
+            },
+            isExpired: false,
+          })
           .session(session)
           .lean()
           .exec()
@@ -91,7 +117,49 @@ export class MedicineBatchRepo {
       .lean()
       .exec();
   }
+  async deductBatchStock(
+    batchId: string,
+    quantity: number,
+    session?: mongoose.ClientSession,
+  ) {
+    return this.batchModel
+      .findOneAndUpdate(
+        {
+          _id: batchId,
+          quantityRemaining: { $gte: quantity },
+        },
+        {
+          $inc: {
+            quantityRemaining: -quantity,
+          },
+        },
+        {
+          new: true,
+          session,
+        },
+      )
+      .lean()
+      .exec();
+  }
+  async findSellableBatches(
+    medicineId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const query = this.batchModel
+      .find({
+        medicineId,
+        quantityRemaining: { $gt: 0 },
+        expiryDate: { $gt: new Date() },
+        isExpired: false,
+      })
+      .sort({
+        expiryDate: 1,
+        manufacturingDate: 1,
+        createdAt: 1,
+      });
 
+    return session ? query.session(session).lean().exec() : query.lean().exec();
+  }
   async delete(
     id: string,
     session?: mongoose.ClientSession,

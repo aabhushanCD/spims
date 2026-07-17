@@ -12,8 +12,14 @@ export class SaleItemRepo {
     saleItemData: Partial<ISalesItem>,
     session?: mongoose.ClientSession,
   ): Promise<ISalesItem> {
-    const saleItem = new this.saleItemModel(saleItemData, { session });
-    return await saleItem.save();
+    if(session) {
+      const saleItem = new this.saleItemModel(saleItemData);
+      await saleItem.save({ session });
+      return saleItem;
+    }
+    const saleItem = new this.saleItemModel(saleItemData);
+    await saleItem.save();
+    return saleItem;
   }
 
   async findById(

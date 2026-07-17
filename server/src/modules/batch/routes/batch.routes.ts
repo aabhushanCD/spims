@@ -11,6 +11,10 @@ router.get("/low-stock", medicineBatchController.getLowStockBatches);
 router.post("/mark-expired", medicineBatchController.markExpiredBatches);
 
 router.get(
+  "/medicine/:medicineId",
+  medicineBatchController.getBatchByMedicineId,
+);
+router.get(
   "/medicine/:medicineId/available",
   medicineBatchController.getAvailableBatches,
 );
@@ -18,6 +22,7 @@ router.get(
   "/medicine/:medicineId/allocate",
   medicineBatchController.allocateStock,
 );
+
 router.get(
   "/expired/awaiting-disposal",
   medicineBatchController.getExpiredAwaitingDisposal,
@@ -26,6 +31,7 @@ router.post("/", medicineBatchController.createBatch);
 router.get("/", medicineBatchController.getAllBatches);
 
 router.get("/:id", medicineBatchController.getBatchById);
+
 router.patch("/:id", medicineBatchController.updateBatch);
 router.delete("/:id", medicineBatchController.deleteBatch);
 

@@ -289,6 +289,17 @@ export class BatchService {
     return allocation;
   }
 
+  async getBatchByMedicineId(
+    medicineId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<any> {
+    const batch = await this.batchRepo.findByMedicineId(medicineId, session);
+    if (!batch) {
+      throw new Error("Batch not found for the given medicineId");
+    }
+    return batch;
+  }
+
   async getBatchHistory(
     batchId: string,
     session?: mongoose.ClientSession,

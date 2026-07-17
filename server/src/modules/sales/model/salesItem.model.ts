@@ -8,8 +8,10 @@ export interface ISalesItem extends Document {
   unitPrice: number;
   discount: number;
   totalPrice: number;
+  returnedQuantity: number;
   createdAt: Date;
   updatedAt: Date;
+
 }
 
 const salesItemSchema = new Schema<ISalesItem>(
@@ -22,6 +24,7 @@ const salesItemSchema = new Schema<ISalesItem>(
       required: true,
     },
     quantity: { type: Number, required: true },
+    returnedQuantity: { type: Number, default: 0 },
     unitPrice: { type: Number, required: true },
     discount: { type: Number, required: true },
     totalPrice: { type: Number, required: true },

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import type { Supplier } from "../types/supplier.types";
 import SupplierStatusBadge from "./SupplierStatusBadge";
 import { useDeleteSupplier } from "../hooks/useDeleteSupplier";
+import AddSupplierDialog from "./AddSupplierDialog";
 
 interface Props {
   suppliers: Supplier[];

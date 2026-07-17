@@ -12,8 +12,7 @@ import { purchaseOrderController } from "../../../app/container.ts";
 
 const router = Router();
 
-// Apply authentication to all purchase routes
-router.use(authorize);
+
 router.use((req: Request, res: Response, next) => {
   verifyToken(req, res, next);
 });
@@ -55,7 +54,7 @@ router.patch("/:id/approve", (req: Request, res: Response) =>
 );
 
 // Receive Purchase Order
-router.patch("/:id/receive", (req: Request, res: Response) =>
+router.post("/:id/receive", (req: Request, res: Response) =>
   purchaseOrderController.receivePurchaseOrder(req, res),
 );
 

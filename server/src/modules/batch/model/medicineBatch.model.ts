@@ -1,6 +1,7 @@
 import { Document, Schema, model, Types } from "mongoose";
 
 export interface IBatch extends Document {
+  _id: Types.ObjectId;
   medicineId: Types.ObjectId;
   purchaseOrderId: Types.ObjectId;
   batchNumber: string;

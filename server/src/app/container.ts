@@ -74,6 +74,7 @@ import { SalesController } from "../modules/sales/controller/sales.controller.ts
 import { SalesService } from "../modules/sales/services/sales.service.ts";
 import { DashboardService } from "../modules/dashboard/service/dashboard.service.ts";
 import { DashboardController } from "../modules/dashboard/controller/dashboard.controller.ts";
+import { CounterRepository } from "../modules/sales/repo/counter.repo.ts";
 
 // This file serves as a centralized container for all repository instances used throughout the application. It imports the necessary models and repository classes, then creates instances of each repository, which can be exported and used in other parts of the application. This approach promotes modularity and makes it easier to manage dependencies.
 const userRepo = new UserRepository(User);
@@ -98,7 +99,7 @@ const saleRepo = new SalesRepo(Sales);
 
 const smartReorderRepo = new SmartReorderRepo(SmartReorderModel);
 const supplierRepo = new SupplierRepo(Supplier);
-
+const counterRepo = new CounterRepository();
 // services
 
 const userService = new UserService(userRepo);
@@ -172,6 +173,7 @@ const saleService = new SalesService(
   saleItemRepo,
   inventoryService,
   medicineBatchRepo,
+  counterRepo,
   AppError,
   mongoose.connection,
 );
