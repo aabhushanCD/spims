@@ -21,6 +21,7 @@ import notificationRoutes from "./notification/routes/notification.routes.ts";
 import dashboardRoutes from "./dashboard/routes/dashboard.routes.ts";
 import { returnController, saleItemController } from "../app/container.ts";
 import batchRoutes from "./batch/routes/batch.routes.ts";
+
 const router = express.Router();
 
 // auth and user-related routes

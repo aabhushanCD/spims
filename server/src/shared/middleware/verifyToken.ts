@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
+
 import type { JWTUserPayload } from "../../types/global.js";
 import dotenv from "dotenv";
 import { verifyJwt } from "./verifyJwt.ts";

@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+
 import type { JWTUserPayload } from "../../types/global.ts";
 import jwt from "jsonwebtoken";
 
