@@ -1,8 +1,6 @@
 // features/sales/types/sale.types.ts
 import type { PaymentMethod } from "../schema/sale.schema";
 
-export type SaleStatus = "Completed" | "Cancelled" | "Pending";
-
 export interface InventorySearchResult {
   _id: string;
   medicineId: string;
@@ -40,13 +38,19 @@ export interface CreateSaleInput {
   discount?: number;
   items: CreateSaleItemInput[];
 }
+interface CashierId {
+  name: string;
+  _id: string;
+}
+export type SaleStatus = "COMPLETED" | "CANCELLED" | "PENDING";
 
 export interface SalesListItem {
   _id: string;
   invoiceNumber: string;
   customerName: string;
   paymentMethod: PaymentMethod;
-  cashierId: string;
+  cashierId: CashierId;
+  status: SaleStatus;
   saleDate: string; // ISO string
   discount: number;
   subTotal: number;

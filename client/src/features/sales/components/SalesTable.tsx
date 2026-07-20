@@ -43,7 +43,7 @@ export function SalesTable({ sales, isLoading, onCancel }: SalesTableProps) {
       </div>
     );
   }
-  console.log("Sales data:", sales); // Debugging line to check the sales data
+
   return (
     <div className="rounded-lg border">
       <Table>
@@ -68,7 +68,7 @@ export function SalesTable({ sales, isLoading, onCancel }: SalesTableProps) {
               <TableCell className="font-medium">
                 {sale.invoiceNumber}
               </TableCell>
-              <TableCell>{sale.cashierId.name}</TableCell>
+              <TableCell>{sale?.cashierId?.name}</TableCell>
               <TableCell>{sale.customerName}</TableCell>
               <TableCell className="capitalize">
                 {sale.paymentMethod.toLowerCase()}
