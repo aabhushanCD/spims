@@ -29,7 +29,8 @@ export class InventoryMovementService {
     const batchId = movementData.batchId.toString();
     const userId = movementData.performedBy.toString();
     const medicine = await this.medicineRepo.findById(medicineId);
-    const referenceType: ReferenceType = movementData.referenceType; // Default to "SYSTEM" if not provided
+    const referenceType: ReferenceType =
+      (movementData.referenceType as ReferenceType) || "SYSTEM"; // Default to "SYSTEM" if not provided
     if (!medicine) {
       throw this.appError.notFound("Medicine not found");
     }

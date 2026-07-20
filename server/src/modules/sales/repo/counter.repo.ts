@@ -10,15 +10,16 @@ export class CounterRepository {
     counterName: string,
     session?: mongoose.ClientSession,
   ): Promise<number> {
+    const options = {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+      session: session || null,
+    };
     const counter = await Counter.findOneAndUpdate(
       { name: counterName },
       { $inc: { sequence: 1 } },
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true,
-        session,
-      },
+      options,
     ).lean();
 
     if (!counter) {

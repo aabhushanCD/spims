@@ -45,10 +45,10 @@ export class SupplierRepo {
   }
 
   async getTotalSuppliers(
-    status?: "active" | "inactive",
+    status?: "active" | "inActive",
     session?: mongoose.ClientSession,
   ): Promise<number> {
-    const filter = status ? { status } : {};
+    const filter = status ? ({ status } as const) : undefined;
     return this.supplierModel
       .countDocuments(filter)
       .session(session ?? null)

@@ -1,7 +1,6 @@
-import type mongoose from "mongoose";
 import type { IBatch } from "../model/medicineBatch.model.js";
 import type Batch from "../model/medicineBatch.model.js";
-
+import mongoose from "mongoose";
 export class MedicineBatchRepo {
   constructor(private readonly batchModel: typeof Batch) {}
 
@@ -45,9 +44,18 @@ export class MedicineBatchRepo {
 
   async findAll(session?: mongoose.ClientSession): Promise<IBatch[]> {
     if (session) {
-      return await this.batchModel.find().session(session).populate("medicineId", "medicineName").lean().exec();
+      return await this.batchModel
+        .find()
+        .session(session)
+        .populate("medicineId", "medicineName")
+        .lean()
+        .exec();
     }
-    return await this.batchModel.find().populate("medicineId", "medicineName").lean().exec();
+    return await this.batchModel
+      .find()
+      .populate("medicineId", "medicineName")
+      .lean()
+      .exec();
   }
   async findByMedicineId(
     medicineId: string,
@@ -122,21 +130,21 @@ export class MedicineBatchRepo {
     quantity: number,
     session?: mongoose.ClientSession,
   ) {
+    const filter = {
+      _id: batchId as mongoose.Types.ObjectId | string,
+      quantityRemaining: { $gte: quantity },
+    };
+    const options = { new: true, session: session ?? null };
+
     return this.batchModel
       .findOneAndUpdate(
-        {
-          _id: batchId,
-          quantityRemaining: { $gte: quantity },
-        },
+        filter,
         {
           $inc: {
             quantityRemaining: -quantity,
           },
         },
-        {
-          new: true,
-          session,
-        },
+        options,
       )
       .lean()
       .exec();
