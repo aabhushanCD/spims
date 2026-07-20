@@ -27,15 +27,16 @@ import type {
 interface SaleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  cashierId: string;
 }
 
 const defaultValues: SaleFormValues = {
   customerName: "",
   customerPhone: "",
-  paymentMethod: "Cash",
+  paymentMethod: "CASH",
   discount: 0,
+
   paidAmount: undefined,
+  discountPercentage: 0,
   notes: "",
   items: [],
 };
@@ -45,7 +46,7 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
   const createSale = useCreateSale();
 
   const form = useForm<SaleFormValues>({
-    resolver: zodResolver(saleFormSchema),
+    resolver: zodResolver(saleFormSchema as any),
     defaultValues,
     mode: "onChange",
   });
@@ -84,8 +85,8 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
         quantity: 1,
         unitPrice: medicine.nextBatch.sellingPrice,
         availableStock: medicine.availableStock,
+        vatPercentage: 13,
         discountPercentage: 0,
-        vatPercentage: 13, // or medicine.nextBatch.vatPercentage if returned
       });
     },
     [append, currentItems, form],

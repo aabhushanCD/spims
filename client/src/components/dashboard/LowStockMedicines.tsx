@@ -46,7 +46,6 @@ const medicines = [
 ];
 
 export default function LowStockMedicines() {
-  
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -55,7 +54,7 @@ export default function LowStockMedicines() {
         <CardDescription>Medicines that need attention</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5 max-h-130 overflow-auto">
+      <CardContent className="max-h-130 space-y-5 overflow-auto">
         {medicines.map((medicine) => {
           const percentage = (medicine.stock / medicine.reorder) * 100;
 

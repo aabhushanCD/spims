@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { Batch } from "../types/batch";
+import type { Batch } from "../types/batch.types";
 
 interface Props {
   batch: Batch;

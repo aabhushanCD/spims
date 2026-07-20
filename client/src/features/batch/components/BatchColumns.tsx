@@ -1,6 +1,5 @@
+import type { Batch } from "../types/batch.types";
 import type { ColumnDef } from "@tanstack/react-table";
-
-import type { Batch } from "../types/batch";
 
 export const batchColumns: ColumnDef<Batch>[] = [
   {

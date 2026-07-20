@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   Bell,
-  CheckCircle,
   PackageCheck,
   ShoppingCart,
 } from "lucide-react";

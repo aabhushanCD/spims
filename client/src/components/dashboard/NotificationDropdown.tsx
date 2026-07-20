@@ -15,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { Badge } from "@/components/ui/badge";
-import { useNotification } from "@/features/dashboard/hooks/useNotification";
 
 const notifications = [
   {

@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  Pill,
   Boxes,
   ShoppingCart,
   FileText,

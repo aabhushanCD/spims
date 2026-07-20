@@ -62,8 +62,7 @@ const sales = [
   },
 ];
 
-
-export default function RecentSales({ activities }: Props) {
+export default function RecentSales() {
   return (
     <Card className="shadow-md">
       <CardHeader className="flex flex-row items-center justify-between">

@@ -1,6 +1,3 @@
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-
 import type { MasterDataConfig } from "../types/masterData.types";
 import MasterDataDialog from "./MasterDataDialog";
 import PageHeader from "@/components/common/PageToolbar";

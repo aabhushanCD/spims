@@ -18,12 +18,12 @@ import { useCancelSale } from "../hooks/useCancelSale";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { SalesTable } from "../components/SalesTable";
 import { SaleDialog } from "../components/SaleDialog";
-import type { SaleListItem } from "../types/sale.types";
+import type { SalesListItem } from "../types/sale.types";
 
 export default function SalesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [saleToCancel, setSaleToCancel] = useState<SaleListItem | null>(null);
+  const [saleToCancel, setSaleToCancel] = useState<SalesListItem | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const { data, isLoading, isFetching } = useSales({ search: debouncedSearch });
@@ -32,8 +32,8 @@ export default function SalesPage() {
   const handleConfirmCancel = () => {
     if (!saleToCancel) return;
     cancelSale.mutate(
-      { id: saleToCancel.id },
-      { onSuccess: () => setSaleToCancel(null) }
+      { id: saleToCancel._id },
+      { onSuccess: () => setSaleToCancel(null) },
     );
   };
 
@@ -48,7 +48,7 @@ export default function SalesPage() {
       </div>
 
       <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -74,8 +74,8 @@ export default function SalesPage() {
             <AlertDialogTitle>Cancel this sale?</AlertDialogTitle>
             <AlertDialogDescription>
               This will cancel invoice{" "}
-              <span className="font-medium">{saleToCancel?.invoiceNo}</span> and
-              restore the sold stock. This action cannot be undone.
+              <span className="font-medium">{saleToCancel?.invoiceNumber}</span>{" "}
+              and restore the sold stock. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

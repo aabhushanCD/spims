@@ -8,11 +8,9 @@ interface Props {
   search: string;
 
   setSearch: (value: string) => void;
-
-  onCreate: () => void;
 }
 
-export function UserToolbar({ search, setSearch, onCreate }: Props) {
+export function UserToolbar({ search, setSearch }: Props) {
   return (
     <div className="flex justify-between gap-4">
       <Input

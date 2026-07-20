@@ -37,7 +37,7 @@ export default function MobileSidebar() {
                 <div key={item.path}>
                   <button
                     type="button"
-                    onClick={() => toggleMenu(item.path)}
+                    onClick={() => toggleMenu(item.path!)}
                     className="hover:bg-muted flex w-full items-center justify-between rounded-xl px-4 py-3"
                   >
                     <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ export default function MobileSidebar() {
                     </div>
                   </button>
 
-                  {openMenus[item.path] && (
+                  {openMenus[item.path!] && (
                     <div className="mt-1 ml-8 space-y-1">
                       {item.children.map((child) => (
                         <NavLink
@@ -71,8 +71,8 @@ export default function MobileSidebar() {
 
             return (
               <NavLink
-                key={item.path}
-                to={item.path}
+                key={item.path!}
+                to={item.path!}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-xl px-4 py-3 ${
                     isActive

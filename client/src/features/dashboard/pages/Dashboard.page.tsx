@@ -8,7 +8,7 @@ import LowStockMedicines from "@/components/dashboard/LowStockMedicines";
 import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
 import QuickActions from "@/components/dashboard/QuickActions";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
-import NotificationsPanel from "@/components/dashboard/NotificationsPanel";
+// import NotificationsPanel from "@/components/dashboard/NotificationsPanel";
 import { useAuth } from "@/features/auth/context/authContext";
 import { useGetDashboard } from "../hooks/useGetDashboard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -55,8 +55,8 @@ export default function Dashboard() {
       {/* Sales + Stock */}
       <section className="grid gap-6 lg:grid-cols-2">
         <LowStockMedicines
-          summary={dashboard.summary}
-          reorder={dashboard.reorder}
+        // summary={dashboard.summary}
+        // reorder={dashboard.reorder}
         />
         <InventoryHealth
           summary={dashboard.summary}
@@ -67,7 +67,9 @@ export default function Dashboard() {
 
       {/* Expiry + Actions */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <ExpiringMedicines expiry={dashboard.expiry} />
+        <ExpiringMedicines
+        //  expiry={dashboard.expiry}
+        />
 
         <QuickActions />
       </section>
@@ -75,7 +77,9 @@ export default function Dashboard() {
       {/* Activity */}
       <section className="grid gap-6 lg:grid-cols-2">
         <ActivityTimeline activities={dashboard.recentActivity} />
-        <RecentSales activities={dashboard.recentActivity} />
+        <RecentSales
+        // activities={dashboard.recentActivity}
+        />
         {/* <NotificationsPanel
           notifications={dashboard.notifications}
           health={dashboard.health}

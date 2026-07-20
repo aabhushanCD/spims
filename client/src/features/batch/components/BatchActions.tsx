@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
+import type { Batch } from "../types/batch.types";
 
-import type { Batch } from "../types/batch";
 
 interface Props {
   batch: Batch;

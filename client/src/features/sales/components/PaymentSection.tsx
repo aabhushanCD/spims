@@ -4,8 +4,7 @@ import { Banknote, CreditCard, Smartphone, Wallet } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { SaleFormValues } from "../schema/sale.schema";
-import type { PaymentMethod } from "../types/sale.types";
+import type { PaymentMethod, SaleFormValues } from "../schema/sale.schema";
 
 const PAYMENT_OPTIONS: {
   value: PaymentMethod;

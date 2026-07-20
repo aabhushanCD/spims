@@ -1,7 +1,5 @@
 import {
   ShoppingCart,
-  Pill,
-  UserPlus,
   PackageCheck,
   AlertTriangle,
   ArrowUpDown,
@@ -18,36 +16,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 
-const activities = [
-  {
-    title: "Sale completed",
-    description: "Invoice #INV-1024 generated",
-    time: "2 minutes ago",
-    icon: ShoppingCart,
-    type: "sale",
-  },
-  {
-    title: "Purchase received",
-    description: "Stock updated from ABC Pharma",
-    time: "35 minutes ago",
-    icon: PackageCheck,
-    type: "purchase",
-  },
-  {
-    title: "Medicine added",
-    description: "Paracetamol 500mg added",
-    time: "2 hours ago",
-    icon: Pill,
-    type: "medicine",
-  },
-  {
-    title: "New staff account created",
-    description: "Inventory manager added",
-    time: "Yesterday",
-    icon: UserPlus,
-    type: "user",
-  },
-];
+
 type MovementType = "SALE" | "PURCHASE" | "RETURN" | "ADJUSTMENT" | "EXPIRED";
 
 interface Activity {

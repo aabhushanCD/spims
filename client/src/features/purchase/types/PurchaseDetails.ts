@@ -1,3 +1,25 @@
+type PopulatedSupplier = {
+  _id: string;
+  name: string;
+  contactPerson: string;
+  contactNumber: string;
+  email?: string;
+  address?: string;
+};
+
+type PurchaseStatus = "PENDING" | "RECEIVED" | "CANCELLED";
+
+type PurchaseItem = {
+  _id: string;
+  medicineId: string;
+  medicineName: string;
+  batchNumber: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+
 export interface PurchaseDetails {
   _id: string;
 

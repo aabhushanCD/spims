@@ -2,11 +2,13 @@
 import { z } from "zod";
 
 export const paymentMethodEnum = z.enum([
-  "Cash",
-  "Card",
+  "CASH",
+  "CARD",
   "QR",
-  "Mobile Banking",
-  "Credit",
+  "MOBILE_BANKING",
+  "CREDIT",
+  "ESEWA",
+  "KHALTI",
 ]);
 export type PaymentMethod = z.infer<typeof paymentMethodEnum>;
 
@@ -15,7 +17,7 @@ export const saleItemSchema = z.object({
   medicineName: z.string().min(1), // display only, not sent to backend
   batchId: z.string().min(1, "Select a batch"),
   batchNo: z.string().optional(), // display only, not sent to backend
-
+  vatPercentage: z.coerce.number().min(0).default(13), // default VAT percentage
   quantity: z
     .number()
     .int("Quantity must be a whole number")
@@ -41,6 +43,7 @@ export const saleFormSchema = z
         message: "Enter a valid phone number",
       })
       .optional(),
+    discountPercentage: z.coerce.number().min(0).max(100).default(0),
     paymentMethod: paymentMethodEnum,
     discount: z.number().min(0).default(0), // sale-level discount
     paidAmount: z.number().min(0).optional(),
