@@ -2,12 +2,22 @@ import { Redis } from "ioredis";
 import type { RedisOptions } from "ioredis";
 
 const options: RedisOptions = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379", 10),
+  host:
+    process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
+      ?.split("@")[1]
+      ?.split(":")[0] || "localhost",
+  port: parseInt(
+    process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
+      ?.split("@")[1]
+      ?.split(":")[1] || "6379",
+    10,
+  ),
+  password: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
   maxRetriesPerRequest: null,
 };
 
-const redis = new Redis(options);
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redis = redisUrl ? new Redis(redisUrl) : new Redis(options);
 
 redis.on("error", (err) => console.error("[Redis] Connection error:", err));
 redis.on("connect", () => console.log("[Redis] Connected"));
