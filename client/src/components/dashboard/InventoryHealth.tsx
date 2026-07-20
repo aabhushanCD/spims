@@ -5,34 +5,63 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { Progress } from "@/components/ui/progress";
 
-const inventoryData = [
-  {
-    title: "Total Medicines",
-    value: "1,284",
-    icon: Package,
-    description: "Active medicines",
-  },
-  {
-    title: "Low Stock",
-    value: "24",
-    icon: AlertTriangle,
-    description: "Need restocking",
-  },
-  {
-    title: "Expiring Soon",
-    value: "12",
-    icon: Clock3,
-    description: "Within 30 days",
-  },
-  {
-    title: "Out of Stock",
-    value: "5",
-    icon: XCircle,
-    description: "Unavailable",
-  },
-];
+interface Props {
+  summary: {
+    totalMedicineBatches: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+    expiringSoonCount: number;
+  };
 
-export default function InventoryHealth() {
+  reorder: {
+    pendingCount: number;
+    highConfidenceCount: number;
+    totalSuggestedUnits: number;
+  };
+
+  expiry: {
+    batchesAwaitingDisposal: number;
+    unitsAwaitingDisposal: number;
+    expiringSoonCount: number;
+  };
+}
+
+export default function InventoryHealth({ summary, reorder, expiry }: Props) {
+  const issues =
+    summary.lowStockCount + summary.outOfStockCount + expiry.expiringSoonCount;
+
+  const health = Math.max(0, 100 - issues * 5);
+
+  const inventoryData = [
+    {
+      title: "Medicine Batches",
+      value: summary.totalMedicineBatches,
+      icon: Package,
+      description: "Available batches",
+    },
+    {
+      title: "Low Stock",
+      value: summary.lowStockCount,
+      icon: AlertTriangle,
+      description: "Need restocking",
+    },
+    {
+      title: "Expiring Soon",
+      value: expiry.expiringSoonCount,
+      icon: Clock3,
+      description: "Within 30 days",
+    },
+    {
+      title: "Out of Stock",
+      value: summary.outOfStockCount,
+      icon: XCircle,
+      description: "Unavailable",
+    },
+  ];
+
+  const status =
+    health >= 90 ? "Healthy" : health >= 70 ? "Warning" : "Critical";
+
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -45,17 +74,17 @@ export default function InventoryHealth() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-3xl font-bold">92%</p>
+              <p className="text-3xl font-bold">{health}%</p>
 
               <p className="text-muted-foreground text-sm">Healthy inventory</p>
             </div>
 
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-              Healthy
+              {status}
             </span>
           </div>
 
-          <Progress value={92} className="h-3" />
+          <Progress value={health} className="h-3" />
         </div>
 
         {/* Stats */}
@@ -90,6 +119,22 @@ export default function InventoryHealth() {
               </motion.div>
             );
           })}
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Pending Reorders</span>
+            <span>{reorder.pendingCount}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>High Confidence</span>
+            <span>{reorder.highConfidenceCount}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Awaiting Disposal</span>
+            <span>{expiry.batchesAwaitingDisposal}</span>
+          </div>
         </div>
       </CardContent>
     </Card>

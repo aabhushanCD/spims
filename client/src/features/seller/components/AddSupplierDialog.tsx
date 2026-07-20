@@ -84,8 +84,10 @@ export default function AddSupplierDialog({
   function onSubmit(values: SupplierForm) {
     if (editingSupplier) {
       updateSupplier.mutate({ id: editingSupplier._id, data: values });
+      onOpenChange?.(false);
     } else {
       createSupplier.mutate(values);
+      onOpenChange?.(false);
     }
   }
 

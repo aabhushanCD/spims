@@ -1,4 +1,12 @@
-import { ShoppingCart, Pill, UserPlus, PackageCheck } from "lucide-react";
+import {
+  ShoppingCart,
+  Pill,
+  UserPlus,
+  PackageCheck,
+  AlertTriangle,
+  ArrowUpDown,
+  RotateCcw,
+} from "lucide-react";
 
 import { motion } from "framer-motion";
 
@@ -40,8 +48,48 @@ const activities = [
     type: "user",
   },
 ];
+type MovementType = "SALE" | "PURCHASE" | "RETURN" | "ADJUSTMENT" | "EXPIRED";
 
-export default function ActivityTimeline() {
+interface Activity {
+  _id: string;
+  movementType: MovementType;
+  quantity: number;
+  remarks: string;
+  createdAt: string;
+}
+
+interface Props {
+  activities: Activity[];
+}
+
+const activityConfig = {
+  SALE: {
+    icon: ShoppingCart,
+    title: "Sale Completed",
+    color: "bg-emerald-100 text-emerald-700",
+  },
+  PURCHASE: {
+    icon: PackageCheck,
+    title: "Purchase Received",
+    color: "bg-blue-100 text-blue-700",
+  },
+  RETURN: {
+    icon: RotateCcw,
+    title: "Medicine Returned",
+    color: "bg-amber-100 text-amber-700",
+  },
+  ADJUSTMENT: {
+    icon: ArrowUpDown,
+    title: "Stock Adjusted",
+    color: "bg-purple-100 text-purple-700",
+  },
+  EXPIRED: {
+    icon: AlertTriangle,
+    title: "Medicine Expired",
+    color: "bg-red-100 text-red-700",
+  },
+};
+export default function ActivityTimeline({ activities }: Props) {
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -51,13 +99,16 @@ export default function ActivityTimeline() {
       </CardHeader>
 
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-6 max-h-90 overflow-y-auto pr-2">
           {activities.map((activity, index) => {
-            const Icon = activity.icon;
+            const config =
+              activityConfig[activity.movementType] ??
+              activityConfig.ADJUSTMENT;
+            const Icon = config.icon;
 
             return (
               <motion.div
-                key={activity.title}
+                key={activity._id}
                 initial={{
                   opacity: 0,
                   x: -10,
@@ -74,7 +125,9 @@ export default function ActivityTimeline() {
                 {/* Timeline */}
 
                 <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${config.color}`}
+                  >
                     <Icon size={18} />
                   </div>
 
@@ -86,14 +139,18 @@ export default function ActivityTimeline() {
                 {/* Content */}
 
                 <div className="pb-5">
-                  <p className="font-semibold">{activity.title}</p>
+                  <p className="font-semibold">{config.title}</p>
 
                   <p className="text-muted-foreground text-sm">
-                    {activity.description}
+                    {activity.remarks}
+                  </p>
+
+                  <p className="text-muted-foreground text-xs">
+                    Quantity: {activity.quantity}
                   </p>
 
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {activity.time}
+                    {new Date(activity.createdAt).toLocaleString()}
                   </p>
                 </div>
               </motion.div>

@@ -61,7 +61,6 @@ export default function PurchaseDialog({
     resolver: zodResolver(purchaseSchema) as Resolver<PurchaseForm>,
     defaultValues,
   });
-  console.log("dialog", purchase?.data?.data);
 
   useEffect(() => {
     if (!editingPurchase || !purchase.data.data) {

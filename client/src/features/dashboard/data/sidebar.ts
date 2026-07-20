@@ -6,6 +6,7 @@ import {
   FileText,
   Settings,
   Database,
+  DollarSign,
 } from "lucide-react";
 
 export const sidebarItems = [
@@ -77,6 +78,18 @@ export const sidebarItems = [
       {
         title: "Units",
         path: "/units",
+      },
+    ],
+  },
+
+  {
+    title: "Sales",
+    icon: DollarSign,
+    roles: ["pharmacist"],
+    children: [
+      {
+        title: "Sales Orders",
+        path: "/sales",
       },
     ],
   },

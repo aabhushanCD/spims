@@ -2,6 +2,7 @@
 
 import Login from "@/features/auth/pages/login.page";
 import Signup from "@/features/auth/pages/Signup";
+import BatchPage from "@/features/batch/pages/BatchPage";
 
 import DashboardLayout from "@/features/dashboard/layouts/DashboardLayout";
 import Dashboard from "@/features/dashboard/pages/Dashboard.page";
@@ -15,6 +16,7 @@ import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
 
 import SupplierPage from "@/features/seller/pages/SupplierPage";
+import UserPage from "@/features/user/pages/UserPage";
 import { BrowserRouter, Routes, Route } from "react-router";
 
 export default function AppRoutes() {
@@ -38,6 +40,8 @@ export default function AppRoutes() {
           <Route path="/purchase-orders" element={<PurchasePage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/sales/:id" element={<SaleDetailsPage />} />
+          <Route path="/users" element={<UserPage />} />
+          <Route path="/batches" element={<BatchPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -37,7 +37,7 @@ export default function AddMedicineDialog() {
   const form = useForm<MedicineFormInput>({
     resolver: zodResolver(medicineSchema),
     defaultValues: {
-     medicineName: "",
+      medicineName: "",
       genericNameId: "",
       categoryId: "",
       brandId: "",
@@ -50,10 +50,16 @@ export default function AddMedicineDialog() {
     },
   });
   const createMedicine = useCreateMedicine();
-  
-  
+
   function onSubmit(values: MedicineFormInput) {
-    createMedicine.mutate(values);
+    createMedicine.mutate(values, {
+      onSuccess: () => {
+        form.reset();
+      },
+      onError: (error) => {
+        return alert(`Failed to create medicine: ${error.message}`);
+      },
+    });
   }
 
   return (

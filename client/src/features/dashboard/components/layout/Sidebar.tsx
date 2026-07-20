@@ -1,4 +1,3 @@
-
 import { LogOut } from "lucide-react";
 
 import { sidebarItems } from "../../data/sidebar";
@@ -12,9 +11,15 @@ import { useAuth } from "@/features/auth/context/authContext";
 
 export default function Sidebar() {
   const logout = useLogout();
-  const { theme } = useAuth();
+  const { theme, currentUser } = useAuth();
+  let filteredSidebarItem = sidebarItems.filter((item) => {
+    if (!item.roles)  return true;
+    return item.roles.includes(currentUser?.role as string);
+  });
   return (
-    <aside className={`bg-background hidden h-screen w-72 shrink-0 border-r lg:block ${theme === "dark" ? "dark text-white " : ""}`}>
+    <aside
+      className={`bg-background hidden h-screen w-72 shrink-0 border-r lg:block ${theme === "dark" ? "dark text-white" : ""}`}
+    >
       {/* Logo */}
 
       <div className="flex h-20 items-center gap-3 border-b px-6 py-5">
@@ -32,7 +37,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-5">
         <div className="space-y-1">
-          {sidebarItems.map((item) => (
+          {filteredSidebarItem.map((item) => (
             <SidebarItem
               key={item.title}
               title={item.title}

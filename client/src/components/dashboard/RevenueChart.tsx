@@ -8,9 +8,23 @@ import {
 } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { monthNames } from "@/features/dashboard/data/monthName";
 
-import {revenueData} from "@/features/dashboard/data/chart";
-export default function RevenueChart() {
+interface Props {
+  revenueTrend: {
+    month: number;
+    total: number;
+    count: number;
+  }[];
+}
+
+export default function RevenueChart({ revenueTrend }: Props) {
+  const chartData = revenueTrend.map((item) => ({
+    month: monthNames[item.month - 1], // Convert month number to month name
+    revenue: item.total,
+    sales: item.count,
+  }));
+
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -18,9 +32,9 @@ export default function RevenueChart() {
       </CardHeader>
 
       <CardContent>
-        <div className="h-[350px]">
+        <div className="h-87.5">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={revenueData}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
 
               <XAxis dataKey="month" />

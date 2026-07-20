@@ -39,7 +39,16 @@ const batches = [
   },
 ];
 
-export default function ExpiringMedicines() {
+interface Props {
+  expiry: {
+    batchesAwaititngDisposal: number;
+    unitsAwaitingDisposal: number;
+    expiringSoonCount: number;
+    expiringSoonUnits: number;
+  };
+}
+
+export default function ExpiringMedicines({ expiry }: Props) {
   return (
     <Card className="shadow-md">
       <CardHeader>
