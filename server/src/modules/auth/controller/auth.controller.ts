@@ -35,8 +35,12 @@ export class AuthController {
     try {
       const userId = req.user?.userId;
       const result = await this.authService.logoutUser(userId as string);
-      res.clearCookie("token", { httpOnly: true, expires: new Date(0) });
-      res.json(result);
+       res.clearCookie("token", {
+         httpOnly: true,
+         secure: process.env.NODE_ENV === "production",
+         sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+       });
+       res.json(result);
     } catch (error: any) {
       next(error);
     }
