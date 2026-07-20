@@ -35,7 +35,7 @@ const BatchPage = () => {
   return (
     <div>
       <BatchTable
-        batches={batches}
+        batches={batches.data}
 
         onView={handleView}
 
