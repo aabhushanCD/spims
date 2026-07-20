@@ -1,4 +1,4 @@
-// import ProtectedRoute from "@/components/ProtectedRoute";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Login from "@/features/auth/pages/login.page";
 import Signup from "@/features/auth/pages/Signup";
@@ -26,7 +26,14 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
-        <Route path="/" element={<DashboardLayout />}>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<Dashboard />} />
           <Route path="/medicines" element={<MedicinePage />} />
           <Route path="/generic-names" element={<GenericNamePage />} />
