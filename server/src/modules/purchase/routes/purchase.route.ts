@@ -1,4 +1,9 @@
-import { Router, type Request, type Response } from "express";
+import express, {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import {
   createPurchaseOrderItemSchema,
   updatePurchaseOrderItemSchema,
@@ -12,8 +17,7 @@ import { purchaseOrderController } from "../../../app/container.ts";
 
 const router = Router();
 
-
-router.use((req: Request, res: Response, next) => {
+router.use((req: Request, res: Response, next: NextFunction) => {
   verifyToken(req, res, next);
 });
 /* -------------------------------------------------------------------------- */
@@ -24,48 +28,48 @@ router.use((req: Request, res: Response, next) => {
 router.post(
   "/",
   validate(createPurchaseOrderSchema),
-  (req: Request, res: Response) =>
-    purchaseOrderController.createPurchaseOrder(req, res),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.createPurchaseOrder(req, res, next),
 );
 
 // Get All Purchase Orders
-router.get("/", (req: Request, res: Response) =>
-  purchaseOrderController.getPurchaseOrders(req, res),
+router.get("/", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.getPurchaseOrders(req, res, next),
 );
 
 // Get Purchase Order By Id
-router.get("/:id", (req: Request, res: Response) =>
-  purchaseOrderController.getPurchaseOrderById(req, res),
+router.get("/:id", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.getPurchaseOrderById(req, res, next ),
 );
 
 // Delete Purchase Order
-router.delete("/:id", (req: Request, res: Response) =>
-  purchaseOrderController.deletePurchaseOrder(req, res),
+router.delete("/:id", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.deletePurchaseOrder(req, res, next),
 );
 
 // Cancel Purchase Order
-router.patch("/:id/cancel", (req: Request, res: Response) =>
-  purchaseOrderController.cancelPurchaseOrder(req, res),
+router.patch("/:id/cancel", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.cancelPurchaseOrder(req, res, next),
 );
 
 // Approve Purchase Order
-router.patch("/:id/approve", (req: Request, res: Response) =>
-  purchaseOrderController.approvePurchaseOrder(req, res),
+router.patch("/:id/approve", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.approvePurchaseOrder(req, res, next),
 );
 
 // Receive Purchase Order
-router.post("/:id/receive", (req: Request, res: Response) =>
-  purchaseOrderController.receivePurchaseOrder(req, res),
+router.post("/:id/receive", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.receivePurchaseOrder(req, res, next),
 );
 
 // Update Purchase Order (if you allow updating)
-// router.patch("/:id", (req: Request, res: Response) =>
-//   purchaseOrderController.updatePurchaseOrder(req, res),
+// router.patch("/:id", (req: Request, res: Response, next: NextFunction) =>
+//   purchaseOrderController.updatePurchaseOrder(req, res, next),
 // );
 
 // Recalculate Total
-router.patch("/:id/recalculate", (req: Request, res: Response) =>
-  purchaseOrderController.recalculateTotals(req, res),
+router.patch("/:id/recalculate", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.recalculateTotals(req, res, next),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -73,29 +77,29 @@ router.patch("/:id/recalculate", (req: Request, res: Response) =>
 /* -------------------------------------------------------------------------- */
 
 // Get all items of a purchase order
-router.get("/:id/items", (req: Request, res: Response) =>
-  purchaseOrderController.getPurchaseOrderItems(req, res),
+router.get("/:id/items", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.getPurchaseOrderItems(req, res, next),
 );
 
 // Add item
 router.post(
   "/:id/items",
   validate(createPurchaseOrderItemSchema),
-  (req: Request, res: Response) =>
-    purchaseOrderController.addPurchaseOrderItem(req, res),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.addPurchaseOrderItem(req, res, next),
 );
 
 // Update item
 router.patch(
   "/:id/items/:itemId",
   validate(updatePurchaseOrderItemSchema),
-  (req: Request, res: Response) =>
-    purchaseOrderController.updatePurchaseOrderItem(req, res),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.updatePurchaseOrderItem(req, res, next),
 );
 
 // Delete item
-router.delete("/:id/items/:itemId", (req: Request, res: Response) =>
-  purchaseOrderController.removePurchaseOrderItem(req, res),
+router.delete("/:id/items/:itemId", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.removePurchaseOrderItem(req, res, next),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -103,8 +107,8 @@ router.delete("/:id/items/:itemId", (req: Request, res: Response) =>
 /* -------------------------------------------------------------------------- */
 
 // Purchase orders by supplier
-router.get("/supplier/:supplierId", (req: Request, res: Response) =>
-  purchaseOrderController.getPurchaseOrdersBySupplierId(req, res),
+router.get("/supplier/:supplierId", (req: Request, res: Response, next: NextFunction) =>
+  purchaseOrderController.getPurchaseOrdersBySupplierId(req, res, next),
 );
 
 export default router;

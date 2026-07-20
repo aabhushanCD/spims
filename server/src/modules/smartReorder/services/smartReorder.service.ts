@@ -115,7 +115,7 @@ export class SmartReorderService {
       recentOrders.length > 0
         ? recentOrders.reduce((sum, o) => {
             const delayMs =
-              o.receivedDate!.getTime() - o.expectedDeliveryDate.getTime();
+              o.receivedDate!.getTime() - o.expectedDeliveryDate!.getTime();
             return sum + delayMs / (1000 * 60 * 60 * 24);
           }, 0) / recentOrders.length
         : 0;

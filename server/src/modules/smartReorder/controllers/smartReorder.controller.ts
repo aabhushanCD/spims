@@ -65,10 +65,7 @@ export class SmartReorderController {
   // body (optional): { threshold?, targetStock? }
   generateAll = asyncHandler(async (req: Request, res: Response) => {
     const { threshold, targetStock } = req.body ?? {};
-    const results = await this.smartReorderService.generateForAllMedicines(
-      threshold,
-      targetStock,
-    );
+    const results = await this.smartReorderService.generateForAllMedicines();
     res.status(200).json({ success: true, data: results });
   });
 
@@ -78,8 +75,6 @@ export class SmartReorderController {
     const reorder =
       await this.smartReorderService.generateRecommendationForMedicine(
         req.params.medicineId as string,
-        threshold,
-        targetStock,
       );
     res.status(201).json({ success: true, data: reorder });
   });

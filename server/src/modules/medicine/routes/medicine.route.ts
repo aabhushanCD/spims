@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import {
   createMedicineSchema,
@@ -9,30 +9,30 @@ import { medicineController } from "../../../app/container.ts";
 
 const router = express.Router();
 
-router.post("/", validate(createMedicineSchema), (req, res) => {
-  medicineController.createMedicine(req, res);
+router.post("/", validate(createMedicineSchema), (req: Request, res: Response, next: NextFunction) => {
+  medicineController.createMedicine(req, res, next);
 });
 
-router.get("/search", (req, res) => {
-  medicineController.searchMedicines(req, res);
+router.get("/search", (req: Request, res: Response, next: NextFunction) => {
+  medicineController.searchMedicines(req, res, next);
 });
 
-router.get("/:id", (req, res) => {
-  medicineController.getMedicineById(req, res);
+router.get("/:id", (req: Request, res: Response, next: NextFunction) => {
+  medicineController.getMedicineById(req, res, next);
 });
 
 
 
-router.get("/", (req, res) => {
-  medicineController.getAllMedicines(req, res);
+router.get("/", (req: Request, res: Response, next: NextFunction) => {
+  medicineController.getAllMedicines(req, res, next);
 });
 
-router.put("/:id", validate(updateMedicineSchema), (req, res) => {
-  medicineController.updateMedicine(req, res);
+router.put("/:id", validate(updateMedicineSchema), (req: Request, res: Response, next: NextFunction) => {
+  medicineController.updateMedicine(req, res, next);
 });
 
-router.delete("/:id", (req, res) => {
-  medicineController.deactivateMedicine(req, res);
+router.delete("/:id", (req: Request, res: Response, next: NextFunction) => {
+  medicineController.deactivateMedicine(req, res, next);
 });
 
 export default router;

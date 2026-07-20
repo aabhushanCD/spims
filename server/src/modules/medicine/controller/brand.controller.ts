@@ -22,18 +22,18 @@ export class BrandController {
       }
       res.status(200).json(brand);
     } catch (error) {
-      res.status(500).json({ message: "Failed to retrieve brand", error });
+      next(error);
     }
   }
-  async getAllBrands(req: Request, res: Response) {
+  async getAllBrands(req: Request, res: Response,next:NextFunction) {
     try {
       const brands = await this.brandService.getAllBrands();
       res.status(200).json(brands);
     } catch (error) {
-      res.status(500).json({ message: "Failed to retrieve brands", error });
+      next(error);
     }
   }
-  async updateBrand(req: Request, res: Response) {
+  async updateBrand(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const updateData = req.body;
@@ -43,11 +43,11 @@ export class BrandController {
       }
       res.status(200).json(updatedBrand);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update brand", error });
+      next(error);
     }
   }
 
-  async deleteBrand(req: Request, res: Response) {
+  async deleteBrand(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const deletedBrand = await this.brandService.deleteBrand(id);
@@ -56,7 +56,7 @@ export class BrandController {
       }
       res.status(200).json({ message: "Brand deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete brand", error });
+      next(error);
     }
   }
 }
