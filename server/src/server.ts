@@ -16,11 +16,15 @@ import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
 dotenv.config();
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-];
+let allowedOrigins: string[];
+try {
+  allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? JSON.parse(process.env.ALLOWED_ORIGINS)
+    : ["http://localhost:5173", "http://localhost:5174"];
+} catch (err) {
+  console.error("Invalid ALLOWED_ORIGINS JSON, falling back to defaults");
+  allowedOrigins = ["http://localhost:5173", "http://localhost:5174"];
+}
 app.use(
   cors({
     origin: (origin, callback) => {
