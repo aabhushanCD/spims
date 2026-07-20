@@ -105,7 +105,7 @@ async function startServer() {
     await connectDB();
     scheduleExpiryCheckJob();
     scheduleReorderCalculationJob();
-    server.listen(PORT, "0.0.0.0", () => {
+    server.listen(PORT,  () => {
       console.log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
