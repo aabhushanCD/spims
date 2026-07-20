@@ -1,4 +1,9 @@
-import { Router } from "express";
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import {
   createSupplierSchema,
   updateSupplierSchema,
@@ -8,20 +13,28 @@ import { supplierController } from "../../../app/container.ts";
 
 const supplierRouter = Router();
 
-supplierRouter.get("/", (req, res) =>
-  supplierController.getAllSuppliers(req, res),
+supplierRouter.get("/", (req: Request, res: Response, next: NextFunction) =>
+  supplierController.getAllSuppliers(req, res, next),
 );
-supplierRouter.get("/:id", (req, res) =>
-  supplierController.getSupplierById(req, res),
+supplierRouter.get("/:id", (req: Request, res: Response, next: NextFunction) =>
+  supplierController.getSupplierById(req, res, next),
 );
-supplierRouter.post("/", validate(createSupplierSchema), (req, res) =>
-  supplierController.createSupplier(req, res),
+supplierRouter.post(
+  "/",
+  validate(createSupplierSchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    supplierController.createSupplier(req, res, next),
 );
-supplierRouter.put("/:id", validate(updateSupplierSchema), (req, res) =>
-  supplierController.updateSupplier(req, res),
+supplierRouter.put(
+  "/:id",
+  validate(updateSupplierSchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    supplierController.updateSupplier(req, res, next),
 );
-supplierRouter.delete("/:id", (req, res) =>
-  supplierController.deleteSupplier(req, res),
+supplierRouter.delete(
+  "/:id",
+  (req: Request, res: Response, next: NextFunction) =>
+    supplierController.deleteSupplier(req, res, next),
 );
 
 export default supplierRouter;
