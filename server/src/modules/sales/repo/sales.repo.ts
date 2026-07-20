@@ -95,7 +95,7 @@ export class SalesRepo {
   }
 
   async getSalesByMonth(
-    monthsBack: number,
+    monthBack: number,
     year: number,
     session?: mongoose.ClientSession,
   ): Promise<{ month: number; total: number; count: number }[]> {
@@ -104,7 +104,14 @@ export class SalesRepo {
 
     const results = await this.salesModel
       .aggregate([
-        { $match: { saleDate: { $gte: startDate, $lte: endDate } } },
+        {
+          $match: {
+            saleDate: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
         {
           $group: {
             _id: { $month: "$saleDate" },
@@ -112,15 +119,36 @@ export class SalesRepo {
             count: { $sum: 1 },
           },
         },
-        { $sort: { _id: 1 } },
+        {
+          $sort: {
+            _id: 1,
+          },
+        },
       ])
       .session(session ?? null);
 
-    return results.map((r) => ({
-      month: r._id,
-      total: r.total,
-      count: r.count,
-    }));
+    // Convert aggregation results into a map
+    const salesMap = new Map(
+      results.map((r) => [
+        r._id,
+        {
+          total: r.total,
+          count: r.count,
+        },
+      ]),
+    );
+
+    // Return all 12 months
+    return Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1;
+      const data = salesMap.get(month);
+
+      return {
+        month,
+        total: data?.total ?? 0,
+        count: data?.count ?? 0,
+      };
+    });
   }
   async getTotalSalesInRange(
     startDate: Date,

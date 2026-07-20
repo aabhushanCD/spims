@@ -25,6 +25,9 @@ export class InventoryMovementRepo {
       .find()
       .sort({ createdAt: -1 })
       .limit(limit)
+      .populate("medicineId", "medicineName strength")
+      .populate("batchId", "batchNumber expiryDate")
+      .populate("performedBy", "name")
       .lean()
       .exec();
   }
@@ -35,7 +38,6 @@ export class InventoryMovementRepo {
   async findAllByBatchId(batchId: string): Promise<IInventoryMovement[]> {
     return await this.inventoryModel.find({ batchId }).lean().exec();
   }
-
   async findAllByReference(referenceId: string): Promise<IInventoryMovement[]> {
     return await this.inventoryModel.find({ referenceId }).lean().exec();
   }

@@ -75,6 +75,13 @@ export class UserService {
   ): Promise<IUser[]> {
     return await this.userRepository.findByStatusAndLastLogin(isActive, date);
   }
+  async toggleUserActivation(userId: string): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw AppError.notFound("User not found");
+    }
+    await this.userRepository.update(userId, { isActive: !user.isActive });
+  }
 
   async getUsersByRoleAndLastLogin(
     role: "owner" | "pharmacist" | "inventory_manager",

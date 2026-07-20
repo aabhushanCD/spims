@@ -20,12 +20,17 @@ import reportRoutes from "./smartReorder/routes/smartReorder.routes.ts";
 import notificationRoutes from "./notification/routes/notification.routes.ts";
 import dashboardRoutes from "./dashboard/routes/dashboard.routes.ts";
 import { returnController, saleItemController } from "../app/container.ts";
-
+import batchRoutes from "./batch/routes/batch.routes.ts";
 const router = express.Router();
 
 // auth and user-related routes
 router.use("/auth", authRoutes);
-router.use("/users", verifyToken, authorize(["owner"]), userRoutes);
+router.use(
+  "/users",
+  verifyToken,
+  authorize(["owner", "pharmacist"]),
+  userRoutes,
+);
 
 // medicine-related routes
 router.use(
@@ -108,12 +113,20 @@ router.use(
   buildReturnRouter(returnController),
 );
 
+// batch routes
+router.use(
+  "/batches",
+  verifyToken,
+  authorize(["owner", "inventory-manager", "pharmacist"]),
+  batchRoutes,
+);
+
 // smart reorder routes
 
 router.use(
   "/smart-reorders",
   verifyToken,
-  authorize(["owner", "inventory_manager"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   reportRoutes,
 );
 
@@ -121,7 +134,7 @@ router.use(
 router.use(
   "/notifications",
   verifyToken,
-  authorize(["owner", "inventory_manager"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   notificationRoutes,
 );
 

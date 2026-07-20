@@ -11,6 +11,7 @@ import { register } from "./shared/provider/websocker.provider.ts";
 import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryCheck.job.ts";
 import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
 import redis from "./config/redis.config.ts";
+import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
 
 dotenv.config();
 const app = express();
@@ -45,6 +46,7 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found" });
 });
 
+app.use(errorHandler);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
@@ -98,7 +100,7 @@ async function startServer() {
     await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();
-    scheduleReorderCalculationJob(); // Ensure the database is connected before starting the server
+    scheduleReorderCalculationJob();
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

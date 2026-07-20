@@ -1,10 +1,10 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { PurchaseOrderService } from "../services/purchaseOrder.service.ts";
 
 export class PurchaseController {
   constructor(private readonly purchaseService: PurchaseOrderService) {}
 
-  async createPurchaseOrder(req: Request, res: Response) {
+  async createPurchaseOrder(req: Request, res: Response, next: NextFunction) {
     console.log("Request body:", req.body);
     try {
       const purchaseOrder = await this.purchaseService.createPurchaseOrder(
@@ -15,14 +15,11 @@ export class PurchaseController {
         data: purchaseOrder,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to create purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async getPurchaseOrders(req: Request, res: Response) {
+  async getPurchaseOrders(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrders = await this.purchaseService.getPurchaseOrders();
       return res.status(200).json({
@@ -30,14 +27,11 @@ export class PurchaseController {
         data: purchaseOrders,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to retrieve purchase orders",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async getPurchaseOrderById(req: Request, res: Response) {
+  async getPurchaseOrderById(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrder = await this.purchaseService.getPurchaseOrderById(
         req.params.id as string,
@@ -47,56 +41,44 @@ export class PurchaseController {
         data: purchaseOrder,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to retrieve purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async deletePurchaseOrder(req: Request, res: Response) {
+  async deletePurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
       await this.purchaseService.deletePurchaseOrder(req.params.id as string);
       return res.status(200).json({
         message: "Purchase order deleted successfully",
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to delete purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async cancelPurchaseOrder(req: Request, res: Response) {
+  async cancelPurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
       await this.purchaseService.cancelPurchaseOrder(req.params.id as string);
       return res.status(200).json({
         message: "Purchase order canceled successfully",
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to cancel purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async approvePurchaseOrder(req: Request, res: Response) {
+  async approvePurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
       await this.purchaseService.approvePurchaseOrder(req.params.id as string);
       return res.status(200).json({
         message: "Purchase order approved successfully",
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to approve purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async receivePurchaseOrder(req: Request, res: Response) {
+  async receivePurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrder = await this.purchaseService.receivePurchaseOrder(
         req.params.id as string,
@@ -108,14 +90,11 @@ export class PurchaseController {
         data: purchaseOrder,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to receive purchase order",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async addPurchaseOrderItem(req: Request, res: Response) {
+  async addPurchaseOrderItem(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrderItem = await this.purchaseService.addPurchaseOrderItem(
         req.params.id as string,
@@ -126,14 +105,15 @@ export class PurchaseController {
         data: purchaseOrderItem,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to add purchase order item",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async updatePurchaseOrderItem(req: Request, res: Response) {
+  async updatePurchaseOrderItem(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
     try {
       const purchaseOrderItem =
         await this.purchaseService.updatePurchaseOrderItem(
@@ -146,14 +126,15 @@ export class PurchaseController {
         data: purchaseOrderItem,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to update purchase order item",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async removePurchaseOrderItem(req: Request, res: Response) {
+  async removePurchaseOrderItem(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
     try {
       await this.purchaseService.removePurchaseOrderItem(
         req.params.id as string,
@@ -163,14 +144,11 @@ export class PurchaseController {
         message: "Purchase order item removed successfully",
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to remove purchase order item",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async recalculateTotals(req: Request, res: Response) {
+  async recalculateTotals(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrder = await this.purchaseService.recalculateTotals(
         req.params.id as string,
@@ -180,14 +158,15 @@ export class PurchaseController {
         data: purchaseOrder,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to recalculate purchase order totals",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async getPurchaseOrdersBySupplierId(req: Request, res: Response) {
+  async getPurchaseOrdersBySupplierId(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
     try {
       const purchaseOrders =
         await this.purchaseService.getPurchaseOrdersBySupplierId(
@@ -198,14 +177,11 @@ export class PurchaseController {
         data: purchaseOrders,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to retrieve purchase orders",
-        error: error.message,
-      });
+      next(error);
     }
   }
 
-  async getPurchaseOrderItems(req: Request, res: Response) {
+  async getPurchaseOrderItems(req: Request, res: Response, next: NextFunction) {
     try {
       const purchaseOrder = await this.purchaseService.getAllPurchaseOrderItems(
         req.params.id as string,
@@ -215,10 +191,7 @@ export class PurchaseController {
         data: purchaseOrder,
       });
     } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to retrieve purchase order items",
-        error: error.message,
-      });
+      next(error);
     }
   }
 }

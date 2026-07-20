@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { SupplierService } from "../service/supplier.service.js";
 import type {
   CreateSupplierDto,
@@ -8,7 +8,7 @@ import type {
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
-  async createSupplier(req: Request, res: Response) {
+  async createSupplier(req: Request, res: Response, next: NextFunction) {
     try {
       const supplierData = req.body as CreateSupplierDto;
       const newSupplier =
@@ -19,11 +19,11 @@ export class SupplierController {
         data: newSupplier,
       });
     } catch (error: any) {
-      res.status(error.statusCode || 500).json({ message: error.message });
+      next(error);
     }
   }
 
-  async getSupplierById(req: Request, res: Response) {
+  async getSupplierById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const supplier = await this.supplierService.getSupplierById(id);
@@ -33,11 +33,11 @@ export class SupplierController {
         data: supplier,
       });
     } catch (error: any) {
-      res.status(error.statusCode || 500).json({ message: error.message });
+      next(error);
     }
   }
 
-  async getAllSuppliers(req: Request, res: Response) {
+  async getAllSuppliers(req: Request, res: Response, next: NextFunction) {
     try {
       const suppliers = await this.supplierService.getAllSuppliers();
       return res.status(200).json({
@@ -46,11 +46,11 @@ export class SupplierController {
         data: suppliers,
       });
     } catch (error: any) {
-      res.status(error.statusCode || 500).json({ message: error.message });
+      next(error);
     }
   }
 
-  async updateSupplier(req: Request, res: Response) {
+  async updateSupplier(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const supplierData = req.body as UpdateSupplierDto;
@@ -64,11 +64,11 @@ export class SupplierController {
         data: updatedSupplier,
       });
     } catch (error: any) {
-      res.status(error.statusCode || 500).json({ message: error.message });
+      next(error);
     }
   }
 
-  async deleteSupplier(req: Request, res: Response) {
+  async deleteSupplier(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const deletedSupplier = await this.supplierService.deleteSupplier(id);
@@ -78,7 +78,7 @@ export class SupplierController {
         data: deletedSupplier,
       });
     } catch (error: any) {
-      res.status(error.statusCode || 500).json({ message: error.message });
+      next(error);
     }
   }
 }

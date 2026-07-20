@@ -5,8 +5,12 @@ import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
 import type { CreateInventoryMovementDto } from "../schema/inventoryMovement.schema.ts";
-type ReferenceType = "SALE" | "RETURN" | "ADJUSTMENT" | "SYSTEM" | "PURCHASE_ORDER";
-
+type ReferenceType =
+  | "SALE"
+  | "RETURN"
+  | "ADJUSTMENT"
+  | "SYSTEM"
+  | "PURCHASE_ORDER";
 
 export class InventoryMovementService {
   constructor(
@@ -34,7 +38,7 @@ export class InventoryMovementService {
       throw this.appError.badRequest("Batch ID is required");
     }
 
-    const batch = await this.batchRepo.findById(batchId,session);
+    const batch = await this.batchRepo.findById(batchId, session);
 
     if (!batch) {
       throw this.appError.notFound("Batch not found");
@@ -44,7 +48,7 @@ export class InventoryMovementService {
         "Batch does not belong to the specified medicine",
       );
     }
-    const user = await this.userRepo.findById(userId,session);
+    const user = await this.userRepo.findById(userId, session);
 
     if (!user) {
       throw this.appError.notFound("User not found");

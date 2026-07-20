@@ -12,7 +12,7 @@ export class SaleItemRepo {
     saleItemData: Partial<ISalesItem>,
     session?: mongoose.ClientSession,
   ): Promise<ISalesItem> {
-    if(session) {
+    if (session) {
       const saleItem = new this.saleItemModel(saleItemData);
       await saleItem.save({ session });
       return saleItem;
@@ -94,11 +94,43 @@ export class SaleItemRepo {
     return this.saleItemModel.findByIdAndDelete(saleItemId).lean().exec();
   }
 
+  // async getTopSellingMedicines(
+  //   limit: number,
+  //   session?: mongoose.ClientSession,
+  // ): Promise<
+  //   { medicineId: string; totalQuantitySold: number; totalRevenue: number }[]
+  // > {
+  //   const results = await this.saleItemModel
+  //     .aggregate([
+  //       {
+  //         $group: {
+  //           _id: "$medicineId",
+  //           totalQuantitySold: { $sum: "$quantity" },
+  //           totalRevenue: { $sum: "$totalPrice" },
+  //         },
+  //       },
+  //       { $sort: { totalQuantitySold: -1 } },
+  //       { $limit: limit },
+  //     ])
+  //     .session(session ?? null);
+
+  //   return results.map((r) => ({
+  //     medicineId: r._id.toString(),
+  //     totalQuantitySold: r.totalQuantitySold,
+  //     totalRevenue: r.totalRevenue,
+  //   }));
+  // }
   async getTopSellingMedicines(
     limit: number,
     session?: mongoose.ClientSession,
   ): Promise<
-    { medicineId: string; totalQuantitySold: number; totalRevenue: number }[]
+    {
+      medicineId: string;
+      medicineName: string;
+      strength: string;
+      totalQuantitySold: number;
+      totalRevenue: number;
+    }[]
   > {
     const results = await this.saleItemModel
       .aggregate([
@@ -109,18 +141,46 @@ export class SaleItemRepo {
             totalRevenue: { $sum: "$totalPrice" },
           },
         },
-        { $sort: { totalQuantitySold: -1 } },
-        { $limit: limit },
+        {
+          $lookup: {
+            from: "medicines",
+            localField: "_id",
+            foreignField: "_id",
+            as: "medicine",
+          },
+        },
+        {
+          $unwind: "$medicine",
+        },
+        {
+          $project: {
+            _id: 0,
+            medicineId: "$medicine._id",
+            medicineName: "$medicine.medicineName",
+            strength: "$medicine.strength",
+            totalQuantitySold: 1,
+            totalRevenue: 1,
+          },
+        },
+        {
+          $sort: {
+            totalQuantitySold: -1,
+          },
+        },
+        {
+          $limit: limit,
+        },
       ])
       .session(session ?? null);
 
-    return results.map((r) => ({
-      medicineId: r._id.toString(),
-      totalQuantitySold: r.totalQuantitySold,
-      totalRevenue: r.totalRevenue,
+    return results.map((item) => ({
+      medicineId: item.medicineId.toString(),
+      medicineName: item.medicineName,
+      strength: item.strength,
+      totalQuantitySold: item.totalQuantitySold,
+      totalRevenue: item.totalRevenue,
     }));
   }
-
   async getDailySalesForMedicine(
     medicineId: string,
     days: number,

@@ -10,11 +10,13 @@ import {
 const NEARING_EXPIRY_DAYS = 30;
 
 export function scheduleExpiryCheckJob() {
-  cron.schedule("0 1 * * *", async () => {
+  cron.schedule("* 1 * * *", async () => {
     try {
       await backgroundJobService.runJob("expiry-check", async () => {
         const newlyExpired = await medicineBatchService.markExpiredBatches();
-
+        console.log(
+          `[ExpiryCheck] Found ${newlyExpired.length} newly expired batch(es) at ${new Date().toISOString()}`,
+        );
         if (newlyExpired.length > 0) {
           const pharmacistIds = await userRepo.findIdsByRole("pharmacist");
           await notificationService.createNotification({

@@ -1,20 +1,28 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { UserService } from "../service/user.service.js";
 
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  async createUser(req: Request, res: Response): Promise<void> {
+  async createUser(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const userData = req.body;
       const newUser = await this.userService.createUser(userData);
       res.status(201).json(newUser);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getUserById(req: Request, res: Response): Promise<void> {
+  async getUserById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const userId = req.params.id as string;
       const user = await this.userService.getUserById(userId);
@@ -24,11 +32,15 @@ export class UserController {
       }
       res.status(200).json(user);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async updateUser(req: Request, res: Response): Promise<void> {
+  async updateUser(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const userId = req.params.id as string;
       const userData = req.body;
@@ -39,11 +51,15 @@ export class UserController {
       }
       res.status(200).json(updatedUser);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async deleteUser(req: Request, res: Response): Promise<void> {
+  async deleteUser(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const userId = req.params.id as string;
       const role = req.body.role as string;
@@ -54,20 +70,28 @@ export class UserController {
       }
       res.status(200).json({ message: "User deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getAllUsers(req: Request, res: Response): Promise<void> {
+  async getAllUsers(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const users = await this.userService.getAllUsers();
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getUsersByRole(req: Request, res: Response): Promise<void> {
+  async getUsersByRole(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const role = req.params.role as
         | "owner"
@@ -76,39 +100,55 @@ export class UserController {
       const users = await this.userService.getUsersByRole(role);
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getActiveUsers(req: Request, res: Response): Promise<void> {
+  async getActiveUsers(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const users = await this.userService.getActiveUsers();
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getInactiveUsers(req: Request, res: Response): Promise<void> {
+  async getInactiveUsers(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const users = await this.userService.getInactiveUsers();
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getUsersByLastLogin(req: Request, res: Response): Promise<void> {
+  async getUsersByLastLogin(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const date = new Date(req.params.date as string);
       const users = await this.userService.getUsersByLastLogin(date);
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getUsersByRoleAndStatus(req: Request, res: Response): Promise<void> {
+  async getUsersByRoleAndStatus(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const role = req.params.role as
         | "owner"
@@ -121,11 +161,15 @@ export class UserController {
       );
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async getUsersByRoleAndLastLogin(req: Request, res: Response): Promise<void> {
+  async getUsersByRoleAndLastLogin(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const role = req.params.role as
         | "owner"
@@ -138,12 +182,13 @@ export class UserController {
       );
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
   async getUsersByStatusAndLastLogin(
     req: Request,
     res: Response,
+    next: NextFunction,
   ): Promise<void> {
     try {
       const isActive = req.query.isActive === "true";
@@ -154,11 +199,15 @@ export class UserController {
       );
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
     }
   }
 
-  async findByStatusAndLastLogin(req: Request, res: Response): Promise<void> {
+  async findByStatusAndLastLogin(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const isActive = req.query.isActive === "true";
       const date = new Date(req.params.date as string);
@@ -168,7 +217,21 @@ export class UserController {
       );
       res.status(200).json(users);
     } catch (error) {
-      res.status(500).json({ message: (error as Error).message });
+      next(error);
+    }
+  }
+
+  async toggleUserActivation(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const userId = req.params.id as string;
+      await this.userService.toggleUserActivation(userId);
+      res.status(200).json({ message: "User activation toggled successfully" });
+    } catch (error) {
+      next(error);
     }
   }
 }

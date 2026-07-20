@@ -30,9 +30,9 @@ export class SmartReorderRepo {
 
   async findAll(session?: mongoose.ClientSession): Promise<ISmartReorder[]> {
     if (session) {
-      return this.smartReorderModel.find().session(session).lean().exec();
+      return this.smartReorderModel.find().populate("medicineId").session(session).lean().exec();
     }
-    return this.smartReorderModel.find().lean().exec();
+    return this.smartReorderModel.find({status: "PENDING"}).populate("medicineId").lean().exec();
   }
 
   async findByMedicineId(

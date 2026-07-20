@@ -12,7 +12,7 @@ export class SalesController {
   // body: { invoiceNumber, customerName, paymentMethod,
   //  saleDate, items: [{medicineId, batchId, quantity,
   // unitPrice, discount?}], overallDiscount? }
-  async createSale(req: Request, res: Response) {
+  async createSale(req: Request, res: Response, next: NextFunction) {
     try {
       const cashierId = req.user?.userId;
       if (!cashierId) {
@@ -37,41 +37,33 @@ export class SalesController {
 
       res.status(201).json({ success: true, data: sale });
     } catch (error) {
-      console.error("Unexpected error in createSale:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      next(error);
     }
   }
   // GET /sales/:id
-  async getSaleById(req: Request, res: Response) {
+  async getSaleById(req: Request, res: Response, next: NextFunction) {
     try {
       const sale = await this.salesService.getSaleById(req.params.id as string);
       res.status(200).json({ success: true, data: sale });
     } catch (error) {
-      console.error("Unexpected error in getSaleById:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      next(error);
     }
   }
 
   // GET /sales
-  async getAllSales(req: Request, res: Response) {
+  async getAllSales(req: Request, res: Response, next: NextFunction) {
     try {
       const sales = await this.salesService.getAllSales();
       res.status(200).json({ success: true, data: sales });
     } catch (error) {
       console.error("Unexpected error in getAllSales:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      next(error);
     }
   }
 
   // PATCH /sales/:id
   // body: { customerName?, paymentMethod? } — financial/quantity fields are NOT editable here
-  async updateSale(req: Request, res: Response) {
+  async updateSale(req: Request, res: Response, next: NextFunction) {
     try {
       const { customerName, paymentMethod } = req.body;
       const updated = await this.salesService.updateSale(
@@ -83,15 +75,12 @@ export class SalesController {
       );
       res.status(200).json({ success: true, data: updated });
     } catch (error) {
-      console.error("Unexpected error in updateSale:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      next(error);
     }
   }
 
   // DELETE /sales/:id
-  async deleteSale(req: Request, res: Response) {
+  async deleteSale(req: Request, res: Response, next: NextFunction) {
     try {
       const performedBy = req.user?.userId;
       if (!performedBy) {
@@ -102,10 +91,7 @@ export class SalesController {
         .status(200)
         .json({ success: true, message: "Sale deleted and stock restored" });
     } catch (error) {
-      console.error("Unexpected error in deleteSale:", error);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+      next(error);
     }
   }
 }

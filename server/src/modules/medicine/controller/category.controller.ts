@@ -1,20 +1,20 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { CategoryService } from "../services/category.service.js";
 
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
-  async createCategory(req: Request, res: Response) {
+  async createCategory(req: Request, res: Response,next:NextFunction) {
     try {
       const categoryData = req.body;
       const newCategory =
         await this.categoryService.createCategory(categoryData);
       res.status(201).json(newCategory);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create category", error });
+      } catch (error) {
+   next(error);
     }
   }
 
-  async getCategoryById(req: Request, res: Response) {
+  async getCategoryById(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const category = await this.categoryService.getCategoryById(id);
@@ -23,20 +23,20 @@ export class CategoryController {
       }
       res.status(200).json(category);
     } catch (error) {
-      res.status(500).json({ message: "Failed to retrieve category", error });
+      next(error);
     }
   }
 
-  async getAllCategories(req: Request, res: Response) {
+  async getAllCategories(req: Request, res: Response,next:NextFunction) {
     try {
       const categories = await this.categoryService.getAllCategories();
       res.status(200).json(categories);
     } catch (error) {
-      res.status(500).json({ message: "Failed to retrieve categories", error });
+      next(error);
     }
   }
 
-  async updateCategory(req: Request, res: Response) {
+  async updateCategory(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const updateData = req.body;
@@ -49,11 +49,11 @@ export class CategoryController {
       }
       res.status(200).json(updatedCategory);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update category", error });
+      next(error);
     }
   }
 
-  async deleteCategory(req: Request, res: Response) {
+  async deleteCategory(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const deletedCategory = await this.categoryService.deleteCategory(id);
@@ -62,7 +62,7 @@ export class CategoryController {
       }
       res.status(200).json({ message: "Category deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete category", error });
+      next(error);
     }
   }
 

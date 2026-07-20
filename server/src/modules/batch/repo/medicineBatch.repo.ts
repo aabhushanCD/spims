@@ -45,9 +45,9 @@ export class MedicineBatchRepo {
 
   async findAll(session?: mongoose.ClientSession): Promise<IBatch[]> {
     if (session) {
-      return await this.batchModel.find().session(session).lean().exec();
+      return await this.batchModel.find().session(session).populate("medicineId", "medicineName").lean().exec();
     }
-    return await this.batchModel.find().lean().exec();
+    return await this.batchModel.find().populate("medicineId", "medicineName").lean().exec();
   }
   async findByMedicineId(
     medicineId: string,

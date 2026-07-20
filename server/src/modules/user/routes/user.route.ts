@@ -21,7 +21,7 @@ router.get("/role/:role/status/:isActive", (req, res) =>
   userController.getUsersByRoleAndStatus(req, res),
 );
 router.get("/active", (req, res) => userController.getActiveUsers(req, res));
-router.get("/inactive", (req, res) =>
+router.get("/:id/inactive", (req, res) =>
   userController.getInactiveUsers(req, res),
 );
 router.get("/last-login/:date", (req, res) =>
@@ -32,4 +32,7 @@ router.get("/status/:isActive/last-login/:date", (req, res) =>
   userController.findByStatusAndLastLogin(req, res),
 );
 
+router.patch("/:id/toggleUserActivation", (req, res) =>
+  userController.toggleUserActivation(req, res),
+);
 export default router;

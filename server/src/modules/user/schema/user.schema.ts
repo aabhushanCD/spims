@@ -17,6 +17,7 @@ const updateUserSchema = z.object({
     .min(6, { message: "Password must be at least 6 characters long" })
     .optional(),
   role: z.enum(["inventory_manager", "owner", "pharmacist"]).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;

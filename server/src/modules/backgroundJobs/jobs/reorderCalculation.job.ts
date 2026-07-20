@@ -7,11 +7,12 @@ import {
 
 export function scheduleReorderCalculationJob() {
   // Runs daily at 2 AM
-  cron.schedule("0 2 * * *", async () => {
+  cron.schedule("* 2 * * *", async () => {
     try {
-      await backgroundJobService.runJob("reorder-calculation", () =>
+     const data =  await backgroundJobService.runJob("reorder-calculation", () =>
         smartReorderService.generateForAllMedicines(),
       );
+      console.log(`[ReorderCalculation] Job completed successfully at ${new Date().toISOString()}`, data);
     } catch (err) {
       console.error("[ReorderCalculation] Job failed:", err);
     }

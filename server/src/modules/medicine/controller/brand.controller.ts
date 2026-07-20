@@ -1,19 +1,19 @@
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import type { BrandService } from "../services/brand.service.js";
 
 export class BrandController {
   constructor(private readonly brandService: BrandService) {}
-  async createBrand(req: Request, res: Response) {
+  async createBrand(req: Request, res: Response,next:NextFunction) {
     try {
       const brandData = req.body;
       const newBrand = await this.brandService.createBrand(brandData);
       res.status(201).json(newBrand);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create brand", error });
+      next(error);
     }
   }
 
-  async getBrandById(req: Request, res: Response) {
+  async getBrandById(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };
       const brand = await this.brandService.getBrandById(id);

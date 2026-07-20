@@ -40,6 +40,7 @@ export class DashboardService {
       lowStockCount,
       outOfStockCount,
       expiringSoonCount,
+      revenueTrend,
     ] = await Promise.all([
       this.salesRepo.getTotalSales(),
       this.purchaseRepo.getTotalPurchases(),
@@ -49,6 +50,7 @@ export class DashboardService {
       this.inventoryRepo.getLowStockCount(10),
       this.inventoryRepo.getOutOfStockCount(),
       this.medicineBatchRepo.getExpiringSoonCount(30),
+      this.getRevenueTrend(new Date().getFullYear()),
     ]);
 
     return {
@@ -60,6 +62,7 @@ export class DashboardService {
       lowStockCount,
       outOfStockCount,
       expiringSoonCount,
+      revenueTrend,
     };
   }
 
@@ -120,6 +123,10 @@ export class DashboardService {
         status: j.status,
       })),
     };
+  }
+
+  async getRevenueTrend(year: number = new Date().getFullYear()) {
+    return await this.salesRepo.getSalesByMonth(12, year);
   }
 
   async getNotificationSummary() {
@@ -198,14 +205,26 @@ export class DashboardService {
   }
 
   async getInventoryAnalytics(session?: mongoose.ClientSession) {
-    const [totalValue, lowStockCount, outOfStockCount, expiringSoonCount] =
-      await Promise.all([
-        this.inventoryRepo.getTotalInventoryValue(session),
-        this.inventoryRepo.getLowStockCount(10, session),
-        this.inventoryRepo.getOutOfStockCount(session),
-        this.medicineBatchRepo.getExpiringSoonCount(30, session),
-      ]);
-    return { totalValue, lowStockCount, outOfStockCount, expiringSoonCount };
+    const [
+      totalValue,
+      inventoryHealth,
+      lowStockCount,
+      outOfStockCount,
+      expiringSoonCount,
+    ] = await Promise.all([
+      this.inventoryRepo.getTotalInventoryValue(session),
+      this.inventoryRepo.getInventoryHealth(session),
+      this.inventoryRepo.getLowStockCount(10, session),
+      this.inventoryRepo.getOutOfStockCount(session),
+      this.medicineBatchRepo.getExpiringSoonCount(30, session),
+    ]);
+    return {
+      totalValue,
+      inventoryHealth,
+      lowStockCount,
+      outOfStockCount,
+      expiringSoonCount,
+    };
   }
 
   async getTopSellingMedicines(
