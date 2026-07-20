@@ -178,7 +178,7 @@ export class DashboardService {
   async getSupplierAnalytics() {
     const [activeSuppliers, inactiveSuppliers] = await Promise.all([
       this.supplierRepo.getTotalSuppliers("active"),
-      this.supplierRepo.getTotalSuppliers("inactive"),
+      this.supplierRepo.getTotalSuppliers("inActive"),
     ]);
     return {
       activeSuppliers,
