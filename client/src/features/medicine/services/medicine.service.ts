@@ -3,7 +3,6 @@ import { api } from "@/api/fetch.api";
 import type { Medicine } from "../types/medicine.types";
 import type { MedicineFormData } from "../schema/medicine.schema";
 
-
 const getMedicines = async (): Promise<Medicine[]> => {
   const response = await api.get("/medicines");
 

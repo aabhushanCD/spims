@@ -1,5 +1,4 @@
 import { api } from "@/api/fetch.api";
-import axios from "axios";
 
 const getInventory = async (search: string) => {
   const response = await api.get(`/inventory?search=${search}`);
