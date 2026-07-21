@@ -69,6 +69,11 @@ export class InventoryService {
 
     return inventory;
   }
+  async getAllInventories(
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory[]> {
+    return await this.inventoryRepo.findAll(session);
+  }
   async searchMedicines(query: string) {
     return await this.inventoryRepo.searchMedicines(query);
   }

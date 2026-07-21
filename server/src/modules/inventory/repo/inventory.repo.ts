@@ -16,6 +16,13 @@ export class InventoryRepo {
     return await inventory.save();
   }
 
+  async findAll(session?: mongoose.ClientSession): Promise<IInventory[]> {
+    if (session) {
+      return await this.inventoryModel.find().session(session).exec();
+    }
+    return await this.inventoryModel.find().populate("medicineId").lean().exec();
+  }
+
   async findById(
     id: string,
     session?: mongoose.ClientSession,

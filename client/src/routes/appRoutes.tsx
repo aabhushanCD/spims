@@ -10,6 +10,7 @@ import BrandPage from "@/features/genericName/pages/BrandPage";
 import CategoryPage from "@/features/genericName/pages/CategoryPage";
 import GenericNamePage from "@/features/genericName/pages/GenericNamePage";
 import UnitPage from "@/features/genericName/pages/UnitPage";
+import InventoryPage from "@/features/inventory/pages/InventoryPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
@@ -49,6 +50,7 @@ export default function AppRoutes() {
           <Route path="/sales/:id" element={<SaleDetailsPage />} />
           <Route path="/users" element={<UserPage />} />
           <Route path="/batches" element={<BatchPage />} />
+          <Route path="/stock" element={<InventoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

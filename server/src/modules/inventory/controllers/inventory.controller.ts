@@ -74,6 +74,12 @@ export class InventoryController {
     res.status(200).json({ success: true, data: medicines });
   });
 
+  // GET /inventory
+  getAllInventories = asyncHandler(async (req: Request, res: Response) => {
+    const inventories = await this.inventoryService.getAllInventories();
+    res.status(200).json({ success: true, data: inventories });
+  });
+
   // GET /inventory/:id
   getInventoryById = asyncHandler(async (req: Request, res: Response) => {
     const inventory = await this.inventoryService.getInventoryById(

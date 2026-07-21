@@ -5,6 +5,7 @@ import { inventoryController } from "../../../app/container.ts";
 const router = Router();
 
 router.post("/", inventoryController.createInventory);
+
 router.get("/medicines/search", inventoryController.searchMedicines);
 router.get(
   "/medicine/:medicineId",
@@ -19,8 +20,7 @@ router.post("/:medicineId/reserve", inventoryController.reserveStock);
 router.post("/:medicineId/release", inventoryController.releaseReservedStock);
 router.post("/:medicineId/sync", inventoryController.syncInventoryFromBatch);
 
-
 router.patch("/:id", inventoryController.updateInventory);
 router.delete("/:id", inventoryController.deleteInventory);
-
+router.get("/", inventoryController.getAllInventories);
 export default router;

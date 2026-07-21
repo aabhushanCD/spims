@@ -11,7 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,13 +22,12 @@ import { Button } from "@/components/ui/button";
 import { useMedicines } from "../hooks/useMedicines";
 
 export default function MedicineTable() {
-  const { data:medicines=[], isLoading } = useMedicines();
+  const { data: medicines = [], isLoading } = useMedicines();
 
-  
   if (isLoading) {
     return <div>Loading...</div>;
   }
-  
+
   return (
     <Card>
       <CardHeader>
@@ -44,12 +42,13 @@ export default function MedicineTable() {
                 <TableHead>Medicine</TableHead>
 
                 <TableHead>Generic Name</TableHead>
+                <TableHead>Strength</TableHead>
 
                 <TableHead>Category</TableHead>
 
                 <TableHead>Brand</TableHead>
 
-                <TableHead>Stock</TableHead>
+                {/* <TableHead>Stock</TableHead> */}
 
                 <TableHead>Action</TableHead>
               </TableRow>
@@ -58,15 +57,18 @@ export default function MedicineTable() {
             <TableBody>
               {medicines.map((medicine) => (
                 <TableRow key={medicine._id}>
-                  <TableCell className="font-medium">{medicine.medicineName}</TableCell>
+                  <TableCell className="font-medium">
+                    {medicine.medicineName}
+                  </TableCell>
 
                   <TableCell>{medicine.genericName}</TableCell>
+                  <TableCell>{medicine.strength}</TableCell>
 
                   <TableCell>{medicine.category}</TableCell>
 
                   <TableCell>{medicine.brand}</TableCell>
 
-                  <TableCell>
+                  {/* <TableCell>
                     <span
                       className={`font-semibold ${
                         medicine.currentStock < 20 ? "text-red-600" : "text-foreground"
@@ -74,9 +76,7 @@ export default function MedicineTable() {
                     >
                       {medicine.currentStock}
                     </span>
-                  </TableCell>
-
-                
+                  </TableCell> */}
 
                   <TableCell>
                     <DropdownMenu>
