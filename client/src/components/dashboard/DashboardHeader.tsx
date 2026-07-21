@@ -2,6 +2,9 @@ import { Plus, ShoppingCart, Pill } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
+import AddMedicineDialog from "@/features/medicine/components/AddMedicineDialog";
+import PurchaseDialog from "@/features/purchase/components/PurchaseDialog";
+import { SaleDialog } from "@/features/sales/components/SaleDialog";
 
 export default function DashboardHeader() {
   return (
@@ -9,7 +12,7 @@ export default function DashboardHeader() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="via-background  flex flex-col gap-6 rounded-2xl border bg-linear-to-r from-emerald-50 to-cyan-50 p-6 shadow-sm md:flex-row md:items-center md:justify-between"
+      className="via-background flex flex-col gap-6 rounded-2xl border bg-linear-to-r from-emerald-50 to-cyan-50 p-6 shadow-sm md:flex-row md:items-center md:justify-between"
     >
       {/* Welcome section */}
 
@@ -29,20 +32,11 @@ export default function DashboardHeader() {
       {/* Actions */}
 
       <div className="flex flex-wrap gap-3">
-        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-          <Plus size={18} />
-          Add Medicine
-        </Button>
+        <AddMedicineDialog />
 
-        <Button variant="outline" className="gap-2">
-          <ShoppingCart size={18} />
-          New Purchase
-        </Button>
+        <PurchaseDialog />
 
-        <Button variant="outline" className="gap-2">
-          <Pill size={18} />
-          New Sale
-        </Button>
+        <SaleDialog />
       </div>
     </motion.div>
   );

@@ -15,7 +15,7 @@ import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
 
-import SupplierPage from "@/features/seller/pages/SupplierPage";
+import SupplierPage from "@/features/supplier/pages/SupplierPage";
 import UserPage from "@/features/user/pages/UserPage";
 import { BrowserRouter, Routes, Route } from "react-router";
 

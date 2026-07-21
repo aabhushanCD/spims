@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSupplier } from "@/features/seller/hooks/useSuppliers";
+import { useSupplier } from "@/features/supplier/hooks/useSuppliers";
 
 interface Props {
   value?: string;

@@ -24,8 +24,8 @@ import { usePurchase } from "../hooks/usePurchase";
 import { useUpdatePurchase } from "../hooks/useUpdatePurchase";
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   editingPurchase?: any | null;
 }
 
@@ -102,7 +102,7 @@ export default function PurchaseDialog({
     }
 
     form.reset(defaultValues);
-    onOpenChange(false);
+    onOpenChange?.(false);
   }
 
   return (
@@ -125,7 +125,7 @@ export default function PurchaseDialog({
 
             <PurchaseFooter
               isLoading={createPurchase.isPending}
-              onCancel={() => onOpenChange(false)}
+              onCancel={() => onOpenChange?.(false)}
             />
           </form>
         </Form>

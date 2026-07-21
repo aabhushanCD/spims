@@ -1,17 +1,15 @@
 import { useAuth } from "@/features/auth/context/authContext";
 import { Navigate } from "react-router";
+import LoadingSpinner from "./common/LoadingSpinner";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, isLoading } = useAuth();
-
-  console.log("AuthProvider data", currentUser, isLoading);
-  if (isLoading && !currentUser) {
-    return <div>Loading...</div>;
+  if (isLoading) {
+    return <LoadingSpinner />;
   }
-  if (!currentUser && !isLoading) {
-     return <Navigate to="/login" replace />;
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
   }
-
   return children;
 };
 

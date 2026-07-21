@@ -54,32 +54,31 @@ export default function Dashboard() {
 
       {/* Sales + Stock */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <LowStockMedicines
+        {/* <LowStockMedicines
         // summary={dashboard.summary}
         // reorder={dashboard.reorder}
-        />
+        /> */}
         <InventoryHealth
           summary={dashboard.summary}
           reorder={dashboard.reorder}
           expiry={dashboard.expiry}
         />
+        <QuickActions />
       </section>
 
       {/* Expiry + Actions */}
       <section className="grid gap-6 lg:grid-cols-2">
-        <ExpiringMedicines
+        {/* <ExpiringMedicines
         //  expiry={dashboard.expiry}
-        />
-
-        <QuickActions />
+        /> */}
       </section>
 
       {/* Activity */}
       <section className="grid gap-6 lg:grid-cols-2">
         <ActivityTimeline activities={dashboard.recentActivity} />
-        <RecentSales
+        {/* <RecentSales
         // activities={dashboard.recentActivity}
-        />
+        /> */}
         {/* <NotificationsPanel
           notifications={dashboard.notifications}
           health={dashboard.health}

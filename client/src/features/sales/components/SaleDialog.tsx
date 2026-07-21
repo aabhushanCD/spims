@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -25,8 +26,8 @@ import type {
 } from "../types/sale.types";
 
 interface SaleDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const defaultValues: SaleFormValues = {
@@ -94,7 +95,7 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
 
   const handleClose = (nextOpen: boolean) => {
     if (!nextOpen) reset(defaultValues);
-    onOpenChange(nextOpen);
+    onOpenChange?.(nextOpen);
   };
 
   const onSubmit = (values: SaleFormValues) => {
@@ -121,6 +122,11 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <span className="text-sm">New Sale</span>
+        </Button>
+      </DialogTrigger>
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Create Sale</DialogTitle>

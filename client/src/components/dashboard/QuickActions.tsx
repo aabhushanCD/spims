@@ -17,38 +17,38 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 
-import { Button } from "@/components/ui/button";
+import { Link } from "react-router";
 
 const actions = [
   {
     title: "Add Medicine",
     description: "Create new medicine entry",
     icon: Pill,
-    href: "/medicines/create",
+    href: "/medicines",
   },
   {
     title: "New Purchase",
     description: "Create purchase order",
     icon: ShoppingCart,
-    href: "/purchases/create",
+    href: "/purchase-orders",
   },
   {
     title: "New Sale",
     description: "Generate sales invoice",
     icon: Receipt,
-    href: "/sales/create",
+    href: "/sales",
   },
   {
     title: "Add Supplier",
     description: "Register supplier",
     icon: Truck,
-    href: "/suppliers/create",
+    href: "/suppliers",
   },
   {
     title: "Add User",
     description: "Create staff account",
     icon: UserPlus,
-    href: "/users/create",
+    href: "/users",
   },
 ];
 
@@ -75,10 +75,10 @@ export default function QuickActions() {
                 duration: 0.2,
               }}
             >
-              <Button
-                variant="ghost"
-                className="group hover:bg-muted flex h-auto w-full items-center justify-between rounded-xl border p-4"
-              >
+              <Link to={action.href}  className="group hover:bg-muted flex h-auto w-full items-center justify-between rounded-xl border p-4">
+               
+               
+        
                 <div className="flex items-center gap-4">
                   <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700">
                     <Icon size={20} />
@@ -97,7 +97,7 @@ export default function QuickActions() {
                   size={18}
                   className="opacity-0 transition group-hover:opacity-100"
                 />
-              </Button>
+              </Link>
             </motion.div>
           );
         })}
