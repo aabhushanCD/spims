@@ -1,7 +1,5 @@
-import { Plus, ShoppingCart, Pill } from "lucide-react";
 import { motion } from "framer-motion";
 
-import { Button } from "@/components/ui/button";
 import AddMedicineDialog from "@/features/medicine/components/AddMedicineDialog";
 import PurchaseDialog from "@/features/purchase/components/PurchaseDialog";
 import { SaleDialog } from "@/features/sales/components/SaleDialog";

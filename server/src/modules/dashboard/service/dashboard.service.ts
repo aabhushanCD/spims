@@ -13,7 +13,7 @@ import type { InventoryMovementService } from "../../inventory/services/inventor
 import type { BackgroundJobService } from "../../backgroundJobs/service/background.service.ts";
 import { getCache, setCache } from "../../../shared/provider/redis.provider.ts";
 
-const SUMMARY_CACHE_TTL_SECONDS = 120; // 2 min — dashboard data should feel fresh, unlike the 12h reorder cache
+const SUMMARY_CACHE_TTL_SECONDS = 60; // 2 min — dashboard data should feel fresh, unlike the 12h reorder cache
 
 export class DashboardService {
   constructor(

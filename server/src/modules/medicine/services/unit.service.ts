@@ -14,6 +14,7 @@ export class UnitService {
     if (existingUnit) {
       throw this.appError.conflict("Unit name must be unique");
     }
+
     try {
       return await this.unitRepo.create(unitData);
     } catch (error: any) {

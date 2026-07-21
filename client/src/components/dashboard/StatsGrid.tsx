@@ -47,6 +47,7 @@ export default function StatsGrid({ summary }: Props) {
     {
       title: "Medicine Batches",
       value: summary.totalMedicineBatches,
+      prefix: "",
       change: 0,
       icon: Package,
       color: "bg-indigo-500",

@@ -76,7 +76,7 @@ export class InventoryRepo {
       .aggregate([
         {
           $lookup: {
-            from: "medicinebatches",
+            from: "batches",
             localField: "medicineId",
             foreignField: "medicineId",
             as: "batches",

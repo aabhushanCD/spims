@@ -3,9 +3,9 @@ import StatsGrid from "@/components/dashboard/StatsGrid";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 
 import InventoryHealth from "@/components/dashboard/InventoryHealth";
-import RecentSales from "@/components/dashboard/RecentSales";
-import LowStockMedicines from "@/components/dashboard/LowStockMedicines";
-import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
+// import RecentSales from "@/components/dashboard/RecentSales";
+// import LowStockMedicines from "@/components/dashboard/LowStockMedicines";
+// import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
 import QuickActions from "@/components/dashboard/QuickActions";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 // import NotificationsPanel from "@/components/dashboard/NotificationsPanel";

@@ -112,7 +112,7 @@ export default function PurchaseDialog({
           <Button variant="secondary">Create Purchase Order</Button>
         </DialogTrigger>
       )}
-      <DialogContent className="!max-w-2xl">
+      <DialogContent className="max-w-2xl!">
         <DialogHeader>
           <DialogTitle>Create Purchase Order</DialogTitle>
         </DialogHeader>
