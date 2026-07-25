@@ -22,7 +22,7 @@ export const createSalesItemSchema = z.object({
 export const createSaleSchema = z.object({
   customerName: z.string("Customer name is required").trim().min(1).max(100),
 
-  paymentMethod: z.enum(["Cash", "Card", "QR", "Mobile Banking", "Credit"]),
+  paymentMethod: z.enum(["CASH", "CARD", "QR", "Mobile Banking", "CREDIT"]),
 
   saleDate: z.coerce.date(),
 
@@ -40,7 +40,7 @@ export const updateSaleSchema = z.object({
   customerName: z.string().trim().min(1).max(100).optional(),
 
   paymentMethod: z
-    .enum(["Cash", "Card", "QR", "Mobile Banking", "Credit"])
+    .enum(["CASH", "CARD", "QR", "Mobile Banking", "CREDIT"])
     .optional(),
 
   saleDate: z.coerce.date().optional(),
