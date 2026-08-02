@@ -497,13 +497,15 @@ npm install
 Server
 
 ```env
-PORT=5000
+MONGO_URI=
 
-MONGO_URI=mongodb://localhost:27017/spims
+JWT_SECRET=
 
-JWT_SECRET=your_secret
+PORT=
 
-REDIS_URL=redis://localhost:6379
+UPSTASH_REDIS_REST_URL=
+
+ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
 ```
 
 ---
