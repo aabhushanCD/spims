@@ -429,33 +429,36 @@ Benefits
 
 # 📸 Screenshots
 
-> Add screenshots here.
-
 ## Login
 
-```
-images/login.png
-```
+<img width="1896" height="918" alt="image" src="https://github.com/user-attachments/assets/2b43aba0-75bb-45cd-b92a-78b80ddc0ba8" />
+
+
 
 ## Dashboard
 
-```
-images/dashboard.png
-```
+
+<img width="1916" height="915" alt="image" src="https://github.com/user-attachments/assets/54a41c45-f605-4ea0-a82b-2f0c8acf9ff7" />
+
+<img width="1902" height="920" alt="image" src="https://github.com/user-attachments/assets/ff411d21-b33d-4dea-b6b1-a0ff8d5ff6a7" />
+
+<img width="1915" height="915" alt="image" src="https://github.com/user-attachments/assets/783b8b14-79a3-4fbc-908b-ab20cc9c2ae8" />
+
+
+
 
 ## Inventory
 
-```
-images/inventory.png
-```
+
+<img width="1917" height="912" alt="image" src="https://github.com/user-attachments/assets/6186d10a-eff3-4a3f-bce3-61730cdb947e" />
+
+
 
 ## Sales
 
-```
-images/sales.png
-```
 
----
+<img width="1918" height="916" alt="image" src="https://github.com/user-attachments/assets/45424e7b-6a59-43bb-91ac-84bc914f743a" />
+
 
 # 📚 API Documentation
 
