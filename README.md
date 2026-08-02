@@ -473,7 +473,7 @@ Future improvements
 Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/SPIMS.git
+git clone https://github.com/aabhushanCD/spims.git
 ```
 
 Backend
