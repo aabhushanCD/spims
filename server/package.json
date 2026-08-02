@@ -15,6 +15,7 @@
   "dependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/swagger-jsdoc": "^6.0.4",
     "@types/ws": "^8.18.1",
     "@upstash/redis": "^1.38.0",
     "cookie-parser": "^1.4.7",
