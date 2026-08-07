@@ -7,18 +7,24 @@ import MasterDataDialog from "../components/MasterDataDialog";
 import type { MasterData, MasterDataConfig } from "../types/masterData.types";
 import { useMasterData } from "../hooks/useMaterData";
 import { useDeleteMasterData } from "../hooks/useDeleteMasterData";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
 
 interface Props {
   config: MasterDataConfig;
 }
 
 export default function MasterDataPage({ config }: Props) {
-  const { data = [], isLoading } = useMasterData(config.resource);
+  const { data = [], isLoading, isError } = useMasterData(config.resource);
   const deleteMutation = useDeleteMasterData(config.resource);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const [editingItem, setEditingItem] = useState<MasterData | null>(null);
 
+  function handleAdd() {
+    setEditingItem(null);
+    setDialogOpen(true);
+  }
+  
   function handleEdit(item: MasterData) {
     setEditingItem(item);
     setDialogOpen(true);
@@ -37,12 +43,15 @@ export default function MasterDataPage({ config }: Props) {
   }
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <LoadingSpinner />;
   }
 
+  if (isError) {
+    return <div className="text-red-500">{isError}</div>;
+  }
   return (
     <div className="space-y-6">
-      <MasterDataHeader config={config} />
+      <MasterDataHeader config={config} onAdd={handleAdd} />
 
       <MasterDataTable
         data={data}

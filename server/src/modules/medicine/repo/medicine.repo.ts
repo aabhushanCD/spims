@@ -80,7 +80,7 @@ export class MedicineRepo {
     return this.medicineModel.aggregate([
       {
         $lookup: {
-          from: "Inventory",
+          from: "inventories",
           localField: "_id",
           foreignField: "medicineId",
           as: "inventory",
@@ -104,7 +104,10 @@ export class MedicineRepo {
       },
 
       {
-        $unwind: "$genericName",
+        $unwind: {
+          path: "$genericName",
+          preserveNullAndEmptyArrays: true,
+        },
       },
 
       {
@@ -117,7 +120,10 @@ export class MedicineRepo {
       },
 
       {
-        $unwind: "$brand",
+        $unwind: {
+          path: "$brand",
+          preserveNullAndEmptyArrays: true,
+        },
       },
 
       {
@@ -130,7 +136,10 @@ export class MedicineRepo {
       },
 
       {
-        $unwind: "$category",
+        $unwind: {
+          path: "$category",
+          preserveNullAndEmptyArrays: true,
+        },
       },
 
       {
@@ -143,7 +152,10 @@ export class MedicineRepo {
       },
 
       {
-        $unwind: "$unit",
+        $unwind: {
+          path: "$unit",
+          preserveNullAndEmptyArrays: true,
+        },
       },
 
       {

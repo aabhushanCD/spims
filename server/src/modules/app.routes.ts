@@ -37,31 +37,31 @@ router.use(
 router.use(
   "/medicines",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   medicineRoutes,
 );
 router.use(
   "/units",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   unitRoutes,
 );
 router.use(
   "/categories",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   categoryRoutes,
 );
 router.use(
   "/brands",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   brandRoutes,
 );
 router.use(
   "/generic-names",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   genericNameRoutes,
 );
 
@@ -70,7 +70,7 @@ router.use(
 router.use(
   "/suppliers",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   supplierRoutes,
 );
 
@@ -79,7 +79,7 @@ router.use(
 router.use(
   "/purchases",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   purchaseRoutes,
 );
 
@@ -88,7 +88,7 @@ router.use(
 router.use(
   "/inventory",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   inventoryRoutes,
 );
 
@@ -97,20 +97,20 @@ router.use(
 router.use(
   "/sales",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   salesRoutes,
 );
 
 router.use(
   "/sale-items",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   buildSaleItemRouter(saleItemController),
 );
 router.use(
   "/returns",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   buildReturnRouter(returnController),
 );
 
@@ -118,7 +118,7 @@ router.use(
 router.use(
   "/batches",
   verifyToken,
-  authorize(["owner", "inventory-manager", "pharmacist"]),
+  authorize(["owner", "inventory_manager", "pharmacist"]),
   batchRoutes,
 );
 

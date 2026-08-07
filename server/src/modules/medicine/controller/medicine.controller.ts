@@ -37,7 +37,9 @@ export class MedicineController {
 
   async getAllMedicines(req: Request, res: Response,next:NextFunction) {
     try {
+    
       const medicines = await this.medicineService.getMedicines();
+     
       res.status(200).json(medicines);
     } catch (error) {
       next(error);

@@ -96,9 +96,7 @@ export default function MasterDataDialog({
     } else {
       createMutation.mutate(values);
     }
-
     form.reset();
-
     onOpenChange?.(false);
   }
 

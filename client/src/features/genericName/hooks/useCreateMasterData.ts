@@ -4,6 +4,8 @@ import { masterDataService } from "../services/masterData.service";
 
 import type { MasterDataResource } from "../types/masterData.types";
 import type { MasterDataForm } from "../schema/masterData.schema";
+import { toast } from "react-toastify";
+
 
 export function useCreateMasterData(resource: MasterDataResource) {
   const queryClient = useQueryClient();
@@ -13,6 +15,7 @@ export function useCreateMasterData(resource: MasterDataResource) {
       masterDataService.create(resource, data),
 
     onSuccess: () => {
+      toast.success(`Successfully created ${resource}`);
       queryClient.invalidateQueries({
         queryKey: [resource],
       });

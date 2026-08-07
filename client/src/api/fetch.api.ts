@@ -28,6 +28,7 @@ api.interceptors.response.use(
   },
   async (error) => {
     // Handle response errors here
+   
     const status = error.response?.status;
     if (status === 401) {
       console.log("Unauthorized access. Redirecting to login page...");
