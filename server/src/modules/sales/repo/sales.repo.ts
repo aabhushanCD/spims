@@ -77,9 +77,23 @@ export class SalesRepo {
   }
 
   async getTotalSales(session?: mongoose.ClientSession): Promise<number> {
+    const now = new Date();
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
     if (session) {
       const result = await this.salesModel
         .aggregate([
+          {
+            $match: {
+              createdAt: {
+                $gte: startOfMonth,
+                $lt: startOfNextMonth,
+              },
+            },
+          },
           { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
         ])
         .session(session)
@@ -88,6 +102,9 @@ export class SalesRepo {
     }
     const result = await this.salesModel
       .aggregate([
+        {
+          $match: { createdAt: { $gte: startOfMonth, $lt: startOfNextMonth } },
+        },
         { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
       ])
       .exec();
@@ -99,15 +116,17 @@ export class SalesRepo {
     year: number,
     session?: mongoose.ClientSession,
   ): Promise<{ month: number; total: number; count: number }[]> {
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59);
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), 0, 1);
+
+    const endDate = new Date(now.getFullYear() + 1, 0, 1);
 
     const results = await this.salesModel
       .aggregate([
         {
           $match: {
             saleDate: {
-              $gte: startDate,
+              $gte: startOfMonth,
               $lte: endDate,
             },
           },
@@ -139,10 +158,16 @@ export class SalesRepo {
     );
 
     // Return all 12 months
-    return Array.from({ length: 12 }, (_, index) => {
+    return Array.from({ length: now.getMonth() + 1 }, (_, index) => {
       const month = index + 1;
       const data = salesMap.get(month);
-
+      if (!data) {
+        return {
+          month,
+          total: 0,
+          count: 0,
+        };
+      }
       return {
         month,
         total: data?.total ?? 0,

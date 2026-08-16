@@ -12,6 +12,7 @@ export interface IBatch extends Document {
   quantityReceived: number;
   quantityRemaining: number;
   isExpired: boolean;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,6 +64,17 @@ const batchSchema = new Schema<IBatch>(
       type: Boolean,
       default: false,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      validate: {
+        validator: function () {
+          return (this as IBatch).quantityRemaining === 0;
+        },
+        message:
+          "Batch can only be marked as inactive if quantity remaining is zero",
+      },
+    },
   },
   {
     timestamps: true,
@@ -78,8 +90,11 @@ batchSchema.virtual("status").get(function (this: IBatch) {
   if (this.isExpired) {
     return "expired";
   }
+  if (this.isActive) {
+    return "active";
+  }
 
-  return "active";
+  return "inactive";
 });
 
 batchSchema.index({ expiryDate: 1 });
@@ -92,6 +107,7 @@ batchSchema.index(
 );
 batchSchema.index({ medicineId: 1, expiryDate: 1 });
 batchSchema.index({ isExpired: 1 });
+batchSchema.index({ isActive: 1 });
 
 const Batch = model<IBatch>("Batch", batchSchema);
 

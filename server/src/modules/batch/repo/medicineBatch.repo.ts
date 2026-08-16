@@ -185,7 +185,11 @@ export class MedicineBatchRepo {
     session?: mongoose.ClientSession,
   ): Promise<number> {
     return this.batchModel
-      .countDocuments()
+      .countDocuments({
+        quantityRemaining: { $gt: 0 },
+        expiryDate: { $gt: new Date() },
+        isExpired: false,
+      })
       .session(session ?? null)
       .exec();
   }

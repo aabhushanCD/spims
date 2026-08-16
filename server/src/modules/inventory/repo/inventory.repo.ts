@@ -20,7 +20,11 @@ export class InventoryRepo {
     if (session) {
       return await this.inventoryModel.find().session(session).exec();
     }
-    return await this.inventoryModel.find().populate("medicineId").lean().exec();
+    return await this.inventoryModel
+      .find()
+      .populate("medicineId")
+      .lean()
+      .exec();
   }
 
   async findById(
@@ -117,21 +121,43 @@ export class InventoryRepo {
     const [totalValue, lowStockCount, outOfStockCount, expiringSoonCount] =
       await Promise.all([
         this.getTotalInventoryValue(session),
-        this.getLowStockCount(10, session),
+        this.getLowStockCount(session),
         this.getOutOfStockCount(session),
         this.getExpiringSoonCount(30, session),
       ]);
     return { totalValue, lowStockCount, outOfStockCount, expiringSoonCount };
   }
 
-  async getLowStockCount(
-    threshold: number,
-    session?: mongoose.ClientSession,
-  ): Promise<number> {
-    return this.inventoryModel
-      .countDocuments({ availableStock: { $lte: threshold, $gt: 0 } })
-      .session(session ?? null)
-      .exec();
+  async getLowStockCount(session?: mongoose.ClientSession): Promise<number> {
+    const query = this.inventoryModel.aggregate([
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "medicineId",
+          foreignField: "_id",
+          as: "medicine",
+        },
+      },
+      { $unwind: "$medicine" },
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $gt: ["$availableStock", 0] },
+              { $lte: ["$availableStock", "$medicine.reorderLevel"] },
+            ],
+          },
+        },
+      },
+      {
+        $count: "count",
+      },
+    ]);
+    if (session) {
+      query.session(session);
+    }
+    const result = await query.exec();
+    return result[0]?.count ?? 0;
   }
 
   async getOutOfStockCount(session?: mongoose.ClientSession): Promise<number> {

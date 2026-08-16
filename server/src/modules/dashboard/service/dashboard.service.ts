@@ -47,7 +47,7 @@ export class DashboardService {
       this.inventoryRepo.getTotalInventoryValue(),
       this.medicineBatchRepo.getTotalMedicineBatches(),
       this.supplierRepo.getTotalSuppliers("active"),
-      this.inventoryRepo.getLowStockCount(10),
+      this.inventoryRepo.getLowStockCount(),
       this.inventoryRepo.getOutOfStockCount(),
       this.medicineBatchRepo.getExpiringSoonCount(30),
       this.getRevenueTrend(new Date().getFullYear()),
@@ -214,7 +214,7 @@ export class DashboardService {
     ] = await Promise.all([
       this.inventoryRepo.getTotalInventoryValue(session),
       this.inventoryRepo.getInventoryHealth(session),
-      this.inventoryRepo.getLowStockCount(10, session),
+      this.inventoryRepo.getLowStockCount(session),
       this.inventoryRepo.getOutOfStockCount(session),
       this.medicineBatchRepo.getExpiringSoonCount(30, session),
     ]);

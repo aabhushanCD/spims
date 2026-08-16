@@ -34,7 +34,7 @@ export class PurchaseOrderRepo {
       .populate("supplierId", "companyName")
       .lean();
   }
-  
+
   async findByIdWithSupplier(id: string): Promise<IPurchaseOrder | null> {
     return await this.purchaseOrderModel
       .findById(id)
@@ -83,9 +83,17 @@ export class PurchaseOrderRepo {
   }
 
   async getTotalPurchases(session?: mongoose.ClientSession): Promise<number> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     const [result] = await this.purchaseOrderModel
       .aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
+        {
+          $match: {
+            status: { $ne: "cancelled" },
+            createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+          },
+        },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },
       ])
       .session(session ?? null);
