@@ -1,25 +1,16 @@
 import { Card, CardContent } from "../../../components/ui/card";
-import { Boxes, Package, Archive } from "lucide-react";
 
-const stats = [
-  {
-    title: "Medicines",
-    value: "3",
-    icon: Boxes,
-  },
-  {
-    title: "Current Stock",
-    value: "200",
-    icon: Package,
-  },
-  {
-    title: "Reserved",
-    value: "0",
-    icon: Archive,
-  },
-];
+interface InventoryStatsProps {
+  stats: [
+    {
+      title: string;
+      value: string;
+      icon: any;
+    },
+  ];
+}
 
-export function InventoryStats() {
+export function InventoryStats({ stats }: InventoryStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {stats.map((stat) => (

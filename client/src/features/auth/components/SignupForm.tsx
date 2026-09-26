@@ -40,33 +40,23 @@ export default function SignupForm() {
   });
 
   function onSubmit(values: SignupFormData) {
-    console.log(values);
-    signup.mutate({
+   let valuess = signup.mutate({
       email: values.email,
       name: values.name,
       password: values.password,
       role: values.role,
       confirmPassword: values.confirmPassword,
     });
-
-    // signup api here
+    console.log(valuess);
   }
 
   return (
-    <Card
-      className="w-full max-w-md
-                  rounded-3xl
-                  border-0
-                  bg-white/90
-                  shadow-2xl
-                  backdrop-blur-xl
-                  "
-    >
+    <Card className="w-full max-w-md rounded-3xl border-0 bg-white/90 shadow-2xl backdrop-blur-xl">
       <CardContent className="p-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Create Account</h1>
 
-          <p className="mt-2 text-muted-foreground">
+          <p className="text-muted-foreground mt-2">
             Join SPIMS and manage pharmacy smarter.
           </p>
         </div>
@@ -147,11 +137,7 @@ export default function SignupForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="
-absolute
-right-3
-top-3
-"
+                className="absolute top-3 right-3"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -180,7 +166,7 @@ top-3
           </div>
 
           <Button
-            className="h-12 w-full bg-emerald-600 hover:bg-emerald-700 "
+            className="h-12 w-full bg-emerald-600 hover:bg-emerald-700"
             disabled={form.formState.isSubmitting}
             type="submit"
           >
@@ -190,7 +176,8 @@ top-3
             Create Account
           </Button>
           <Button
-            className="h-12 w-full bg-muted-foreground hover:bg-muted-foreground/90 "
+            type="button"
+            className="bg-muted-foreground hover:bg-muted-foreground/90 h-12 w-full"
             onClick={() => navigate("/login")}
           >
             Already have an account? Log in

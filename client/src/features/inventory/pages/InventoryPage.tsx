@@ -3,8 +3,29 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Search, Boxes } from "lucide-react";
 import { InventoryStats } from "../components/InventoryStats";
 import { InventoryTable } from "../components/InventoryTable";
+import { useInventory } from "../hooks/useInventory";
+import LoadingSpinner from "@/components/common/LoadingSpinner";
+
+const stats = [
+  {
+    title: "Medicines",
+    value: "3",
+    icon: Boxes,
+  },
+] satisfies [{ title: string; value: string; icon: typeof Boxes }];
 
 export default function InventoryPage() {
+  const { data: inventory, isLoading, error, refetch } = useInventory();
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+  if (error) {
+    return (
+      <div className="text-center text-red-500">
+        Error loading inventory data.
+      </div>
+    );
+  }
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -19,13 +40,13 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        <Button>
+        <Button onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>
 
-      <InventoryStats />
+      <InventoryStats stats={stats} />
 
       <div className="flex items-center gap-4">
         <div className="relative w-full max-w-sm">
@@ -35,7 +56,12 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <InventoryTable />
+      {inventory && <InventoryTable inventory={inventory} />}
+      {!inventory && !isLoading && (
+        <div className="text-muted-foreground text-center">
+          No inventory data available.
+        </div>
+      )}
     </div>
   );
 }
