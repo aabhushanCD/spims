@@ -10,7 +10,7 @@ import {
 const NEARING_EXPIRY_DAYS = 30;
 
 export function scheduleExpiryCheckJob() {
-  cron.schedule("* 1 * * *", async () => {
+  cron.schedule("0 1 * * *", async () => {
     try {
       await backgroundJobService.runJob("expiry-check", async () => {
         const newlyExpired = await medicineBatchService.markExpiredBatches();

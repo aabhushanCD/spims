@@ -158,7 +158,7 @@ export class BatchService {
     const newlyExpired: { batchId: string; medicineId: string }[] = [];
 
     for (const batch of batches) {
-      if (batch.expiryDate < now && !batch.isExpired) {
+      if (batch.quantityRemaining > 0 && batch.expiryDate < now && !batch.isExpired) {
         await this.batchRepo.update(
           batch._id.toString(),
           { isExpired: true },
