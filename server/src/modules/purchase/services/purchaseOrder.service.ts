@@ -1,7 +1,6 @@
 import mongoose, { Types } from "mongoose";
 
 import type { AppError } from "../../../shared/error.ts";
-import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
 import type { PurchaseOrderRepo } from "../repo/purchaseOrder.repo.ts";
 import type { PurchaseOrderItemRepo } from "../repo/purchaseOrderItem.repo.ts";
@@ -406,7 +405,7 @@ export class PurchaseOrderService {
         await this.inventoryService.syncInventoryFromBatch(
           poItem.medicineId._id.toString(),
           {
-            batchId: batchRecord.id,
+            batchId: batchRecord._id.toString(),
             movementType: "PURCHASE",
             referenceId: purchaseOrderId,
             referenceType: "PURCHASE_ORDER",

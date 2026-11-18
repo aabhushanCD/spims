@@ -16,6 +16,6 @@ export const generateJwtToken = (
     return token;
   } catch (error) {
     console.error("Failed to generate JWT token:", error);
-    throw new Error("Failed to generate JWT token");
+    throw new Error("Failed to generate JWT token", { cause: error });
   }
 };

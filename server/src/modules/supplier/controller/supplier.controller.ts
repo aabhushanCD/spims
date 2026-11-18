@@ -18,7 +18,7 @@ export class SupplierController {
         message: "Supplier created successfully",
         data: newSupplier,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -32,7 +32,7 @@ export class SupplierController {
         message: "Supplier retrieved successfully",
         data: supplier,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -45,7 +45,7 @@ export class SupplierController {
         message: "Suppliers retrieved successfully",
         data: suppliers,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -63,7 +63,7 @@ export class SupplierController {
         message: "Supplier updated successfully",
         data: updatedSupplier,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -77,7 +77,7 @@ export class SupplierController {
         message: "Supplier deleted successfully",
         data: deletedSupplier,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }

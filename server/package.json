@@ -4,11 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:watch": "vitest",
+    "test:run": "vitest run",
+    "test:ci": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "audit": "npm audit --omit=dev --audit-level=high",
+    "audit:all": "npm audit --audit-level=high"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +29,7 @@
     "@types/ua-parser-js": "^0.7.39",
     "@types/ws": "^8.18.1",
     "@upstash/redis": "^1.38.0",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -29,21 +38,24 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.3",
     "node-cron": "^4.6.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.6.0",
     "ua-parser-js": "^2.0.10",
     "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/mongoose": "^5.11.96",
     "@types/node": "^26.1.0",
-    "bcrypt": "^6.0.0",
+    "@vitest/coverage-v8": "^4.1.12",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
     "vitest": "^4.1.10"
   }
 }

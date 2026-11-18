@@ -14,7 +14,7 @@ export class PurchaseController {
         message: "Purchase order created successfully",
         data: purchaseOrder,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -26,7 +26,7 @@ export class PurchaseController {
         message: "Purchase orders retrieved successfully",
         data: purchaseOrders,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -40,7 +40,7 @@ export class PurchaseController {
         message: "Purchase order retrieved successfully",
         data: purchaseOrder,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -51,7 +51,7 @@ export class PurchaseController {
       return res.status(200).json({
         message: "Purchase order deleted successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -62,7 +62,7 @@ export class PurchaseController {
       return res.status(200).json({
         message: "Purchase order canceled successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -73,7 +73,7 @@ export class PurchaseController {
       return res.status(200).json({
         message: "Purchase order approved successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -89,7 +89,7 @@ export class PurchaseController {
         message: "Purchase order received successfully",
         data: purchaseOrder,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -104,7 +104,7 @@ export class PurchaseController {
         message: "Purchase order item added successfully",
         data: purchaseOrderItem,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -125,7 +125,7 @@ export class PurchaseController {
         message: "Purchase order item updated successfully",
         data: purchaseOrderItem,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -143,7 +143,7 @@ export class PurchaseController {
       return res.status(200).json({
         message: "Purchase order item removed successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -157,7 +157,7 @@ export class PurchaseController {
         message: "Purchase order totals recalculated successfully",
         data: purchaseOrder,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -176,7 +176,7 @@ export class PurchaseController {
         message: "Purchase orders retrieved successfully",
         data: purchaseOrders,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -190,7 +190,7 @@ export class PurchaseController {
         message: "Purchase order items retrieved successfully",
         data: purchaseOrder,
       });
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }

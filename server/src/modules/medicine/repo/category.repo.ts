@@ -9,32 +9,35 @@ import type {
 export class CategoryRepo {
   constructor(private readonly categoryModel: Model<ICategory>) {}
 
-  async create(categoryData: CreateCategoryDto): Promise<any> {
+  async create(categoryData: CreateCategoryDto): Promise<ICategory> {
     const category = new this.categoryModel(categoryData);
     await category.save();
     return category;
   }
 
-  async findById(id: string): Promise<any | null> {
+  async findById(id: string): Promise<ICategory | null> {
     return this.categoryModel.findById(id).lean().exec();
   }
 
-  async findAll(): Promise<any[]> {
+  async findAll(): Promise<ICategory[]> {
     return this.categoryModel.find().lean().exec();
   }
 
-  async findByName(name: string): Promise<any | null> {
+  async findByName(name: string): Promise<ICategory | null> {
     return this.categoryModel.findOne({ name }).lean().exec();
   }
 
-  async update(id: string, updateData: UpdateCategoryDto): Promise<any | null> {
+  async update(
+    id: string,
+    updateData: UpdateCategoryDto,
+  ): Promise<ICategory | null> {
     return this.categoryModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .lean()
       .exec();
   }
 
-  async delete(id: string): Promise<any | null> {
+  async delete(id: string): Promise<ICategory | null> {
     return this.categoryModel.findByIdAndDelete(id).lean().exec();
   }
 }

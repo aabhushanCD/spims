@@ -31,8 +31,11 @@ import {
 import { useCreateMedicine } from "../hooks/useCreateMedicine";
 import { MasterSelectOptions } from "./MasterSelectOptions";
 import { useMedicineOptions } from "../hooks/useMedicineOptions";
+import { useState } from "react";
+import { toast } from "react-toastify";
 
 export default function AddMedicineDialog() {
+  const [open, setOpen] = useState(false);
   const { genericNames, brands, categories, units } = useMedicineOptions();
   const form = useForm<MedicineFormInput>({
     resolver: zodResolver(medicineSchema),
@@ -55,15 +58,16 @@ export default function AddMedicineDialog() {
     createMedicine.mutate(values, {
       onSuccess: () => {
         form.reset();
+        setOpen(false);
       },
       onError: (error) => {
-        return alert(`Failed to create medicine: ${error.message}`);
+        toast.error(`Failed to create medicine: ${error.message}`);
       },
     });
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2 bg-emerald-600">
           <Plus size={18} />

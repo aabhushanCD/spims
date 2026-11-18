@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-
+import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 import { purchaseService } from "../services/purchase.service";
 import { toast } from "react-toastify";
 
@@ -18,11 +18,8 @@ export const useCreatePurchase = () => {
       });
     },
 
-    onError: (error: any) => {
-      toast.error(
-        error?.response?.data?.message ??
-          "Failed to create purchase"
-      );
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to create purchase"));
     },
   });
 };

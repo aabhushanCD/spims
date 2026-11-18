@@ -5,7 +5,7 @@ export const getCache = async (key: string) => {
   return cache ? JSON.parse(cache) : null;
 };
 
-export const setCache = async (key: string, value: any, ttl: number) => {
+export const setCache = async (key: string, value: unknown, ttl: number) => {
   await redis.set(key, JSON.stringify(value), "EX", ttl);
 };
 

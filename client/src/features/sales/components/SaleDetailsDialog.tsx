@@ -68,7 +68,7 @@ export function SaleDetailsDialog({
             <Separator />
 
             <div className="space-y-2">
-              {sale.items.map((item:any) => (
+              {sale.items.map((item) => (
                 <div
                   key={item.id ?? item.medicineId}
                   className="flex items-center justify-between text-sm"

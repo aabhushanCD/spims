@@ -2,9 +2,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import ReceivePurchaseDialog from "./ReceivePurchaseDialog";
+import type { PurchaseDetails } from "../types/PurchaseDetails";
 
 interface Props {
-  purchase: any;
+  purchase?: PurchaseDetails;
   onApprove?: () => void;
 
   onClose: () => void;
@@ -24,7 +25,7 @@ export default function PurchaseSummary({
           <span className="text-lg font-semibold">Grand Total</span>
 
           <span className="text-xl font-bold">
-            Rs. {purchase.data.totalAmount}
+            Rs. {purchase?.totalAmount}
           </span>
         </div>
 
@@ -33,14 +34,14 @@ export default function PurchaseSummary({
             Close
           </Button>
 
-          {purchase.data.status === "pending" && (
+          {purchase?.status === "pending" && (
             <Button onClick={onApprove}>Approve</Button>
           )}
 
-          {purchase.data.status === "approved" && (
+          {purchase?.status === "approved" && (
             <Button onClick={() => setReceiveOpen(true)}>Receive</Button>
           )}
-          {purchase.data.status === "received" && (
+          {purchase?.status === "received" && (
             <Button disabled>Received</Button>
           )}
           {receiveOpen && (

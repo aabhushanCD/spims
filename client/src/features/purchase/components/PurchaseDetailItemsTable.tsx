@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/table";
 
 import { Card, CardContent } from "@/components/ui/card";
+import type { PurchaseDetails } from "../types/PurchaseDetails";
 
 interface Props {
-  purchase: any;
+  purchase?: PurchaseDetails;
 }
 
 export default function PurchaseItemsDetailsTable({ purchase }: Props) {
@@ -33,7 +34,7 @@ export default function PurchaseItemsDetailsTable({ purchase }: Props) {
           </TableHeader>
 
           <TableBody>
-            {purchase?.data.items?.map((item: any) => (
+            {purchase?.items?.map((item) => (
               <TableRow key={item._id}>
                 <TableCell>{item.medicine.medicineName}</TableCell>
 

@@ -1,0 +1,176 @@
+# Database Overview
+
+## 1. Technology and connection
+
+| Item | Value |
+|---|---|
+| Database | MongoDB |
+| ODM | Mongoose 9 |
+| Connection | `mongoose.connect(process.env.MONGO_URI)` |
+| Connection file | `server/src/config/db.config.ts` |
+| Failure behavior | Logs the error and calls `process.exit(1)` |
+| Transactions | Used in several multi-collection flows; requires a replica set |
+| Migrations | None |
+| Seeders | None |
+| Schema sync | Mongoose model registration; default `autoIndex` behavior |
+
+Source: `server/src/config/db.config.ts`
+
+There is no migration framework, no schema version field, and no seed command. Collections and indexes are created by Mongoose when a model is first used (subject to `autoIndex`, which is enabled by default and is not overridden anywhere).
+
+## 2. Collections
+
+21 models are registered:
+
+| Domain | Collections |
+|---|---|
+| Identity | `users` |
+| Catalog | `medicines`, `brands`, `categories`, `genericnames`, `units` |
+| Supply | `suppliers`, `purchaseorders`, `purchaseorderitems` |
+| Inventory | `batches`, `inventories`, `inventorymovements`, `stockadjustments` |
+| Sales | `sales`, `salesitems`, `returns`, `counters` |
+| Recommendations | `smartreorders` |
+| Notifications | `notifications`, `notificationrecipients` |
+| Operations | `backgroundjobs` |
+
+## 3. Schema conventions
+
+- All schemas are declared in TypeScript with an `I<Name> extends Document` interface.
+- Most schemas use `{ timestamps: true }`. Four do not: `Inventory`, `NotificationRecipient`, `SmartReorder`, and `BackgroundJob`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field.
+- No schema uses Mongoose `strict: false`; unknown fields are dropped.
+- No schema uses `versionKey: false`; documents carry `__v`.
+- Enums are enforced by Mongoose validators for document `save()` calls. Updates through `findByIdAndUpdate` do **not** run validators unless `runValidators: true` is set, and no repository sets it.
+- No soft-delete plugin. "Soft" state is expressed through `isActive` / `status` fields, but delete endpoints generally hard-delete.
+
+## 4. Transactions
+
+MongoDB sessions are passed into repository calls and used in:
+
+| Flow | File |
+|---|---|
+| Sale creation | `modules/sales/services/sales.service.ts` |
+| Sale deletion | same |
+| Sales return | `modules/sales/services/return.service.ts` |
+| Purchase order creation | `modules/purchase/services/purchaseOrder.service.ts` |
+| Purchase order receiving | same |
+| Notification creation and deletion | `modules/notification/services/notification.service.ts` |
+
+Inventory increase/decrease, reservations, batch adjustments, disposal, and most CRUD operations run without a session.
+
+## 5. Constraints and indexes
+
+### 5.1 Unique constraints
+
+| Collection | Field(s) | Source |
+|---|---|---|
+| `users` | `email` | `user.model.ts` |
+| `medicines` | `barcode` (sparse by MongoDB semantics for missing values) | `medicine.model.ts` |
+| `brands` | `name` | `brand.model.ts` |
+| `categories` | `name` | `category.model.ts` |
+| `genericnames` | `name` | `genericName.model.ts` |
+| `units` | `name`, `description` | `unit.model.ts` |
+| `suppliers` | `email` | `supplier.model.ts` |
+| `batches` | compound `{ medicineId, batchNumber }` | `medicineBatch.model.ts` |
+| `sales` | `invoiceNumber` | `sales.model.ts` |
+| `counters` | `name` | `counter.model.ts` |
+
+`suppliers.phone` is checked for uniqueness in `SupplierService` but has **no database unique index**, so concurrent requests can create duplicates.
+
+### 5.2 Explicit non-unique indexes
+
+| Collection | Index | Purpose |
+|---|---|---|
+| `batches` | `{ expiryDate: 1 }` | expiry scans |
+| `batches` | `{ medicineId: 1, expiryDate: 1 }` | FEFO batch lookup |
+| `batches` | `{ isExpired: 1 }` | expiry filters |
+| `batches` | `{ isActive: 1 }` | active filters |
+| `inventorymovements` | `{ medicineId: 1, createdAt: -1 }` | medicine ledger |
+| `inventorymovements` | `{ batchId: 1 }` | batch ledger |
+| `inventorymovements` | `{ movementType: 1 }` | type filters |
+| `inventorymovements` | `{ referenceId: 1 }` | reference lookup |
+
+### 5.3 Missing indexes (verified gaps)
+
+These fields are queried frequently but have no declared index:
+
+| Collection | Field(s) | Query source |
+|---|---|---|
+| `inventories` | `medicineId` | `findByMedicineId` on every sale/receipt |
+| `salesitems` | `salesId` | sale detail, return creation, top-selling |
+| `sales` | `saleDate`, `status` | analytics, comparisons |
+| `purchaseorders` | `status`, `orderDate`, `receivedDate`, `supplierId` | dashboard, smart reorder |
+| `returns` | `salesId`, `returnNumber` | detail and lookup |
+| `notificationrecipients` | `userId`, `notificationId`, `status` | inbox and counts |
+| `smartreorders` | `medicineId`, `status` | pending list, per-medicine |
+| `users` | `lastLogin`, `role` | admin filters |
+| `stockadjustments` | `medicineId` | adjustments lookup |
+
+`returns.returnNumber` is generated from a counter but is **not unique** at the database level.
+
+## 6. Enumerations
+
+| Collection.field | Values |
+|---|---|
+| `users.role` | `owner`, `pharmacist`, `inventory_manager` |
+| `users.provider` | `local`, `google` |
+| `suppliers.status` | `active`, `inActive` |
+| `inventorymovements.movementType` | `PURCHASE`, `SALE`, `RETURN`, `ADJUSTMENT`, `EXPIRED`, `RESERVE`, `RELEASE` |
+| `inventorymovements.referenceType` | `PURCHASE_ORDER`, `SALE`, `RETURN`, `ADJUSTMENT`, `SYSTEM` |
+| `purchaseorders.status` | `pending`, `approved`, `received`, `cancelled` |
+| `sales.status` | `COMPLETED`, `PARTIALLY_RETURNED`, `RETURNED`, `CANCELLED`, `PENDING` |
+| `returns.status` | `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `COMPLETED` |
+| `returns.returnItems.condition` | `GOOD`, `DAMAGED`, `EXPIRED`, `OPENED` |
+| `notifications.type` | `Email`, `SMS`, `InApp` |
+| `notifications.status` | `Pending`, `Sent`, `Failed` |
+| `notificationrecipients.status` | `Pending`, `Sent`, `Failed` |
+| `smartreorders.status` | `PENDING`, `APPROVED`, `REJECTED` |
+| `backgroundjobs.status` | `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
+
+## 7. Referential integrity
+
+MongoDB does not enforce foreign keys. The application validates some references (supplier on purchase creation, catalog references on medicine creation, users on notification creation) but not all:
+
+- `Inventory.medicineId` is not validated before creation through `POST /inventory`.
+- Purchase order items are not validated against existing medicines on creation.
+- Deleting a supplier, medicine, batch, sale, or user does not cascade or block based on dependent documents.
+- `batchId` is required by `InventoryMovementService.createMovement` even though the schema defines it as optional.
+
+## 8. Data lifecycle and deletion
+
+| Entity | DELETE behavior |
+|---|---|
+| Medicine | `DELETE /medicines/:id` sets `isActive: false` (soft) |
+| Brand/category/generic name/unit | Hard delete |
+| Supplier | Hard delete |
+| Batch | Hard delete; movements and sale items retain dangling references |
+| Inventory | Hard delete |
+| Sales | Hard delete **and** restores aggregate stock (batches untouched) |
+| Sale item | No delete route |
+| Return | No delete route |
+| Notification | Hard delete plus recipient rows |
+| User | Hard delete |
+| Smart reorder | Hard delete (owner only) |
+
+## 9. Numeric and date handling
+
+- Money fields are JavaScript `Number` (IEEE-754 doubles), not Decimal128. No currency field exists.
+- VAT is stored as a percentage value on purchase orders (default `13`), but as an amount on sales (`VAT` is the computed tax).
+- Dates are stored as BSON `Date`; Zod uses `z.coerce.date()` in the schemas that exist.
+- No timezone configuration; server-local time and UTC are mixed:
+  - `new Date()` and `setHours` are used in analytics (server-local).
+  - `$month` grouping and `$dateToString` use UTC by default.
+- Identifiers are BSON `ObjectId` strings at the API boundary.
+
+## 10. Operational notes
+
+- Because `autoIndex` is on, the first startup against an empty database will build indexes. Large collections can make this slow.
+- There is no read/write concern configuration, retry policy, or connection pooling tuning.
+- Repositories frequently use `.lean()`; returned objects are plain documents without Mongoose methods.
+- Some repository methods return Mongoose documents (not lean) and some return lean objects; services treat both similarly.
+
+## Related documents
+
+- [Schema and relationships](schema-and-relationships.md)
+- [Inventory data model](inventory-data-model.md)
+- [Transactions and workflows](../business-logic/business-workflows.md)
+- [Project status](../project-status.md)

@@ -1,4 +1,5 @@
 import type { AppError } from "../../../shared/error.ts";
+import { Types } from "mongoose";
 import type { SmartReorderRepo } from "../repo/smartReorder.repo.ts";
 import type { BatchService } from "../../batch/service/batch.service.ts";
 import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
@@ -58,13 +59,13 @@ export class SmartReorderService {
     }
 
     return await this.smartReorderRepo.create({
-      medicineId: dto.medicineId,
+      medicineId: new Types.ObjectId(dto.medicineId),
       suggestedQuantity: dto.suggestedQuantity,
       confidenceScore: dto.confidenceScore,
       recommendationReason: dto.recommendationReason,
       generatedAt: new Date(),
       status: "PENDING",
-    } as any);
+    });
   }
 
   // Real algorithm — WADS, safety stock, reorder point, ROQ, confidence
@@ -177,7 +178,7 @@ export class SmartReorderService {
     });
 
     const recommendation = await this.smartReorderRepo.create({
-      medicineId,
+      medicineId: new Types.ObjectId(medicineId),
       suggestedQuantity: roq,
       confidenceScore: confidence,
       recommendationReason: `Stock (${currentStock}) at/below reorder point (${Math.round(rop)}).${
@@ -195,7 +196,7 @@ export class SmartReorderService {
       currentStock,
       expiryRiskUnits,
       supplierId: supplier._id,
-    } as any);
+    });
 
     await setCache(cacheKey, recommendation, CACHE_TTL_SECONDS);
     return recommendation;
@@ -227,13 +228,13 @@ export class SmartReorderService {
           medicineId: medicine._id.toString(),
           status: "created",
         });
-      } catch (err: any) {
+      } catch (error) {
         // Most common case: medicine isn't below reorder point, or has no
         // purchase history yet — not a real error, just nothing to do.
         results.push({
           medicineId: medicine._id.toString(),
           status: "skipped",
-          reason: err.message ?? "Unknown error",
+          reason: error instanceof Error ? error.message : "Unknown error",
         });
       }
     }
@@ -277,7 +278,7 @@ export class SmartReorderService {
     }
     return await this.smartReorderRepo.update(id, {
       status: "APPROVED",
-    } as any);
+    });
   }
 
   async reject(id: string) {
@@ -292,7 +293,7 @@ export class SmartReorderService {
     }
     return await this.smartReorderRepo.update(id, {
       status: "REJECTED",
-    } as any);
+    });
   }
 
   async delete(id: string) {

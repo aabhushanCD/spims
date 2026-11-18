@@ -39,9 +39,8 @@ export class NotificationService {
 
     const session = await this.connection.startSession();
     try {
-      let notification: any;
-      await session.withTransaction(async () => {
-        notification = await this.notificationRepo.create(
+      const notification = await session.withTransaction(async () => {
+        const created = await this.notificationRepo.create(
           {
             title: dto.title,
             message: dto.message,
@@ -53,13 +52,16 @@ export class NotificationService {
 
         await this.recipientRepo.createMany(
           dto.userIds.map((userId) => ({
-            notificationId: notification._id,
+            notificationId: created._id,
             userId: new Types.ObjectId(userId),
             status: "Pending" as const,
           })),
           session,
         );
+
+        return created;
       });
+
       this.dispatch(notification._id.toString()).catch((err) => {
         console.error(
           `Failed to dispatch notification ${notification._id.toString()}:`,

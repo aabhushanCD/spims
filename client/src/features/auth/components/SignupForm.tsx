@@ -40,7 +40,7 @@ export default function SignupForm() {
   });
 
   function onSubmit(values: SignupFormData) {
-   let valuess = signup.mutate({
+   const valuess = signup.mutate({
       email: values.email,
       name: values.name,
       password: values.password,

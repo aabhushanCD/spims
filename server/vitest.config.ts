@@ -1,0 +1,24 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "**/coverage/**"],
+    clearMocks: true,
+    restoreMocks: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/docs/**",
+        "src/types/**",
+        "src/**/*.model.ts",
+        "src/server.ts",
+      ],
+    },
+  },
+});

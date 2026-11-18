@@ -1,4 +1,5 @@
 import { AppError } from "../../../shared/error.js";
+import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { IUnit } from "../models/unit.model.js";
 import type { UnitRepo } from "../repo/unit.repo.js";
 import type { CreateUnitDto, UpdateUnitDto } from "../schema/unit.schema.js";
@@ -17,8 +18,8 @@ export class UnitService {
 
     try {
       return await this.unitRepo.create(unitData);
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
         throw this.appError.conflict("Unit name must be unique");
       }
       throw error;

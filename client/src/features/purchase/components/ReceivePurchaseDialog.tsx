@@ -19,13 +19,14 @@ import {
 import { useReceivePurchase } from "../hooks/useReceivePurchase";
 import ReceivePurchaseTable from "./ReceivePurchaseTable";
 import ReceivePurchaseFooter from "./ReceivePurchaseFooter";
+import type { PurchaseDetails } from "../types/PurchaseDetails";
 
 interface Props {
   open: boolean;
 
   onOpenChange: (open: boolean) => void;
 
-  purchase: any;
+  purchase?: PurchaseDetails;
 }
 
 export default function ReceivePurchaseDialog({
@@ -49,13 +50,12 @@ export default function ReceivePurchaseDialog({
     control: form.control,
     name: "items",
   });
-  console.log(purchase)
 
   useEffect(() => {
     if (!purchase) return;
 
     form.reset({
-      items: purchase?.data?.items.map((item: any) => ({
+      items: purchase.items.map((item) => ({
         medicineId: item.medicine._id,
 
         medicineName: item.medicine.medicineName,
@@ -77,10 +77,11 @@ export default function ReceivePurchaseDialog({
     });
   }, [purchase, form]);
   function onSubmit(values: ReceivePurchaseForm) {
-    console.log(values);
+    if (!purchase) return;
+
     receivePurchase.mutate(
       {
-        id: purchase.data._id,
+        id: purchase._id,
 
         data: values,
       },

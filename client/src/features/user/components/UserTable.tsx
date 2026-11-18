@@ -14,9 +14,10 @@ import { UserRoleBadge } from "./UserRoleBadge";
 import { UserStatusBadge } from "./UserStatusBadge";
 
 import { UserActions } from "./UserActions";
+import type { User } from "@/features/auth/context/authContext";
 
 interface Props {
-  users: any;
+  users?: User[];
 
   onEdit: (id: string) => void;
 
@@ -43,7 +44,7 @@ export function UserTable({ users, onEdit, onDelete }: Props) {
         </TableHeader>
 
         <TableBody>
-          {users?.map((user: any) => (
+          {users?.map((user) => (
             <TableRow key={user._id}>
               <TableCell className="font-medium">{user.name}</TableCell>
 

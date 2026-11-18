@@ -94,7 +94,7 @@ export class MedicineService {
   }
 
   async deactivateMedicine(id: string) {
-    const medicine = await this.getMedicineById(id);
+    await this.getMedicineById(id);
 
     return this.medicineRepo.update(id, { isActive: false });
   }

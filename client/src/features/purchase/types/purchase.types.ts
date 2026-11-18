@@ -1,27 +1,30 @@
-export interface PurchaseItem {
-  medicineId: string;
+import type { PurchaseStatus } from "./PurchaseDetails";
 
-  quantity: number;
-
-  purchasePrice: number;
-}
-
-export interface Purchase {
+export interface PurchaseListItem {
   _id: string;
 
-  supplierId: string;
+  supplierId: {
+    _id: string;
+    companyName: string;
+  };
 
-  invoiceNumber: string;
-
-  purchaseDate: string;
+  orderDate: string;
 
   expectedDeliveryDate?: string;
 
-  status: "pending" | "received" | "cancelled";
+  invoiceNumber: string;
+
+  invoiceFile?: string;
 
   totalAmount: number;
 
-  items: PurchaseItem[];
+  receivedDate?: string;
+
+  status: PurchaseStatus;
+
+  VAT: number;
+
+  discount: number;
 
   createdAt: string;
 

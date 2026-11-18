@@ -1,4 +1,5 @@
 import { AppError } from "../../../shared/error.js";
+import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { ICategory } from "../models/category.model.js";
 import type { CategoryRepo } from "../repo/category.repo.js";
 import type {
@@ -21,8 +22,8 @@ export class CategoryService {
     }
     try {
       return await this.categoryRepo.create(categoryData);
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
         throw this.appError.conflict("Category name must be unique");
       }
       throw error;

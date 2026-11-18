@@ -70,9 +70,11 @@ export class DashboardService {
   // recommendations, how many are high-confidence, total units recommended.
   async getReorderSummary() {
     const pending = await this.smartReorderService.getPending();
-    const highConfidence = pending.filter((r: any) => r.confidenceScore >= 80);
+    const highConfidence = pending.filter(
+      (r) => (r.confidenceScore ?? 0) >= 80,
+    );
     const totalSuggestedUnits = pending.reduce(
-      (sum: number, r: any) => sum + r.suggestedQuantity,
+      (sum, r) => sum + r.suggestedQuantity,
       0,
     );
 
@@ -96,7 +98,7 @@ export class DashboardService {
     ]);
 
     const unitsAwaitingDisposal = awaitingDisposal.reduce(
-      (sum: number, b: any) => sum + b.quantityRemaining,
+      (sum, b) => sum + b.quantityRemaining,
       0,
     );
 
@@ -117,7 +119,7 @@ export class DashboardService {
     const staleJobs = await this.backgroundJobService.getStaleJobs(60);
     return {
       staleJobCount: staleJobs.length,
-      staleJobs: staleJobs.map((j: any) => ({
+      staleJobs: staleJobs.map((j) => ({
         jobName: j.jobName,
         startedAt: j.startedAt,
         status: j.status,

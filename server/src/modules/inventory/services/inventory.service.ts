@@ -345,7 +345,7 @@ export class InventoryService {
     movementCtx?: ImovementCtx,
     session?: mongoose.ClientSession,
   ) {
-    let inventory = await this.inventoryRepo.findByMedicineId(
+    const inventory = await this.inventoryRepo.findByMedicineId(
       medicineId,
       session,
     );

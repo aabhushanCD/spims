@@ -7,7 +7,7 @@ import { salesService } from "../services/sales.service";
 export function useSale(id: string | undefined) {
   return useQuery({
     queryKey: saleKeys.detail(id ?? ""),
-    queryFn: () => salesService.getSaleById(id as string),
+    queryFn: () => salesService.getSaleById(id ?? ""),
     enabled: Boolean(id),
   });
 }

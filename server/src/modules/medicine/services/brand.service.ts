@@ -1,4 +1,5 @@
 import { AppError } from "../../../shared/error.js";
+import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { BrandRepo } from "../repo/brand.repo.js";
 import type { CreateBrandDto, UpdateBrandDto } from "../schema/brand.schema.js";
 
@@ -15,8 +16,8 @@ export class BrandService {
     }
     try {
       return await this.brandRepo.create(brandData);
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
         throw this.appError.conflict("Brand name must be unique");
       }
       throw error;

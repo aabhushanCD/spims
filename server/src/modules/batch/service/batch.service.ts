@@ -1,7 +1,21 @@
 import type mongoose from "mongoose";
+import { Types } from "mongoose";
 import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.js";
 import type { MedicineBatchRepo } from "../repo/medicineBatch.repo.js";
+import type { IBatch } from "../model/medicineBatch.model.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.ts";
+
+export interface CreateBatchInput {
+  purchaseOrderId: string;
+  medicineId: string;
+  batchNumber: string;
+  expiryDate: Date | string;
+  manufacturingDate: Date | string;
+  purchasePrice: number;
+  sellingPrice: number;
+  quantityReceived: number;
+  quantityRemaining: number;
+}
 
 export class BatchService {
   constructor(
@@ -11,16 +25,24 @@ export class BatchService {
   ) {}
 
   async createBatch(
-    batchData: any,
+    input: CreateBatchInput,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch> {
     const purchaseOrder = await this.purchaseOrderRepo.findById(
-      batchData.purchaseOrderId,
+      input.purchaseOrderId,
     );
 
     if (!purchaseOrder) {
       throw new Error("Purchase order not found");
     }
+
+    const batchData: Partial<IBatch> = {
+      ...input,
+      medicineId: new Types.ObjectId(input.medicineId),
+      purchaseOrderId: new Types.ObjectId(input.purchaseOrderId),
+      expiryDate: new Date(input.expiryDate),
+      manufacturingDate: new Date(input.manufacturingDate),
+    };
 
     const batch = await this.batchRepo.create(batchData, session);
     return batch;
@@ -29,7 +51,7 @@ export class BatchService {
   async getBatchById(
     batchId: string,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch> {
     const batch = await this.batchRepo.findById(batchId, session);
     if (!batch) {
       throw new Error("Batch not found");
@@ -37,7 +59,7 @@ export class BatchService {
     return batch;
   }
 
-  async getAllBatches(session?: mongoose.ClientSession): Promise<any[]> {
+  async getAllBatches(session?: mongoose.ClientSession): Promise<IBatch[]> {
     const batches = await this.batchRepo.findAll(session);
     return batches;
   }
@@ -45,7 +67,7 @@ export class BatchService {
   async getAvailableBatches(
     medicineId: string,
     session?: mongoose.ClientSession,
-  ): Promise<any[]> {
+  ): Promise<IBatch[]> {
     const batches = await this.batchRepo.findAllByMedicineId(
       medicineId,
       session,
@@ -58,9 +80,9 @@ export class BatchService {
 
   async updateBatch(
     batchId: string,
-    updateData: any,
+    updateData: Partial<IBatch>,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const updatedBatch = await this.batchRepo.update(
       batchId,
       updateData,
@@ -75,7 +97,7 @@ export class BatchService {
   async deleteBatch(
     batchId: string,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const deletedBatch = await this.batchRepo.delete(batchId, session);
     if (!deletedBatch) {
       throw new Error("Batch not found");
@@ -87,7 +109,7 @@ export class BatchService {
     batchId: string,
     quantity: number,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const batch = await this.batchRepo.findById(batchId, session);
 
     if (!batch) {
@@ -110,7 +132,7 @@ export class BatchService {
     batchId: string,
     quantity: number,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const batch = await this.batchRepo.findById(batchId, session);
     if (!batch) {
       throw new Error("Batch not found");
@@ -129,7 +151,7 @@ export class BatchService {
     batchId: string,
     quantity: number,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const batch = await this.batchRepo.findById(batchId, session);
     if (!batch) {
       throw new Error("Batch not found");
@@ -174,7 +196,7 @@ export class BatchService {
     return newlyExpired; // caller (the job) logs movements + notifies using this list
   }
 
-  async getExpiredBatches(session?: mongoose.ClientSession): Promise<any[]> {
+  async getExpiredBatches(session?: mongoose.ClientSession): Promise<IBatch[]> {
     const batches = await this.batchRepo.findAll(session);
     const now = new Date();
     const expiredBatches = batches.filter((batch) => batch.expiryDate < now);
@@ -186,7 +208,7 @@ export class BatchService {
     performedBy: string,
     remarks?: string,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch | null> {
     const batch = await this.batchRepo.findById(batchId, session);
     if (!batch) throw new Error("Batch not found");
     if (!batch.isExpired)
@@ -225,7 +247,7 @@ export class BatchService {
 
   async getExpiredAwaitingDisposal(
     session?: mongoose.ClientSession,
-  ): Promise<any[]> {
+  ): Promise<IBatch[]> {
     return (await this.batchRepo.findAll(session)).filter(
       (b) => b.isExpired && b.quantityRemaining > 0,
     );
@@ -234,7 +256,7 @@ export class BatchService {
   async getLowStockBatches(
     threshold: number,
     session?: mongoose.ClientSession,
-  ): Promise<any[]> {
+  ): Promise<IBatch[]> {
     const batches = await this.batchRepo.findAll(session);
     const lowStockBatches = batches.filter(
       (batch) =>
@@ -247,7 +269,7 @@ export class BatchService {
     medicineId: string,
     requestedQuantity: number,
     session?: mongoose.ClientSession,
-  ) {
+  ): Promise<{ batchId: string; quantity: number }[]> {
     const batches = await this.batchRepo.findAllByMedicineId(
       medicineId,
       session,
@@ -269,7 +291,7 @@ export class BatchService {
     }
 
     const allocation: { batchId: string; quantity: number }[] = [];
-    let remaining = requestedQuantity;
+    const remaining = requestedQuantity;
 
     for (const batch of availableBatches) {
       if (remaining <= 0) break;
@@ -292,7 +314,7 @@ export class BatchService {
   async getBatchByMedicineId(
     medicineId: string,
     session?: mongoose.ClientSession,
-  ): Promise<any> {
+  ): Promise<IBatch> {
     const batch = await this.batchRepo.findByMedicineId(medicineId, session);
     if (!batch) {
       throw new Error("Batch not found for the given medicineId");
@@ -300,10 +322,7 @@ export class BatchService {
     return batch;
   }
 
-  async getBatchHistory(
-    batchId: string,
-    session?: mongoose.ClientSession,
-  ): Promise<any> {
+  async getBatchHistory(batchId: string, session?: mongoose.ClientSession) {
     const batch = await this.batchRepo.findById(batchId, session);
     if (!batch) {
       throw new Error("Batch not found");

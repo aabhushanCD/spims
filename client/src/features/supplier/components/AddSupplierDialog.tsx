@@ -79,7 +79,7 @@ export default function AddSupplierDialog({
       form.reset();
       onOpenChange?.(false);
     }
-  }, [editingSupplier, form]);
+  }, [editingSupplier, form, onOpenChange]);
 
   function onSubmit(values: SupplierForm) {
     if (editingSupplier) {

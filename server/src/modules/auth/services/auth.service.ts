@@ -50,7 +50,7 @@ export class AuthService {
     return { message: "User logged out successfully" };
   }
 
-  async refreshToken(userId: string, refreshToken: string) {
+  async refreshToken(userId: string, _refreshToken: string) {
     const user = await this.userRepository.findById(userId);
     if (!user) {
       throw this.appError.notFound("User not found");

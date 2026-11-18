@@ -150,7 +150,7 @@ export class SalesService {
 
       const taxable = subtotal - totalDiscount - invoiceDiscount;
 
-      const vat = Math.round(taxable * 0.13 * 100) / 100;
+      const vat = Math.round(taxable * VAT_RATE * 100) / 100;
 
       const total = taxable + vat;
 

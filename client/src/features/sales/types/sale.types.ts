@@ -42,7 +42,16 @@ interface CashierId {
   name: string;
   _id: string;
 }
-export type SaleStatus = "COMPLETED" | "CANCELLED" | "PENDING";
+export type SaleStatus =
+  | "COMPLETED"
+  | "PARTIALLY_RETURNED"
+  | "RETURNED"
+  | "CANCELLED"
+  | "PENDING";
+
+export interface SalesQueryParams {
+  search?: string;
+}
 
 export interface SalesListItem {
   _id: string;
@@ -58,4 +67,33 @@ export interface SalesListItem {
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SaleDetailsItem {
+  id?: string;
+  medicineId: string;
+  medicineName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercentage: number;
+  vatPercentage: number;
+  total: number;
+}
+
+export interface SaleDetails {
+  _id: string;
+  id: string;
+  invoiceNo: string;
+  customerName: string;
+  customerPhone?: string;
+  cashierName: string;
+  paymentMethod: PaymentMethod;
+  status: SaleStatus;
+  createdAt: string;
+  notes?: string;
+  items: SaleDetailsItem[];
+  subtotal: number;
+  discountTotal: number;
+  vatTotal: number;
+  grandTotal: number;
 }

@@ -1,4 +1,5 @@
 import type { AppError } from "../../../shared/error.js";
+import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { GenericNameRepo } from "../repo/genericName.repo.js";
 import type {
   CreateGenericNameDto,
@@ -20,8 +21,8 @@ export class GenericNameService {
     }
     try {
       return await this.genericNameRepo.create(genericNameData);
-    } catch (error: any) {
-      if (error.code === 11000) {
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
         throw this.appError.conflict("Generic name must be unique");
       }
       throw error;

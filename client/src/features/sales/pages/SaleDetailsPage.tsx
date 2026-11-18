@@ -110,7 +110,7 @@ export default function SaleDetailsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sale.items.map((item:any) => (
+            {sale.items.map((item) => (
               <TableRow key={item.id ?? item.medicineId}>
                 <TableCell className="font-medium">{item.medicineName}</TableCell>
                 <TableCell>{item.quantity}</TableCell>

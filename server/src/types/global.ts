@@ -1,5 +1,3 @@
-import * as express from "express";
-
 export interface JWTUserPayload {
   userId: string;
   email: string;
@@ -7,6 +5,8 @@ export interface JWTUserPayload {
 }
 
 declare global {
+  // Express request augmentation requires a global namespace declaration.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: JWTUserPayload | null;

@@ -1,0 +1,23 @@
+{
+  "name": "spims",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smart Pharmacy Inventory Management System — root quality-gate scripts",
+  "scripts": {
+    "install:all": "npm ci --prefix server && npm ci --prefix client",
+    "lint": "npm run lint --prefix server && npm run lint --prefix client",
+    "lint:fix": "npm run lint:fix --prefix server && npm run lint:fix --prefix client",
+    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix client",
+    "test": "npm run test:ci --prefix server",
+    "test:watch": "npm run test:watch --prefix server",
+    "test:coverage": "npm run test:coverage --prefix server",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "audit": "npm run audit --prefix server && npm run audit --prefix client",
+    "audit:all": "npm run audit:all --prefix server && npm run audit:all --prefix client",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "check:ci": "npm run check && npm run audit"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

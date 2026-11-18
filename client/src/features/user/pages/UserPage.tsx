@@ -27,8 +27,8 @@ const UserPage = () => {
     <div className="space-y-6">
       <UserStats
         total={users?.data?.length || 0}
-        active={users?.data?.filter((u: any) => u.isActive).length || 0}
-        inactive={users?.data?.filter((u: any) => !u.isActive).length || 0}
+        active={users?.data?.filter((u) => u.isActive).length || 0}
+        inactive={users?.data?.filter((u) => !u.isActive).length || 0}
       />
 
       <UserToolbar search={"Search..."} setSearch={handleSearch} />

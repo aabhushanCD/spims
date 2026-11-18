@@ -1,11 +1,11 @@
 // features/sales/hooks/useCreateSale.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-
 import { saleKeys } from "./useSales";
 import type { CreateSaleInput } from "../types/sale.types";
 import { toast } from "react-toastify";
 import { salesService } from "../services/sales.service";
+import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 
 export function useCreateSale() {
   const queryClient = useQueryClient();
@@ -16,9 +16,12 @@ export function useCreateSale() {
       queryClient.invalidateQueries({ queryKey: saleKeys.lists() });
       toast.success(`Sale ${sale.invoiceNo} completed`);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error(
-        error?.response?.data?.message ?? "Failed to complete sale. Please try again."
+        getApiErrorMessage(
+          error,
+          "Failed to complete sale. Please try again.",
+        ),
       );
     },
   });

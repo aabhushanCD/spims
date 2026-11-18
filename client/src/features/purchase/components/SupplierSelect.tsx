@@ -23,7 +23,7 @@ export default function SupplierSelect({ value, onChange }: Props) {
       </SelectTrigger>
 
       <SelectContent>
-        {suppliers.map((supplier: any) => (
+        {suppliers.map((supplier) => (
           <SelectItem key={supplier._id} value={supplier._id}>
             {supplier.companyName}
           </SelectItem>

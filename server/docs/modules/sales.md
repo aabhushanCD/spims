@@ -1,0 +1,262 @@
+# Sales
+
+## 1. Purpose
+
+Create sales invoices, allocate stock FEFO, compute discounts and 13% VAT, record the cashier, and expose sales history.
+
+## 2. Responsibilities
+
+- Validate the cart and merge duplicate medicine lines.
+- Generate sequential invoice numbers.
+- Allocate and deduct batch stock.
+- Create one sale item per batch allocation.
+- Calculate subtotal, discounts, VAT, and total.
+- Persist the sale transactionally.
+- Support limited post-sale edits and sale deletion.
+
+## 3. Structure
+
+```text
+modules/sales/
+├── constants/counter.constants.ts
+├── controller/
+│   ├── sales.controller.ts
+│   ├── salesItem.controller.ts
+│   └── return.controller.ts
+├── model/
+│   ├── sales.model.ts
+│   ├── salesItem.model.ts
+│   ├── return.model.ts
+│   └── counter.model.ts
+├── repo/
+│   ├── sales.repo.ts
+│   ├── saleItem.repo.ts
+│   ├── return.repo.ts
+│   └── counter.repo.ts
+├── routes/
+│   ├── sales.routes.ts
+│   ├── saleItem.routes.ts
+│   └── return.routes.ts
+├── schema/
+│   ├── sales.schema.ts
+│   └── return.schema.ts
+├── services/
+│   ├── sales.service.ts
+│   ├── saleItem.service.ts
+│   └── return.service.ts
+└── types/return.type.ts
+```
+
+## 4. Routes
+
+### Sales
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/sales` | Create sale |
+| GET | `/api/sales` | List |
+| GET | `/api/sales/:id` | Detail + items |
+| PATCH | `/api/sales/:id` | Edit customer/payment |
+| DELETE | `/api/sales/:id` | Delete + restore aggregate stock |
+
+### Sale items
+
+| Method | Path |
+|---|---|
+| GET | `/api/sale-items` |
+| GET | `/api/sale-items/sales/:salesId` |
+| GET | `/api/sale-items/:id` |
+| PATCH | `/api/sale-items/:id` |
+
+Full contracts: [endpoints.md](../api/endpoints.md#sales).
+
+## 5. Controllers
+
+### SalesController
+
+- Requires `req.user.userId` as `cashierId`.
+- Re-checks that `items` is a non-empty array.
+- Returns `201` `{ success: true, data: sale }`.
+- `updateSale` forwards only `customerName` and `paymentMethod`.
+- `deleteSale` requires the JWT user for movement attribution.
+
+### SaleItemController
+
+- Read-only plus a price/discount correction.
+- Rejects a PATCH where both fields are absent.
+- Never creates or deletes items.
+
+## 6. Service
+
+### SalesService
+
+`createSale` (`modules/sales/services/sales.service.ts`):
+
+```mermaid
+flowchart TB
+  A["createSale(dto)"] --> B{"items empty?"}
+  B -->|yes| C["400 Cart is empty"]
+  B -->|no| D["merge duplicate medicineId lines (max discount %)"]
+  D --> E["start session + transaction"]
+  E --> F["generate invoice number"]
+  F --> G["insert sale status COMPLETED, totals 0"]
+  G --> H["for each line: sellMedicine (FEFO)"]
+  H --> I["per allocation: line total, discount, SalesItem"]
+  I --> J["validate invoice discount"]
+  J --> K["taxable = subtotal - line discounts - invoice discount"]
+  K --> L["VAT = round(taxable * 13%, 2)"]
+  L --> M["total = taxable + VAT"]
+  M --> N["update sale totals"]
+  N --> O["commit"]
+  O --> P["reload sale"]
+```
+
+`updateSale` only permits `customerName` and `paymentMethod`.
+
+`deleteSale`:
+
+1. Starts a transaction.
+2. Loads the sale and its items.
+3. For each item, calls `increaseStock` (aggregate + RETURN movement).
+4. Deletes each sale item and the sale.
+
+It does **not** restore batch quantities and does not check return history.
+
+### SaleItemService
+
+`getById`, `getBySalesId`, `getAll`, and `update({unitPrice, discount})`. The update is intended for corrections only and does not recompute the parent sale totals.
+
+## 7. Models
+
+- `Sales`: invoice, customer, totals, payment method, cashier, sale date, status.
+- `SalesItem`: one row per batch allocation, with `returnedQuantity`.
+- `Counter`: sequence storage.
+- `Return`: see [Returns](returns.md).
+
+See [Schema and relationships](../database/schema-and-relationships.md#6-sales-and-returns).
+
+## 8. Validation
+
+`createSaleSchema`:
+
+- `customerName`: 1–100.
+- `paymentMethod`: enum.
+- `saleDate`: coerced date.
+- `discount`: number ≥ 0.
+- `items`: min 1.
+- Per item: `medicineId`, `batchId` (required but unused), `quantity` positive integer, `discountPercentage` ≥ 0.
+
+`updateSaleSchema` exists but is **not wired** to `PATCH /sales/:id`.
+No validation exists for sale item updates or deletes.
+
+## 9. Middleware
+
+`verifyToken` + `authorize(["owner","inventory_manager","pharmacist"])` at `/api/sales` and `/api/sale-items`.
+
+## 10. Business rules
+
+### Pricing
+
+For each allocation (`qty` units from one batch at `unitPrice`):
+
+```text
+lineTotal    = unitPrice * qty
+lineDiscount = lineTotal * discountPercentage / 100
+SalesItem.discount   = lineDiscount
+SalesItem.totalPrice = lineTotal - lineDiscount
+```
+
+Invoice level:
+
+```text
+subtotal       = sum(lineTotal)
+lineDiscounts  = sum(lineDiscount)
+taxable        = subtotal - lineDiscounts - invoiceDiscount
+VAT            = round(taxable * 0.13, 2)
+totalAmount    = taxable + VAT
+Sales.discount = invoiceDiscount + lineDiscounts
+```
+
+- Client-supplied prices are ignored; batch `sellingPrice` is used.
+- VAT is applied after all discounts.
+- `SalesItem` totals are VAT-exclusive.
+- There is no rounding until VAT; floating-point noise is possible in subtotal and line values.
+
+### Stock
+
+- FEFO allocation across batches.
+- One `SalesItem` per batch.
+- Aggregate inventory is recalculated after all allocations.
+- Expired or flagged batches are excluded.
+
+### Status
+
+- Creation always sets `COMPLETED`.
+- Returns change it to `PARTIALLY_RETURNED` or `RETURNED`.
+- `PENDING` and `CANCELLED` are never set by any flow.
+
+### Payment
+
+`paymentMethod` is stored as a string. There is no payment record, gateway call, or paid/unpaid state.
+
+## 11. Dependencies
+
+- `InventoryService` (allocation/deduction)
+- `MedicineBatchRepo` (injected but not used directly in `SalesService`)
+- `CounterRepository`
+- `SalesRepo`, `SaleItemRepo`
+- `AppError`
+- MongoDB connection for sessions
+- Used by `ReturnService`, dashboard, smart reorder (`SaleItemRepo`)
+
+## 12. Example
+
+Request:
+
+```json
+{
+  "customerName": "Walk-in Customer",
+  "paymentMethod": "CASH",
+  "saleDate": "2026-02-10T10:30:00.000Z",
+  "discount": 25,
+  "items": [
+    { "batchId": "ignored", "medicineId": "665f...", "quantity": 3, "discountPercentage": 5 }
+  ]
+}
+```
+
+Assume three units at 100 each:
+
+```text
+lineTotal     = 300
+lineDiscount  = 15
+subtotal      = 300
+taxable       = 300 - 15 - 25 = 260
+VAT           = 33.8
+totalAmount   = 293.8
+Sales.discount= 40
+```
+
+## 13. Limitations and risks
+
+| Issue | Status |
+|---|---|
+| Sale creation session never ended | Resource leak; `createSale` lacks `session.endSession()` |
+| No payment ledger/gateway | Not Implemented |
+| No customer entity | Not Implemented |
+| No invoice PDF/print endpoint | Not Implemented |
+| Delete restores aggregate but not batches | Defect |
+| Sale item correction does not recompute sale totals | Defect |
+| `batchId` required in request but ignored | API inconsistency |
+| No validation on update/delete | Partially Implemented |
+| No idempotency key | Not Implemented |
+| No pagination/date filters | Not Implemented |
+| No prescription linkage | Not Implemented |
+| `VAT_RATE` constant unused (hardcoded 0.13) | Code quality |
+
+## Related documents
+
+- [VAT and pricing](../business-logic/vat-and-pricing.md)
+- [FEFO/FIFO](../business-logic/fefo-fifo.md)
+- [Returns](returns.md)
+- [Stock movements](../business-logic/stock-movements.md)

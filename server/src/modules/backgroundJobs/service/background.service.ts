@@ -63,11 +63,10 @@ export class BackgroundJobService {
       const result = await fn();
       await this.markCompleted(job._id.toString());
       return result;
-    } catch (error: any) {
-      await this.markFailed(
-        job._id.toString(),
-        error?.message ?? "Unknown error",
-      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      await this.markFailed(job._id.toString(), errorMessage);
       throw error;
     }
   }
