@@ -2,46 +2,58 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import tsParser from "@typescript-eslint/parser";
+import tseslint from "typescript-eslint";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  globalIgnores(["dist/**", "coverage/**", "node_modules/**"]),
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
+    files: ["src/**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: "module",
+      globals: { ...globals.browser },
+    },
     plugins: {
-      "@typescript-eslint": tsPlugin,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
     },
-    extends: [
-      js.configs.recommended,
-      tsPlugin.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    files: ["**/*.{ts,tsx}"],
-    languageOptions: {
-      parser: tsParser,
-      globals: globals.browser,
-      parserOptions: {
-        project: "./tsconfig.app.json",
-        tsconfigRootDir: import.meta.dirname,
-      },
+    rules: {
+      ...reactHooks.configs.flat.recommended.rules,
+      ...reactRefresh.configs.vite.rules,
+      // These files intentionally export non-component values alongside
+      // components (shadcn variants, shared totals, context hook).
+      "react-refresh/only-export-components": [
+        "error",
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            "badgeVariants",
+            "buttonVariants",
+            "computeSaleTotals",
+            "calculateLineTotal",
+            "useAuth",
+          ],
+        },
+      ],
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrors: "none",
+          ignoreRestSiblings: true,
+        },
+      ],
     },
-    settings: {
-      "import/resolver": {
-        typescript: {
-          project: "./tsconfig.json",
-        },
-        alias: {
-          map: [["@", "./src"]],
-          extensions: [".ts", ".tsx", ".js", ".jsx"],
-        },
-      },
-      "import/parsers": {
-        "@typescript-eslint/parser": [".ts", ".tsx"],
-      },
+  },
+  {
+    files: ["*.config.{js,ts}", "vite.config.ts"],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
 ]);
