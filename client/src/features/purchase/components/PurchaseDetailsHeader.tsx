@@ -1,7 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
+import type { PurchaseDetails } from "../types/PurchaseDetails";
 
 interface Props {
-  purchase: any;
+  purchase?: PurchaseDetails;
 }
 
 export default function PurchaseDetailsHeader({ purchase }: Props) {
@@ -19,38 +20,40 @@ export default function PurchaseDetailsHeader({ purchase }: Props) {
         <div>
           <p className="text-muted-foreground text-sm">Supplier</p>
 
-          <p className="font-medium">{purchase?.data?.supplier?.companyName}</p>
+          <p className="font-medium">{purchase?.supplier?.companyName}</p>
 
           <p className="text-muted-foreground text-sm">
-            {purchase?.data?.supplier?.phone}
+            {purchase?.supplier?.phone}
           </p>
         </div>
 
         <div>
           <p className="text-muted-foreground text-sm">Invoice</p>
-          {purchase?.data?.status}
+          {purchase?.status}
         </div>
 
         <div>
           <p className="text-muted-foreground text-sm">Invoice</p>
 
-          <p>{purchase?.data?.invoiceNumber}</p>
+          <p>{purchase?.invoiceNumber}</p>
         </div>
 
         <div>
           <p className="text-muted-foreground text-sm">Purchase Date</p>
 
-          <p>{new Date(purchase?.data?.orderDate).toLocaleDateString()}</p>
+          <p>
+            {purchase?.orderDate
+              ? new Date(purchase.orderDate).toLocaleDateString()
+              : "-"}
+          </p>
         </div>
 
         <div>
           <p className="text-muted-foreground text-sm">Expected Delivery</p>
 
           <p>
-            {purchase?.data?.expectedDeliveryDate
-              ? new Date(
-                  purchase?.data?.expectedDeliveryDate,
-                ).toLocaleDateString()
+            {purchase?.expectedDeliveryDate
+              ? new Date(purchase?.expectedDeliveryDate).toLocaleDateString()
               : "-"}
           </p>
         </div>

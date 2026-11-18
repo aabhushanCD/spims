@@ -12,9 +12,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import type { ApiResponse } from "@/types/api";
+import type { InventoryItem } from "../types/inventory.types";
 
 interface InventoryTableProps {
-  inventory: any;
+  inventory: ApiResponse<InventoryItem[]>;
 }
 const ITEMS_PER_PAGE = 10;
 export function InventoryTable({ inventory }: InventoryTableProps) {
@@ -47,8 +49,8 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
 
         <TableBody>
           {currentItems.length > 0 ? (
-            currentItems.map((item: any) => (
-              <TableRow key={item.id}>
+            currentItems.map((item) => (
+              <TableRow key={item._id}>
                 <TableCell className="font-medium">
                   {item?.medicineId._id}
                 </TableCell>

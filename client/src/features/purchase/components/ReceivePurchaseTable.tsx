@@ -8,13 +8,18 @@ import {
 } from "@/components/ui/table";
 
 import { FormControl, FormField, FormItem } from "@/components/ui/form";
+import type { Control, FieldArrayWithId } from "react-hook-form";
+import type { ReceivePurchaseForm } from "../schema/receivePurchase.schema";
 
 import { Input } from "@/components/ui/input";
 
 interface Props {
-  control: any;
+  control: Control<ReceivePurchaseForm>;
 
-  fields: any[];
+  fields: (FieldArrayWithId<ReceivePurchaseForm, "items", "id"> & {
+    medicineName?: string;
+    quantityOrdered?: number;
+  })[];
 }
 
 export default function ReceivePurchaseTable({ control, fields }: Props) {

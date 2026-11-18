@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { saleKeys } from "./useSales";
 import { toast } from "react-toastify";
 import { salesService } from "../services/sales.service";
+import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 
 export function useCancelSale() {
   const queryClient = useQueryClient();
@@ -16,8 +17,8 @@ export function useCancelSale() {
       queryClient.invalidateQueries({ queryKey: saleKeys.detail(sale.id) });
       toast.success(`Sale ${sale.invoiceNo} cancelled`);
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? "Failed to cancel sale.");
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to cancel sale."));
     },
   });
 }

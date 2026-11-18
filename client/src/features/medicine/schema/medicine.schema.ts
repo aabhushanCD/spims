@@ -25,10 +25,7 @@ export const medicineSchema = z.object({
 });
 
 // input type (before validation)
-export type MedicineFormInput =
-z.input<typeof medicineSchema>;
-
+export type MedicineFormInput = z.input<typeof medicineSchema>;
 
 // output type (after validation)
-export type MedicineFormData =
-z.output<typeof medicineSchema>;
+export type MedicineFormData = z.output<typeof medicineSchema>;

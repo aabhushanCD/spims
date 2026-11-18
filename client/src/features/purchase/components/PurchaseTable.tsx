@@ -15,9 +15,10 @@ import { Badge } from "@/components/ui/badge";
 
 import { usePurchases } from "../hooks/usePurchases";
 import PurchaseDetailsDialog from "./PurchaseDetailsDialog";
+import type { PurchaseListItem } from "../types/purchase.types";
 
 interface Props {
-  onEdit: (purchase: any) => void;
+  onEdit: (purchase: PurchaseListItem) => void;
 }
 
 export default function PurchaseTable({ onEdit }: Props) {
@@ -59,7 +60,7 @@ export default function PurchaseTable({ onEdit }: Props) {
           </TableHeader>
 
           <TableBody>
-            {purchases?.map((purchase: any) => (
+            {purchases?.map((purchase) => (
               <TableRow key={purchase._id}>
                 <TableCell>#{purchase._id.slice(20, 25)}</TableCell>
 
@@ -76,7 +77,9 @@ export default function PurchaseTable({ onEdit }: Props) {
                 </TableCell>
 
                 <TableCell>
-                  {new Date(purchase.expectedDeliveryDate).toLocaleDateString()}
+                  {purchase.expectedDeliveryDate
+                    ? new Date(purchase.expectedDeliveryDate).toLocaleDateString()
+                    : "-"}
                 </TableCell>
 
                 <TableCell>

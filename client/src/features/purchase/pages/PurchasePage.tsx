@@ -3,13 +3,15 @@ import { useState } from "react";
 import PurchaseTable from "../components/PurchaseTable";
 import PurchaseDialog from "../components/PurchaseDialog";
 import PageHeader from "@/components/common/PageToolbar";
+import type { PurchaseListItem } from "../types/purchase.types";
 
 export default function PurchasePage() {
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingPurchase, setEditingPurchase] = useState<any | null>(null);
+  const [editingPurchase, setEditingPurchase] =
+    useState<PurchaseListItem | null>(null);
   const [search, setSearch] = useState("");
 
-  const handleEdit = (purchase: any) => {
+  const handleEdit = (purchase: PurchaseListItem) => {
     setEditingPurchase(purchase);
     setOpenDialog(true);
   };

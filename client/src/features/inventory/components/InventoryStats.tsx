@@ -1,13 +1,12 @@
 import { Card, CardContent } from "../../../components/ui/card";
+import type { LucideIcon } from "lucide-react";
 
 interface InventoryStatsProps {
-  stats: [
-    {
-      title: string;
-      value: string;
-      icon: any;
-    },
-  ];
+  stats: {
+    title: string;
+    value: string;
+    icon: LucideIcon;
+  }[];
 }
 
 export function InventoryStats({ stats }: InventoryStatsProps) {

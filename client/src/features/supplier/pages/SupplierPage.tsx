@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Supplier } from "../types/supplier.types";
 
 import SupplierTable from "../components/SupplierTable";
@@ -16,13 +16,13 @@ export default function SupplierPage() {
     setEditingSupplier(supplier);
     setDialogOpen(true);
   }
-  function handleOpenChange(open: boolean) {
+  const handleOpenChange = useCallback((open: boolean) => {
     setDialogOpen(open);
 
     if (!open) {
       setEditingSupplier(null);
     }
-  }
+  }, []);
   return (
     <div className="space-y-6">
       <PageHeader

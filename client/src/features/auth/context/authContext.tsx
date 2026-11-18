@@ -12,7 +12,8 @@ export type User = {
   _id: string;
   email: string;
   name: string;
-  role: string;
+  role: "owner" | "inventory_manager" | "pharmacist";
+  isActive: boolean;
 };
 
 type AuthContextType = {

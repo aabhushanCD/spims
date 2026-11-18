@@ -1,3 +1,5 @@
+import type { Control, FieldPath, FieldValues } from "react-hook-form";
+import type { MasterData } from "@/features/genericName/types/masterData.types";
 import {
   FormControl,
   FormField,
@@ -13,8 +15,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function MasterSelectOptions({ control, name, label, placeholder, options }: any) {
-  console.log(options)
+interface MasterSelectOptionsProps<TFieldValues extends FieldValues> {
+  control: Control<TFieldValues>;
+  name: FieldPath<TFieldValues>;
+  label: string;
+  placeholder?: string;
+  options?: MasterData[];
+}
+
+export function MasterSelectOptions<TFieldValues extends FieldValues>({
+  control,
+  name,
+  label,
+  placeholder,
+  options,
+}: MasterSelectOptionsProps<TFieldValues>) {
   return (
     <FormField
       control={control}
@@ -23,7 +38,10 @@ export function MasterSelectOptions({ control, name, label, placeholder, options
         <FormItem>
           <FormLabel>{label}</FormLabel>
 
-          <Select value={field.value} onValueChange={field.onChange}>
+          <Select
+            value={typeof field.value === "string" ? field.value : ""}
+            onValueChange={field.onChange}
+          >
             <FormControl>
               <SelectTrigger>
                 <SelectValue placeholder={placeholder} />
@@ -31,7 +49,7 @@ export function MasterSelectOptions({ control, name, label, placeholder, options
             </FormControl>
 
             <SelectContent>
-              {options?.map((item: any) => (
+              {options?.map((item) => (
                 <SelectItem key={item._id} value={item._id}>
                   {item.name}
                 </SelectItem>

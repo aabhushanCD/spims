@@ -1,47 +1,53 @@
-type PopulatedSupplier = {
+export interface PurchaseSupplier {
   _id: string;
-  name: string;
-  contactPerson: string;
-  contactNumber: string;
+  companyName: string;
+  contactPerson?: string;
+  phone?: string;
   email?: string;
   address?: string;
-};
+}
 
-type PurchaseStatus = "PENDING" | "RECEIVED" | "CANCELLED";
+export type PurchaseStatus = "pending" | "approved" | "received" | "cancelled";
 
-type PurchaseItem = {
+export interface PurchaseDetailsItem {
   _id: string;
-  medicineId: string;
-  medicineName: string;
-  batchNumber: string;
+  medicine: {
+    _id: string;
+    medicineName: string;
+  };
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-};
-
+  purchasePrice: number;
+  batchNumber?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface PurchaseDetails {
   _id: string;
 
-  purchaseOrderNumber: string;
+  supplier: PurchaseSupplier;
 
-  supplier: PopulatedSupplier;
-
-  invoiceNumber?: string;
-
-  purchaseDate: string;
+  orderDate: string;
 
   expectedDeliveryDate?: string;
 
-  notes?: string;
+  invoiceNumber: string;
+
+  invoiceFile?: string;
 
   totalAmount: number;
 
+  receivedDate?: string;
+
   status: PurchaseStatus;
 
-  items: PurchaseItem[];
+  VAT: number;
+
+  discount: number;
 
   createdAt: string;
 
   updatedAt: string;
+
+  items: PurchaseDetailsItem[];
 }

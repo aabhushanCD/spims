@@ -22,11 +22,12 @@ import { useCreatePurchase } from "../hooks/useCreatePurchase";
 import { useEffect } from "react";
 import { usePurchase } from "../hooks/usePurchase";
 import { useUpdatePurchase } from "../hooks/useUpdatePurchase";
+import type { PurchaseListItem } from "../types/purchase.types";
 
 interface Props {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  editingPurchase?: any | null;
+  editingPurchase?: PurchaseListItem | null;
 }
 
 const defaultValues: PurchaseForm = {
@@ -63,22 +64,24 @@ export default function PurchaseDialog({
   });
 
   useEffect(() => {
-    if (!editingPurchase || !purchase.data.data) {
+    if (!editingPurchase || !purchase.data) {
       form.reset(defaultValues);
       return;
     }
 
     form.reset({
-      supplierId: { ...purchase.data.supplierId },
-      VAT: purchase.data.data.VAT,
-      discount: purchase.data.data.discount,
-      orderDate: new Date(purchase.data.data.orderDate),
-      expectedDeliveryDate: new Date(purchase.data.data.expectedDeliveryDate),
-      receivedDate: new Date(purchase.data.data.receivedDate),
-      invoiceNumber: purchase.data.data.invoiceNumber,
-      invoiceFile: purchase.data.data.invoiceFile,
-      status: purchase.data.data.status,
-      items: purchase.data.data.items.map((item: any) => ({
+      supplierId: purchase.data.supplier._id,
+      VAT: purchase.data.VAT,
+      discount: purchase.data.discount,
+      orderDate: new Date(purchase.data.orderDate),
+      expectedDeliveryDate: new Date(
+        purchase.data.expectedDeliveryDate ?? "",
+      ),
+      receivedDate: new Date(purchase.data.receivedDate ?? ""),
+      invoiceNumber: purchase.data.invoiceNumber,
+      invoiceFile: purchase.data.invoiceFile,
+      status: purchase.data.status,
+      items: purchase.data.items.map((item) => ({
         medicineId: item.medicine.medicineName,
         quantity: item.quantity,
         purchasePrice: item.purchasePrice,

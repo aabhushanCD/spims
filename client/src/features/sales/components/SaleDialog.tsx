@@ -1,6 +1,12 @@
 // features/sales/components/SaleDialog.tsx
 import { useCallback, useState } from "react";
-import { useFieldArray, useForm, FormProvider } from "react-hook-form";
+import {
+  useFieldArray,
+  useForm,
+  useWatch,
+  FormProvider,
+  type Resolver,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -47,7 +53,7 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
   const createSale = useCreateSale();
 
   const form = useForm<SaleFormValues>({
-    resolver: zodResolver(saleFormSchema as any),
+    resolver: zodResolver(saleFormSchema) as Resolver<SaleFormValues>,
     defaultValues,
     mode: "onChange",
   });
@@ -56,9 +62,9 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
     name: "items",
   });
 
-  const { handleSubmit, reset, watch } = form;
+  const { handleSubmit, reset } = form;
   const { append } = fieldArray;
-  const currentItems = watch("items");
+  const currentItems = useWatch({ control: form.control, name: "items" });
 
   const handleAddMedicine = useCallback(
     (medicine: InventorySearchResult) => {

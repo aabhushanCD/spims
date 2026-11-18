@@ -12,7 +12,7 @@ import { useAuth } from "@/features/auth/context/authContext";
 export default function Sidebar() {
   const logout = useLogout();
   const { theme, currentUser } = useAuth();
-  let filteredSidebarItem = sidebarItems.filter((item) => {
+  const filteredSidebarItem = sidebarItems.filter((item) => {
     if (!item.roles)  return true;
     return item.roles.includes(currentUser?.role as string);
   });
