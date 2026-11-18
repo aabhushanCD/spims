@@ -492,6 +492,25 @@ npm install
 
 ---
 
+# ✅ Quality Gates
+
+Run all checks from the repository root:
+
+```bash
+npm run install:all   # first checkout / lockfile changes
+npm run check         # lint -> typecheck -> test -> build
+npm run check:ci      # check + production dependency audit
+```
+
+Individual commands: `npm run lint`, `npm run typecheck`, `npm test`,
+`npm run test:coverage`, `npm run build`, `npm run audit`.
+
+See [`docs/ci-cd.md`](docs/ci-cd.md), [`docs/testing.md`](docs/testing.md), and
+[`docs/security.md`](docs/security.md). AI agents must follow
+[`AGENTS.md`](AGENTS.md).
+
+---
+
 # 🔧 Environment Variables
 
 Server
@@ -558,8 +577,7 @@ https://spims-rmuk.vercel.app/
 - Prescription Management
 - Inventory Forecast Dashboard
 - Docker Deployment
-- CI/CD Pipeline
-- Unit Testing
+- Expanded test coverage
 - Integration Testing
 
 ---
