@@ -1,8 +1,7 @@
 // sales.routes.ts
 import { Router, type NextFunction, type Request, type Response } from "express";
-import type { SalesController } from "../controller/sales.controller.ts";
 import { validate } from "../../../shared/middleware/validate.middleware.ts";
-import { createSaleSchema, createSalesItemSchema } from "../schema/sales.schema.ts";
+import { createSaleSchema } from "../schema/sales.schema.ts";
 import { saleController } from "../../../app/container.ts";
 
 const router = Router();

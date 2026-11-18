@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const createUserSchema = z.object({
+export const createUserSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
   email: z.string().email({ message: "Invalid email address" }),
   password: z
@@ -9,7 +9,7 @@ const createUserSchema = z.object({
   role: z.enum(["inventory_manager", "owner", "pharmacist"]),
 });
 
-const updateUserSchema = z.object({
+export const updateUserSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }).optional(),
   email: z.string().email({ message: "Invalid email address" }).optional(),
   password: z

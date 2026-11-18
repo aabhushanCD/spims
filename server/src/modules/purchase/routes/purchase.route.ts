@@ -1,4 +1,4 @@
-import express, {
+import {
   Router,
   type NextFunction,
   type Request,
@@ -11,7 +11,6 @@ import {
 import { createPurchaseOrderSchema } from "../schema/purchaseOrder.schema.ts";
 
 import { validate } from "../../../shared/middleware/validate.middleware.ts";
-import { authorize } from "../../../shared/middleware/authorize.ts";
 import { verifyToken } from "../../../shared/middleware/verifyToken.ts";
 import { purchaseOrderController } from "../../../app/container.ts";
 

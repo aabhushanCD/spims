@@ -1,7 +1,10 @@
 import mongoose from "mongoose";
 import type { AppError } from "../../../shared/error.js";
 import type { SupplierRepo } from "../repo/supplier.repo.js";
-import type { UpdateSupplierDto } from "../schema/supplier.schema.js";
+import type {
+  CreateSupplierDto,
+  UpdateSupplierDto,
+} from "../schema/supplier.schema.js";
 
 export class SupplierService {
   constructor(
@@ -9,7 +12,7 @@ export class SupplierService {
     private readonly appError: typeof AppError,
   ) {}
 
-  async createSupplier(supplierData: any) {
+  async createSupplier(supplierData: CreateSupplierDto) {
     if (supplierData.email) {
       const existingEmail = await this.supplierRepo.findByEmail(
         supplierData.email,

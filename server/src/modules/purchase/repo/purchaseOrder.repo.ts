@@ -61,7 +61,7 @@ export class PurchaseOrderRepo {
     updateData: Partial<IPurchaseOrder>,
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrder | null> {
-    const options: any = { new: true };
+    const options: mongoose.QueryOptions = { new: true };
     if (session) {
       options.session = session;
     }

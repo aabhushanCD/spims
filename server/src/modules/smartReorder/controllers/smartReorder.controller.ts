@@ -63,15 +63,13 @@ export class SmartReorderController {
 
   // POST /smart-reorders/generate — admin/manager only, manual on-demand trigger
   // body (optional): { threshold?, targetStock? }
-  generateAll = asyncHandler(async (req: Request, res: Response) => {
-    const { threshold, targetStock } = req.body ?? {};
+  generateAll = asyncHandler(async (_req: Request, res: Response) => {
     const results = await this.smartReorderService.generateForAllMedicines();
     res.status(200).json({ success: true, data: results });
   });
 
   // POST /smart-reorders/generate/:medicineId — admin/manager only, single medicine
   generateForMedicine = asyncHandler(async (req: Request, res: Response) => {
-    const { threshold, targetStock } = req.body ?? {};
     const reorder =
       await this.smartReorderService.generateRecommendationForMedicine(
         req.params.medicineId as string,

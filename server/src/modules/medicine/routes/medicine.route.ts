@@ -3,7 +3,6 @@ import express, {
   type Request,
   type Response,
 } from "express";
-import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import {
   createMedicineSchema,
   updateMedicineSchema,

@@ -1,8 +1,6 @@
 import mongoose from "mongoose";
-import { Types } from "mongoose";
 import type { ISalesItem } from "../model/salesItem.model.ts";
 import type SaleItem from "../model/salesItem.model.ts";
-import { Mongoose } from "mongoose";
 export class SaleItemRepo {
   // Implementation for sale item repository
 

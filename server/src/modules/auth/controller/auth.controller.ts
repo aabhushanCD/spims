@@ -12,7 +12,7 @@ export class AuthController {
         req.body as CreateUserDto,
       );
       res.status(201).json(user);
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -26,7 +26,7 @@ export class AuthController {
         sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       });
       res.json(user);
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -41,7 +41,7 @@ export class AuthController {
         sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       });
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }
@@ -51,7 +51,7 @@ export class AuthController {
       const userId = req.user?.userId;
       const user = await this.authService.getCurrentUser(userId as string);
       res.json(user);
-    } catch (error: any) {
+    } catch (error) {
       next(error);
     }
   }

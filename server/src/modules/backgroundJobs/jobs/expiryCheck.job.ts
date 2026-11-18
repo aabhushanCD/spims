@@ -7,8 +7,6 @@ import {
   userRepo,
 } from "../../../app/container.ts";
 
-const NEARING_EXPIRY_DAYS = 30;
-
 export function scheduleExpiryCheckJob() {
   cron.schedule("0 1 * * *", async () => {
     try {
