@@ -11,6 +11,6 @@ export const verifyJwt = (token: string) => {
     return decoded as JWTUserPayload;
   } catch (error) {
     console.error("Failed to verify JWT token:", error);
-    throw new Error("Unauthorized: Invalid token");
+    throw new Error("Unauthorized: Invalid token", { cause: error });
   }
 };
