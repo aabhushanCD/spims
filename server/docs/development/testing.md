@@ -118,12 +118,12 @@ If integration tests are added, the minimum infrastructure is:
 | Redis | A disposable instance or an injected fake |
 | HTTP | `supertest` against the Express app |
 | Auth | A helper that registers/logs in and stores the cookie |
-| Email | Mock `sendEmail` to avoid Ethereal |
+| Email | Inject a fake `AuthMailer` / mock `sendEmail` |
 | WebSocket | `ws` client with the cookie header |
 
 Critical flows to cover:
 
-1. Register → login → `/me`.
+1. Register → verify email → login → `/me` → refresh → logout.
 2. Catalog → supplier → purchase order → approve → receive.
 3. Sale with FEFO across multiple batches and VAT totals.
 4. Insufficient stock and concurrent deduction.
@@ -154,7 +154,7 @@ npm run build
 |---|---|
 | Concrete repository classes, no interfaces | Mocking requires `as any` |
 | Services depend on Mongoose `Connection` | Session mocking required |
-| Top-level Ethereal account in `email.provider.ts` | Importing notification code triggers network |
+| Email provider uses a lazy transport | Tests should still inject a fake mailer; no network is opened at import |
 | Redis client created at import | Cache-dependent code is hard to import in isolation |
 | Controllers import from the container | Route-level tests need module mocking or a test container |
 | No app factory separate from `server.ts` | `supertest` needs refactoring or a child process |

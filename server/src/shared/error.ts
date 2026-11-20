@@ -1,45 +1,49 @@
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
+  public readonly code?: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, code?: string) {
     super(message);
 
     this.statusCode = statusCode;
     this.isOperational = true;
+    if (code !== undefined) {
+      this.code = code;
+    }
 
     Object.setPrototypeOf(this, new.target.prototype);
     Error.captureStackTrace(this);
   }
 
   // 400
-  static badRequest(message = "Bad Request"): AppError {
-    return new AppError(message, 400);
+  static badRequest(message = "Bad Request", code?: string): AppError {
+    return new AppError(message, 400, code);
   }
 
   // 401
-  static unauthorized(message = "Unauthorized"): AppError {
-    return new AppError(message, 401);
+  static unauthorized(message = "Unauthorized", code?: string): AppError {
+    return new AppError(message, 401, code);
   }
 
   // 403
-  static forbidden(message = "Forbidden"): AppError {
-    return new AppError(message, 403);
+  static forbidden(message = "Forbidden", code?: string): AppError {
+    return new AppError(message, 403, code);
   }
 
   // 404
-  static notFound(message = "Resource not found"): AppError {
-    return new AppError(message, 404);
+  static notFound(message = "Resource not found", code?: string): AppError {
+    return new AppError(message, 404, code);
   }
 
   // 405
-  static methodNotAllowed(message = "Method not allowed"): AppError {
-    return new AppError(message, 405);
+  static methodNotAllowed(message = "Method not allowed", code?: string): AppError {
+    return new AppError(message, 405, code);
   }
 
   // 409
-  static conflict(message = "Conflict"): AppError {
-    return new AppError(message, 409);
+  static conflict(message = "Conflict", code?: string): AppError {
+    return new AppError(message, 409, code);
   }
 
   // 410
@@ -58,8 +62,8 @@ export class AppError extends Error {
   }
 
   // 429
-  static tooManyRequests(message = "Too many requests"): AppError {
-    return new AppError(message, 429);
+  static tooManyRequests(message = "Too many requests", code?: string): AppError {
+    return new AppError(message, 429, code);
   }
 
   // 500

@@ -20,12 +20,13 @@ All endpoints accept and return JSON. There is no form-data or multipart handlin
 
 ## 3. Authentication
 
-- Authentication uses a **cookie**, not an `Authorization` header.
-- Cookie name: `token`.
-- The JWT payload is `{ userId, email, role }`, signed with `JWT_SECRET`, expiring in 15 days.
+- Authentication uses **httpOnly cookies**, not an `Authorization` header.
+- Access cookie: `token`; refresh cookie: `refreshToken` (path `/api/auth`).
+- The access JWT payload is `{ userId, email, role, sessionId, type }`, signed with `JWT_SECRET`, expiring in 15 minutes by default.
+- Refresh JWTs are signed with `JWT_REFRESH_SECRET`, expire in 7 days by default, rotate on every refresh, and are stored only as a SHA-256 hash in `AuthSession`.
 - Requests to every router except `/api/auth` pass through `verifyToken` and `authorize`.
-- `POST /api/auth/register` and `POST /api/auth/login` are public.
-- `POST /api/auth/logout` and `GET /api/auth/me` require the cookie.
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/verify-email`, and `POST /api/auth/resend-verification` are public (refresh needs the refresh cookie).
+- `GET /api/auth/me` and the session-management endpoints require the access cookie.
 
 See [Authentication](authentication.md) for details and [Users and roles](../modules/users-and-roles.md) for the effective permission matrix.
 
@@ -48,7 +49,7 @@ Validation is implemented with Zod and applied by `validate(schema)` middleware.
 
 | Module | Create | Update | Delete/actions |
 |---|---|---|---|
-| auth | register, login | — | — |
+| auth | register, login, verify email, resend verification, forgot/reset password | refresh, logout, logout-all, revoke session | — |
 | medicines | yes | yes | — |
 | brands/categories/generic names/units | yes | yes | — |
 | suppliers | yes | yes | — |

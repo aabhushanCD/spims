@@ -48,7 +48,7 @@ Both compile because of `allowImportingTsExtensions` + `rewriteRelativeImportExt
 
 ### Module system
 
-`package.json` sets `"type": "module"`. There is no CommonJS output. Top-level `await` is used in `email.provider.ts`, which requires ESM.
+`package.json` sets `"type": "module"`. There is no CommonJS output. The email provider no longer uses top-level `await`; its transporter is created lazily on first use.
 
 ## 3. Repository layout conventions
 
@@ -96,7 +96,7 @@ flowchart LR
    - `[Redis] Connected`
    - `MongoDB Connected: <host>`
    - `Server is running on port <port>`
-5. If the process exits, check Redis first, then MongoDB, then the Ethereal call in the email provider.
+5. If the process exits, check the auth environment validation, Redis, then MongoDB. The email provider performs no network call at startup.
 
 ## 7. Database changes
 

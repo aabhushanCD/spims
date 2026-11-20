@@ -202,9 +202,12 @@ flowchart TB
 | `shared/middleware/globalError.middleware.ts` | Central error response |
 | `shared/provider/redis.provider.ts` | `getCache`, `setCache`, `deleteCache` |
 | `shared/provider/websocker.provider.ts` | Per-user socket registry and `push` |
-| `shared/provider/email.provider.ts` | Nodemailer transport + `sendEmail` |
-| `shared/utils/generateJwtToken.ts` | Signs a 15-day JWT |
-| `types/global.ts` | Adds `user?: JWTUserPayload` to Express `Request` |
+| `shared/provider/email.provider.ts` | Lazy Nodemailer transport + `sendEmail` |
+| `shared/utils/generateJwtToken.ts` | Legacy 15-day JWT helper; auth now uses `modules/auth/utils/authTokens.ts` |
+| `shared/utils/requestContext.ts` | Extracts IP, user agent, device, browser, OS, and proxy location |
+| `shared/middleware/rateLimit.middleware.ts` | Redis fixed-window rate limiter |
+| `shared/middleware/verifyOrigin.middleware.ts` | Origin allow-list check for auth routes |
+| `types/global.ts` | Adds `user?: JWTUserPayload` (including `sessionId`) to Express `Request` |
 
 ## 8. Documentation and CI files
 
@@ -214,7 +217,7 @@ flowchart TB
 | `src/docs/*.swagger.ts` | Only `auth` and `dashboard` contain content; inventory/medicine/purchase/sales/supplier are empty; `schemas/` files are empty |
 | `.github/workflows/main.yml` | Backend and client `npm ci` + `npm run build --if-present` on Node 22 |
 | Root `README.md` | Marketing/overview document; several feature claims are ahead of the implementation |
-| Root `SECURITY.md` | Policy document; mentions Docker/NGINX/refresh tokens that are not present in the repository |
+| Root `SECURITY.md` | Policy document; some Docker/NGINX claims are still ahead of the repository |
 
 ## Related documents
 

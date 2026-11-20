@@ -1,28 +1,30 @@
 import { useMutation } from "@tanstack/react-query";
-import { authServices } from "../services/authServices";
 import { toast } from "react-toastify";
-import axios from "axios";
 import { useNavigate } from "react-router";
+
+import { getApiErrorMessage } from "@/lib/apiError";
+import { authServices } from "../services/authServices";
 
 export const useRegister = () => {
   const navigate = useNavigate();
+
   return useMutation({
     mutationFn: authServices.registerService,
-    onSuccess: () => {
-      toast.success("Registration successful!" + "\n" + "Please log in.");
-      navigate("/login");
-      return true;
+    onSuccess: (_data, variables) => {
+      toast.success(
+        "Account created. Check your email to verify your address.",
+      );
+      navigate(
+        `/verify-email?email=${encodeURIComponent(variables.email)}&sent=1`,
+      );
     },
     onError: (error) => {
-      console.error("Registration failed:", error);
-      if (axios.isAxiosError(error)) {
-        toast.error(
-          "Registration failed. Please try again." +
-            "\n" +
-            error.response?.data?.message || "Unknown error",
-        );
-        return;
-      }
+      toast.error(
+        getApiErrorMessage(
+          error,
+          "Registration failed. Please try again.",
+        ),
+      );
     },
   });
 };

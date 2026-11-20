@@ -27,14 +27,14 @@ It is not production-hardened. The main risks are:
 | Endpoint rows documented | 134 (133 distinct) |
 | Transactions | 7 flows |
 | Cron jobs | 2 active, 1 dead duplicate |
-| Tests | 1 file, 4 cases |
+| Tests | 12 files, 109 cases |
 
 ## 3. Module status matrix
 
 | Module | Status | Evidence | Main gaps |
 |---|---|---|---|
-| Authentication | Implemented | Register/login/logout/me, JWT cookie, 15-day expiry | No refresh/revocation, no lockout, role injection, hash in responses |
-| Users & roles | Partially Implemented | CRUD, activation toggle, role checks | Flat permissions, plaintext password update, body-based delete check, dead routes |
+| Authentication | Implemented | Register/login/refresh/logout, email verification, password reset, multi-session management, rate limiting, 15m access + 7d refresh | No MFA, no account lockout, no immediate access-token revocation |
+| Users & roles | Partially Implemented | CRUD, activation toggle, role checks, hashed password updates, public responses sanitized | Flat permissions, body-based delete check, dead routes |
 | Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks | No pagination, no unit validation, hard-delete lookups, inactive not filtered |
 | Suppliers | Implemented | CRUD, email/phone uniqueness | No phone index, no delete guards, unused reliability field |
 | Inventory (aggregate) | Partially Implemented | CRUD, increase/decrease, reserve/release, sync | Drift, reservedStock unused, no unique medicine index, sync filter bug |
@@ -48,18 +48,19 @@ It is not production-hardened. The main risks are:
 | Redis caching | Partially Implemented | Dashboard + reorder cache | No invalidation, fragile connection config, hard startup dependency |
 | Background jobs | Implemented | 2 cron jobs + job audit records | In-process, no lock/retry, duplicate dead scheduler |
 | WebSocket | Implemented | Cookie-auth upgrade, per-user push | No heartbeat/acks/rooms, offline marked Sent |
-| Email | Partially Implemented | Nodemailer + Ethereal fallback | Real SMTP not guaranteed, import-time network call |
+| Email | Implemented | Lazy Nodemailer transport, HTML auth emails, console fallback | No retry/bounce tracking; real SMTP must be configured |
 | Swagger/OpenAPI | Not Implemented | Stubs exist | Not mounted, most files empty, `swagger-jsdoc` not a dependency |
 | Pagination/search | Not Implemented | — | List endpoints return everything |
 | Payments | Not Implemented | Payment method string only | No gateway/ledger/refund transaction |
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Partially Implemented | 1 auth suite | No integration tests, CI doesn't run them |
+| Automated tests | Partially Implemented | 12 suites / 109 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
 
 ## 4. Implemented features
 
-- JWT cookie authentication, bcrypt password hashing on registration/user creation.
+- Short-lived access JWT + rotating refresh sessions stored as hashes, bcrypt password hashing on registration/user creation/reset.
+- Email verification, password reset, multi-device session listing/revocation, and Redis-backed auth rate limiting.
 - Role gates at router level for all protected modules.
 - Medicine, brand, category, generic name, unit CRUD with Zod validation.
 - Supplier CRUD with uniqueness checks.
@@ -85,12 +86,12 @@ It is not production-hardened. The main risks are:
 | Returns | Creation, refund, status | GOOD path fails movement enum validation; damaged/expired restocked; no VAT refund; no approval flow |
 | Stock adjustments | Batch adjust endpoint | No movement log; `StockAdjustment` service unreachable |
 | Purchase totals | Base total computed | VAT/discount ignored, recalculate not persisted |
-| Email notifications | Sending works if SMTP is reachable | Ethereal fallback, import-time network call, no templates |
+| Email notifications | Sending works if SMTP is reachable; auth emails have HTML templates | No retry/bounce tracking; console fallback when SMTP is unconfigured |
 | SMS notifications | Accepted and marked Sent | No provider call |
 | Inventory reconciliation | Sync method exists | Non-session branch includes unsellable batches; manual ops drift |
 | Dashboard analytics | Metrics returned | Several filters/parameters ignored; some counts always zero |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 4 auth unit tests | One weak assertion, no coverage of other modules |
+| Tests | 12 suites / 109 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
 
 ## 6. Not implemented
 
@@ -147,17 +148,17 @@ It is not production-hardened. The main risks are:
 
 | Control | Status |
 |---|---|
-| Password hashing | Implemented on register/create; missing on user update |
-| JWT signing/verification | Implemented |
-| Token expiry | 15 days, no refresh |
-| HttpOnly cookie | Yes |
+| Password hashing | Implemented on register/create/user update/password reset |
+| JWT signing/verification | Implemented with separate access/refresh secrets and token-type checks |
+| Token expiry | 15m access + 7d rotating refresh sessions |
+| HttpOnly cookie | Yes (`token` + scoped `refreshToken`) |
 | Secure/SameSite | Production: secure + `None`; dev: `Strict` |
-| CSRF protection | Not Implemented |
-| Rate limiting | Not Implemented |
+| CSRF protection | Partial: Origin allow-list on auth routes; no CSRF token |
+| Rate limiting | Implemented for auth endpoints (Redis, fail-open) |
 | Input validation | Partial (body only, several modules missing) |
-| Output sanitization | Not Implemented (password hashes returned) |
+| Output sanitization | Auth and user responses strip password/refresh/reset hashes |
 | Role enforcement | Partial/flat |
-| Secret management | `.env` + gitignore, but no startup validation |
+| Secret management | `.env` + gitignore; startup validation for JWT/CLIENT in production |
 | CORS | Allow-list with credentials |
 | WebSocket origin check | Not Implemented |
 | Audit logging | Partial movement log only |

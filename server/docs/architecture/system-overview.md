@@ -37,7 +37,7 @@ flowchart TB
   Container --> Mongo
   Container --> Cache
   Cache --> Redis
-  Container -->|"SMTP"| Mail["Mail provider / Ethereal"]
+  Container -->|"SMTP"| Mail["Mail provider (lazy SMTP / console fallback)"]
 ```
 
 ## 3. Layer responsibilities
@@ -89,9 +89,9 @@ sequenceDiagram
 
 Notable consequences:
 
-- **Redis is a hard startup dependency**, even though it is only used for two cache features.
+- **Redis is a hard startup dependency**. It backs dashboard/reorder caching and auth rate limiting.
 - Cron jobs are scheduled after MongoDB connects but before `listen`.
-- The email transport is created at module import time (top-level await in `email.provider.ts`), so importing the notification service triggers an Ethereal account request before startup continues. See [External integrations](../infrastructure/external-integrations.md).
+- The email transport is created lazily on the first email, so importing the notification or auth service performs no network call at startup. See [External integrations](../infrastructure/external-integrations.md).
 
 Source: `server/src/server.ts`, `server/src/shared/provider/email.provider.ts`
 
@@ -109,9 +109,10 @@ Source: `server/src/server.ts`, `server/src/shared/provider/email.provider.ts`
 
 ## 6. Authentication and authorization architecture
 
-- Login issues a JWT signed with `JWT_SECRET`, expiring in **15 days**.
-- The token is stored in an httpOnly cookie named `token`.
-- `verifyToken` reads `req.cookies.token`, verifies it, and assigns `req.user = { userId, email, role }`.
+- Login issues a short-lived access JWT signed with `JWT_SECRET` (15 minutes by default) and a rotating refresh JWT signed with `JWT_REFRESH_SECRET` (7 days by default).
+- Tokens are stored in httpOnly cookies named `token` and `refreshToken`.
+- Refresh sessions are stored in the `AuthSession` collection with device, browser, OS, IP, location, and a SHA-256 refresh-token hash.
+- `verifyToken` reads `req.cookies.token`, verifies it, and assigns `req.user = { userId, email, role, sessionId }`.
 - `authorize(roles)` compares `req.user.role` against an allow-list.
 - `app.routes.ts` applies `verifyToken` and `authorize` to whole router groups.
 - Some routers repeat `verifyToken` internally; this is redundant but harmless.

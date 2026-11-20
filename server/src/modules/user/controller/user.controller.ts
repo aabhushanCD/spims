@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import type { UserService } from "../service/user.service.js";
+import { toPublicUser } from "../utils/publicUser.ts";
 
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -12,7 +13,7 @@ export class UserController {
     try {
       const userData = req.body;
       const newUser = await this.userService.createUser(userData);
-      res.status(201).json(newUser);
+      res.status(201).json(toPublicUser(newUser));
     } catch (error) {
       next(error);
     }
@@ -30,7 +31,7 @@ export class UserController {
         res.status(404).json({ message: "User not found" });
         return;
       }
-      res.status(200).json(user);
+      res.status(200).json(toPublicUser(user));
     } catch (error) {
       next(error);
     }
@@ -49,7 +50,7 @@ export class UserController {
         res.status(404).json({ message: "User not found" });
         return;
       }
-      res.status(200).json(updatedUser);
+      res.status(200).json(toPublicUser(updatedUser));
     } catch (error) {
       next(error);
     }
@@ -81,7 +82,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const users = await this.userService.getAllUsers();
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -98,7 +99,7 @@ export class UserController {
         | "pharmacist"
         | "inventory_manager";
       const users = await this.userService.getUsersByRole(role);
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -111,7 +112,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const users = await this.userService.getActiveUsers();
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -124,7 +125,7 @@ export class UserController {
   ): Promise<void> {
     try {
       const users = await this.userService.getInactiveUsers();
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -138,7 +139,7 @@ export class UserController {
     try {
       const date = new Date(req.params.date as string);
       const users = await this.userService.getUsersByLastLogin(date);
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -159,7 +160,7 @@ export class UserController {
         role,
         isActive,
       );
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -180,7 +181,7 @@ export class UserController {
         role,
         date,
       );
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -197,7 +198,7 @@ export class UserController {
         isActive,
         date,
       );
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }
@@ -215,7 +216,7 @@ export class UserController {
         isActive,
         date,
       );
-      res.status(200).json(users);
+      res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
       next(error);
     }

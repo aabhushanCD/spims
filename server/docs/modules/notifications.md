@@ -152,7 +152,7 @@ sequenceDiagram
 | Issue | Status |
 |---|---|
 | SMS delivery | Not Implemented (silently marked Sent) |
-| Real SMTP configuration | Partially Implemented (Ethereal fallback) |
+| Real SMTP configuration | Implemented when `SMTP_*` is set; otherwise email text is logged to the console |
 | Delivery error details | Not stored |
 | No real retry for Failed recipients | Manually re-dispatch only processes Pending rows |
 | User opt-out/preferences | Not Implemented |

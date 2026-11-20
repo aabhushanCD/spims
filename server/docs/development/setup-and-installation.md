@@ -12,7 +12,7 @@
 
 Optional:
 
-- An SMTP account for real email. Without it, Nodemailer's Ethereal test account is used.
+- An SMTP account for real email. Without `SMTP_HOST`, verification and reset links are logged to the server console instead of being delivered.
 - A MongoDB GUI for inspection (no admin UI is included).
 
 ## 2. Install
@@ -23,7 +23,7 @@ cd SPMS/server
 npm install
 ```
 
-Do not use `npm ci --omit=dev` for a runnable server: `bcrypt` is listed in `devDependencies`, so auth breaks if dev dependencies are omitted.
+`bcrypt` is now a production dependency, so `npm ci --omit=dev` is safe for a production install.
 
 ## 3. Configure environment
 
@@ -36,6 +36,8 @@ Fill in at least:
 ```env
 MONGO_URI=mongodb://127.0.0.1:27017/spims
 JWT_SECRET=<long random string>
+JWT_REFRESH_SECRET=<different long random string>
+CLIENT_URL=http://localhost:5173
 PORT=3000
 ALLOWED_ORIGINS=["http://localhost:5173","http://localhost:5174"]
 UPSTASH_REDIS_REST_URL=redis://127.0.0.1:6379
@@ -45,7 +47,10 @@ See [Environment variables](environment-variables.md) for all variables and cave
 
 Notes:
 
-- `.env.example` does not include `NODE_ENV`, the Redis token, or SMTP variables.
+- In development, `JWT_REFRESH_SECRET` falls back to `JWT_SECRET`. In production it is required.
+- `CLIENT_URL` is used to build verification and password-reset links. It is required in production.
+- `JWT_ACCESS_EXPIRES_IN` defaults to `15m`; `JWT_REFRESH_EXPIRES_IN` defaults to `7d`.
+- `.env.example` now lists `NODE_ENV`, the Redis token, all SMTP variables, and the auth/session variables.
 - `UPSTASH_REDIS_REST_URL` is passed directly to `ioredis`; for local Redis use a `redis://` URL, not an `https://` REST URL.
 
 ## 4. Start MongoDB and Redis
@@ -123,11 +128,13 @@ There are no migrations or seeders. Mongoose creates collections and indexes on 
 | Server exits immediately | Redis `ping` failed | Start Redis; check the URL scheme |
 | `Invalid URL` from ioredis | `https://` Upstash REST URL passed to ioredis | Use a `redis://`/`rediss://` TCP URL |
 | Transactions fail | MongoDB standalone | Run a replica set |
-| `Cannot find module 'bcrypt'` in production | bcrypt is a devDependency | Install full dependencies |
-| Login fails after registration | Cookie not stored/sent, origin not allowed, or wrong password | Check `Set-Cookie`, client `credentials`, `ALLOWED_ORIGINS`, and the password |
-| CORS blocked | Origin not in `ALLOWED_ORIGINS` | Add the exact origin (scheme + host + port) |
-| No email delivered | Ethereal fallback | Configure all `SMTP_*` variables |
-| Slow/hanging startup offline | Ethereal account creation at import | Ensure network access or preconfigure SMTP |
+| Login fails with `EMAIL_NOT_VERIFIED` | Email verification is pending | Open the verification link or call `POST /api/auth/resend-verification` |
+| Login/password reset returns 429 | Redis rate limit exceeded | Wait for the window or clear the `rate-limit:*` keys in Redis |
+| Cookie not stored/sent | Client missing `credentials`, origin not allowed, or wrong cookie path | Check `Set-Cookie`, Axios `withCredentials`, and `ALLOWED_ORIGINS` |
+| CORS or `ORIGIN_NOT_ALLOWED` | Origin not in `ALLOWED_ORIGINS` | Add the exact origin (scheme + host + port) |
+| No email delivered | `SMTP_HOST` is not configured | Configure `SMTP_*`; otherwise read the link from the server console |
+| Verification/reset link points to localhost in production | `CLIENT_URL` missing | Set `CLIENT_URL` to the deployed frontend origin |
+| `Missing required auth environment variables` at boot | `JWT_SECRET`, or production `JWT_REFRESH_SECRET` / `CLIENT_URL`, is unset | Fill them in `.env` |
 | Dashboard values stale | 60-second cache | Wait or restart Redis |
 | Batch create fails validation | `isActive` validator conflict | Confirmed defect; positive-quantity batches cannot be saved | See [Batches](../modules/batches.md) |
 | Port already in use | Another process on `PORT` | Change `PORT` |

@@ -1,12 +1,15 @@
 import { useMutation } from "@tanstack/react-query";
-import { authServices } from "../services/authServices";
 import { useNavigate } from "react-router";
 import { toast } from "react-toastify";
+
+import { getApiErrorMessage } from "@/lib/apiError";
+import { authServices } from "../services/authServices";
 import { useAuth } from "../context/authContext";
 
 export function useLogin() {
   const navigate = useNavigate();
-  const {setCurrentUser} = useAuth();
+  const { setCurrentUser } = useAuth();
+
   return useMutation({
     mutationFn: authServices.loginService,
 
@@ -17,8 +20,12 @@ export function useLogin() {
     },
 
     onError(error) {
-      toast.error("Login failed. Please try again.");
-      console.log("Login failed", error);
+      toast.error(
+        getApiErrorMessage(
+          error,
+          "Login failed. Please check your credentials and try again.",
+        ),
+      );
     },
   });
 }

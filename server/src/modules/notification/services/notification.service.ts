@@ -134,7 +134,11 @@ export class NotificationService {
       });
     }
     if (notification.type === "Email") {
-      await sendEmail(user.email, notification.title, notification.message);
+      await sendEmail({
+        to: user.email,
+        subject: notification.title,
+        text: notification.message,
+      });
     }
   }
 

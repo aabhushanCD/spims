@@ -2,17 +2,24 @@
 
 ## 1. Purpose
 
-Issue and verify the JWT cookie used by every protected route, and expose register/login/logout/current-user endpoints.
+Issue and verify short-lived access JWTs, maintain revocable multi-device
+refresh sessions, verify email addresses, reset passwords, and expose the
+current-user and session-management endpoints used by every protected route.
 
 ## 2. Responsibilities
 
 - Validate credentials against the `users` collection.
-- Hash passwords on registration.
-- Sign JWTs and set/clear the `token` cookie.
-- Verify tokens on protected routes (via shared middleware).
-- Provide the current user profile.
+- Hash passwords with bcrypt on registration and password reset.
+- Sign short-lived access JWTs and rotating refresh JWTs.
+- Store only SHA-256 hashes of refresh tokens, never the raw token.
+- Track each device/session with browser, OS, device label, IP, and
+  proxy-provided location.
+- Send verification and password-reset emails.
+- Rate-limit sensitive auth endpoints with Redis.
+- Provide the current user profile and active-session list.
 
-It does **not** implement refresh tokens, password reset, email verification, OAuth, MFA, or account lockout.
+It does **not** implement Google OAuth, MFA, account lockout, or admin
+impersonation.
 
 ## 3. Structure
 
@@ -20,87 +27,156 @@ It does **not** implement refresh tokens, password reset, email verification, OA
 modules/auth/
 ├── controller/
 │   └── auth.controller.ts
+├── model/
+│   └── authSession.model.ts
+├── repo/
+│   └── authSession.repo.ts
 ├── routes/
 │   └── auth.route.ts
 ├── schema/
+│   ├── email.schema.ts
 │   ├── login.schema.ts
-│   └── register.schema.ts
-└── services/
-    ├── auth.service.ts
-    └── auth.service.test.ts
+│   ├── register.schema.ts
+│   ├── resetPassword.schema.ts
+│   └── verifyEmail.schema.ts
+├── services/
+│   ├── auth.mailer.ts
+│   ├── auth.service.ts
+│   └── auth.service.test.ts
+└── utils/
+    ├── authConfig.ts
+    ├── authCookies.ts
+    ├── authTokens.ts
+    └── authTokens.test.ts
 ```
 
-The module has no model or repository; it reuses `modules/user/repo/user.repo.ts`.
+The module reuses `modules/user/repo/user.repo.ts` and
+`modules/user/utils/publicUser.ts`.
+
+Rate limiting and Origin checks live in `shared/middleware/`. Request
+IP/user-agent/location extraction lives in `shared/utils/requestContext.ts`.
 
 ## 4. Routes
 
 | Method | Path | Middleware | Controller |
 |---|---|---|---|
-| POST | `/api/auth/register` | `validate(registerSchema)` | `registerUser` |
-| POST | `/api/auth/login` | `validate(loginSchema)` | `loginUser` |
-| POST | `/api/auth/logout` | `verifyToken` | `logoutUser` |
-| GET | `/api/auth/me` | `verifyToken` | `getCurrentUser` |
+| POST | `/api/auth/register` | `verifyOrigin`, rate limit, `validate(registerSchema)` | `registerUser` |
+| POST | `/api/auth/login` | `verifyOrigin`, rate limit, `validate(loginSchema)` | `loginUser` |
+| POST | `/api/auth/refresh` | `verifyOrigin`, rate limit | `refreshToken` |
+| POST | `/api/auth/logout` | `verifyOrigin` | `logoutUser` |
+| POST | `/api/auth/logout-all` | `verifyOrigin`, `verifyToken` | `logoutAllSessions` |
+| POST | `/api/auth/verify-email` | `verifyOrigin`, rate limit, `validate(verifyEmailSchema)` | `verifyEmail` |
+| POST | `/api/auth/resend-verification` | `verifyOrigin`, rate limit, `validate(emailSchema)` | `resendVerification` |
+| POST | `/api/auth/forgot-password` | `verifyOrigin`, rate limit, `validate(emailSchema)` | `requestPasswordReset` |
+| POST | `/api/auth/reset-password` | `verifyOrigin`, rate limit, `validate(resetPasswordSchema)` | `resetPassword` |
+| GET | `/api/auth/me` | `verifyOrigin`, `verifyToken` | `getCurrentUser` |
+| GET | `/api/auth/sessions` | `verifyOrigin`, `verifyToken` | `listSessions` |
+| DELETE | `/api/auth/sessions/:id` | `verifyOrigin`, `verifyToken` | `revokeSession` |
 
 Full contracts: [API authentication](../api/authentication.md).
 
 ## 5. Controller behavior
 
-`AuthController` (`modules/auth/controller/auth.controller.ts`) is thin:
+`AuthController` is thin:
 
 - Delegates to `AuthService`.
-- On login, sets the cookie with `httpOnly`, `secure` and `sameSite` conditional on `NODE_ENV`, then returns the service result as JSON.
-- On logout, clears the cookie with the same attributes.
+- Sets/clears the `token` (access) and `refreshToken` cookies through the
+  shared cookie helper.
+- Returns the public user shape for login, refresh, and `/me`.
+- Clears both cookies whenever refresh fails.
+- Revoking the current session also clears cookies.
 - Forwards all errors with `next(error)`.
 
-No response sanitization is performed. The password hash is serialized into responses from register, login, and `/me`.
+No password hash, reset hash, verification hash, or refresh token is ever
+serialized in a response.
 
 ## 6. Service behavior
 
-`AuthService` (`modules/auth/services/auth.service.ts`):
-
 | Method | Behavior | Notes |
 |---|---|---|
-| `registerUser` | Check email uniqueness → bcrypt hash (cost 10) → create user | Accepts a caller-supplied role |
-| `loginUser` | Find by email → reject absent password → bcrypt compare → sign JWT | Does not check `isActive`; does not update `lastLogin` |
-| `logoutUser` | Verify user exists | No token revocation |
-| `refreshToken` | Placeholder returning `"newAccessToken"` | Not exposed |
-| `getCurrentUser` | Find by id | Returns the document incl. hash |
+| `registerUser` | Check email uniqueness → bcrypt hash → create unverified pharmacist → send verification email | Public registration can no longer choose `owner` |
+| `verifyEmail` | Hash token → find unexpired user → set `emailVerified` → clear token | Single use |
+| `resendVerification` | Generic response; only sends for a local, active, unverified account | Prevents email enumeration |
+| `loginUser` | Find with password → bcrypt compare → reject inactive/unverified → update `lastLogin` → create session | Generic `401` for bad credentials |
+| `refreshSession` | Verify refresh JWT → load session → compare stored hash → rotate token pair → update device/IP | Hash mismatch revokes the session |
+| `logoutSession` | Revoke the session referenced by the refresh cookie | Always clears cookies |
+| `logoutAllSessions` | Revoke every active session for the user | Requires an access token |
+| `listSessions` | Return active sessions with `isCurrent` | Uses `sessionId` from the access JWT |
+| `revokeSession` | Verify ownership → revoke | Current session clears cookies |
+| `requestPasswordReset` | Generic response; store hashed token + expiry; send link | No email for unknown/inactive accounts |
+| `resetPassword` | Hash new password → mark email verified → clear reset fields → revoke all sessions | Single use |
+| `getCurrentUser` | Find by id and return public user | No secrets |
 
 ## 7. Models
 
-Uses `User` (`modules/user/model/user.model.ts`). Relevant fields: `email`, `password`, `role`, `isActive`, `provider`, `lastLogin`, `refreshToken`.
+### `User`
+
+Relevant fields: `name`, `email`, `password` (select false), `role`,
+`isActive`, `emailVerified`, `lastLogin`, `provider`, plus select-false
+verification/reset fields:
+
+- `emailVerificationTokenHash`
+- `emailVerificationExpiresAt`
+- `passwordResetTokenHash`
+- `passwordResetExpiresAt`
+- legacy `refreshToken` / `refreshTokenExpiresAt` (unused by the new flow)
+
+### `AuthSession`
+
+- `userId`
+- `refreshTokenHash` (SHA-256)
+- `device`, `browser`, `os`, `ip`, `location`, `userAgent`
+- `expiresAt` (TTL index removes the document automatically)
+- `lastUsedAt`, `revokedAt`
+- timestamps
 
 ## 8. Validation
 
-- `registerSchema`: `name` 2–100, valid email, password ≥ 6, optional `role` string defaulting to `pharmacist`.
+- `registerSchema`: `name` 2–100, valid email (trimmed/lowercased),
+  password ≥ 6. No `role` field.
 - `loginSchema`: valid email, password ≥ 6.
-- Role is not restricted in Zod; the Mongoose enum rejects unknown values with a 500.
+- `emailSchema`: valid email.
+- `verifyEmailSchema` / `resetPasswordSchema`: token length 32–256,
+  password ≥ 6.
+- Unknown body keys are stripped by the Zod object schemas.
 
 ## 9. Middleware
 
 | Middleware | Role |
 |---|---|
+| `verifyOrigin` | Rejects browser requests whose `Origin` is not in `ALLOWED_ORIGINS`; requests without `Origin` are allowed |
+| `rateLimit` | Redis fixed-window limiter; fails open with a logged error if Redis is down |
 | `validate` | Body parsing/validation |
-| `verifyToken` | Reads `req.cookies.token`, calls `verifyJwt`, assigns `req.user` |
-| `verifyJwt` | `jwt.verify` with `JWT_SECRET`; throws generic error |
-| `authorize` | Used at router mounts, not in this module |
+| `verifyToken` | Reads `req.cookies.token` and calls `verifyJwt` |
+| `verifyJwt` | Verifies an access token, including the `type` claim and required claims |
 
 ## 10. Business rules
 
 1. Email is unique and lowercased.
-2. Passwords are bcrypt-hashed on registration and user creation.
-3. JWT lifetime is 15 days; there is no renewal.
-4. Logout only clears the cookie.
-5. Role comes from the JWT and is trusted until expiry; changing a user's role does not invalidate existing tokens.
-6. Deactivating a user does not prevent login or API use.
+2. Passwords are bcrypt-hashed (cost 10) on registration and reset.
+3. Access tokens live 15 minutes by default; refresh tokens live 7 days.
+4. Refresh tokens rotate on every successful refresh.
+5. A refresh token is accepted only if its SHA-256 hash matches the current
+   session hash, or the immediately previous hash inside the 60-second grace
+   window.
+6. Logout revokes only the current refresh session; `logout-all` revokes all.
+7. Password reset revokes every refresh session.
+8. Public registration always creates a `pharmacist`.
+9. Existing users without an `emailVerified` field are treated as verified;
+   new local registrations must verify.
+10. Deactivated users cannot log in or refresh.
+11. At most `MAX_SESSIONS_PER_USER` active sessions are kept; the oldest are
+    revoked after a new login.
+12. Access tokens already issued remain valid until they expire, even after a
+    reset or logout. The maximum exposure is the access-token lifetime.
 
 ## 11. Dependencies
 
-- `UserRepository`
+- `UserRepository`, `AuthSessionRepo`
 - `AppError`
-- `bcrypt`
-- `jsonwebtoken`
-- `generateJwtToken`
+- `bcrypt`, `jsonwebtoken`, `nodemailer`
+- `ioredis` (rate limiting)
+- `ua-parser-js` (device/browser/OS labels)
 
 ## 12. Workflows
 
@@ -110,56 +186,74 @@ sequenceDiagram
   participant API as /api/auth
   participant S as AuthService
   participant DB as MongoDB
+  participant M as Mailer
 
   U->>API: POST /register
   API->>S: registerUser
-  S->>DB: check email, insert hash
-  API-->>U: 201 user (hash included)
+  S->>DB: check email, insert unverified user + token hash
+  S->>M: send verification link
+  API-->>U: 201 public user + message
 
   U->>API: POST /login
   API->>S: loginUser
-  S->>DB: findByEmail
-  S->>S: bcrypt.compare
-  S-->>API: user + 15d JWT
-  API-->>U: Set-Cookie token + user
+  S->>DB: find user (+password), compare bcrypt
+  S->>DB: create AuthSession + lastLogin
+  S-->>API: access + refresh tokens
+  API-->>U: Set-Cookie token + refreshToken, public user
 
-  U->>API: GET /me (cookie)
-  API->>S: getCurrentUser
-  S->>DB: findById
-  API-->>U: user
+  U->>API: POST /refresh (refresh cookie)
+  API->>S: refreshSession
+  S->>DB: load session, compare hash, rotate
+  API-->>U: new cookies + public user
 
-  U->>API: POST /logout
-  API-->>U: clear cookie
+  U->>API: POST /forgot-password
+  API->>S: requestPasswordReset
+  S->>DB: store reset hash + expiry
+  S->>M: send reset link
+  API-->>U: generic 200
+
+  U->>API: POST /reset-password
+  API->>S: resetPassword
+  S->>DB: update password, clear tokens, revoke sessions
+  API-->>U: 200 + cleared cookies
 ```
 
-## 13. Security findings
+## 13. Security controls
 
-| Finding | Impact |
+| Control | Status |
 |---|---|
-| Public registration accepts `role` | Privilege escalation to `owner` |
-| Password hash returned in JSON | Credential material exposure |
-| `isActive` ignored at login | Deactivated accounts remain usable |
-| No refresh-token implementation | Long-lived bearer cookie cannot be revoked |
-| Distinct login errors | User enumeration |
-| No rate limiting/lockout | Brute force |
-| No CSRF protection | Cross-site request risk in production (`SameSite=None`) |
-| `bcrypt` in `devDependencies` | Production install with `--omit=dev` breaks auth |
+| Password/reset/verification hashes in responses | Removed |
+| Public role escalation on registration | Fixed (always pharmacist) |
+| Refresh-token storage | SHA-256 hash only |
+| Refresh rotation + reuse detection | Implemented |
+| Inactive-account checks | Login and refresh |
+| Email enumeration on login | Generic `401`; status checks after password compare |
+| Email enumeration on reset | Generic `200` |
+| Rate limiting | Redis fixed window on register/login/refresh/reset/verification |
+| CSRF/Origin hardening | `verifyOrigin` on auth routes |
+| Token revocation | Refresh sessions revocable; access tokens expire in 15m |
+| Email verification | Implemented |
 
 ## 14. Limitations and status
 
 | Capability | Status |
 |---|---|
 | Local register/login/logout/me | Implemented |
-| JWT cookie auth | Implemented |
-| Refresh tokens | Not Implemented |
-| Password reset / change flow | Not Implemented |
-| Google OAuth | Not Implemented |
-| Email verification | Not Implemented |
-| Account lockout / rate limiting | Not Implemented |
-| Token revocation | Not Implemented |
+| JWT access cookie auth | Implemented |
+| Refresh tokens + rotation | Implemented |
+| Multi-device session list/revoke | Implemented |
+| Password reset | Implemented |
+| Email verification | Implemented |
+| Rate limiting | Implemented (IP-based, Redis) |
+| Google OAuth | Not implemented |
+| MFA | Not implemented |
+| Account lockout | Not implemented |
+| Immediate access-token revocation | Not implemented (wait for 15m expiry) |
+| Geo-IP location database | Not implemented; relies on proxy headers |
 
 ## Related documents
 
 - [API authentication](../api/authentication.md)
 - [Users and roles](users-and-roles.md)
+- [Environment variables](../development/environment-variables.md)
 - [Error handling](../api/error-handling.md)

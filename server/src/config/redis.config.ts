@@ -1,6 +1,7 @@
 import { Redis } from "ioredis";
 import type { RedisOptions } from "ioredis";
-
+import dotenv from "dotenv";
+dotenv.config();
 const options: RedisOptions = {
   host:
     process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
