@@ -2,7 +2,7 @@ import { Redis } from "ioredis";
 import type { RedisOptions } from "ioredis";
 import dotenv from "dotenv";
 dotenv.config();
-const options: RedisOptions = {
+const options = {
   host:
     process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
       ?.split("@")[1]
@@ -15,7 +15,9 @@ const options: RedisOptions = {
   ),
   password: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
   maxRetriesPerRequest: null,
-};
+  // ioredis 6 types require a concrete reply mapping under exactOptionalPropertyTypes.
+  replyMapping: "legacy",
+} satisfies RedisOptions;
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redis = redisUrl ? new Redis(redisUrl) : new Redis(options);
