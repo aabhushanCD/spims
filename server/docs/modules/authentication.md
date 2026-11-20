@@ -111,7 +111,8 @@ serialized in a response.
 
 ### `User`
 
-Relevant fields: `name`, `email`, `password` (select false), `role`,
+Relevant fields: `name`, `email`, `password` (select false), `role`, optional
+`phone` (SMS destination), `notificationPreferences` (`{ email, sms }`),
 `isActive`, `emailVerified`, `lastLogin`, `provider`, plus select-false
 verification/reset fields:
 

@@ -6,10 +6,10 @@
 |---|---|---|
 | MongoDB | Implemented | Primary datastore |
 | Redis (ioredis) | Implemented | Cache and auth rate limiting |
-| SMTP / Nodemailer | Implemented | Lazy transport; JSON/console fallback when `SMTP_HOST` is absent |
+| SMTP / Nodemailer | Implemented | Lazy transport with phase timeouts; JSON/console fallback in development; production fails fast without `SMTP_HOST` |
 | WebSocket (`ws`) | Implemented | In-process |
 | Upstash REST client | Not Implemented | Package installed, unused |
-| SMS provider | Not Implemented | Type accepted, no delivery |
+| SMS provider | Implemented | Generic HTTP webhook (`SMS_WEBHOOK_URL`) |
 | Payment gateways (eSewa/Khalti/Stripe) | Not Implemented | Payment method is a label |
 | File storage/S3 | Not Implemented | Invoice file is a string |
 | Google OAuth | Not Implemented | Schema field only |
@@ -29,6 +29,9 @@ const transporter = nodemailer.createTransport(
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT) || 587,
         secure: process.env.SMTP_SECURE === "true",
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
         // auth only when SMTP_USER and SMTP_PASS are present
       }
     : { jsonTransport: true },
@@ -41,11 +44,19 @@ const transporter = nodemailer.createTransport(
 - If `SMTP_HOST` is absent, the JSON transport keeps the message in-process and
   the text (including the verification/reset link) is logged to the server
   console.
+- **Production fails fast**: `assertEmailConfig()` runs at boot and throws when
+  `NODE_ENV=production` without `SMTP_HOST`, so notification rows cannot be
+  marked `Sent` against a transport that writes nothing.
+- SMTP phases are bounded (10s connect/greeting, 20s socket), so a wedged server
+  cannot hold a recipient row in flight past the 15-minute stale-claim window.
 - The auth module sends HTML + plain-text verification and password-reset
   emails through `modules/auth/services/auth.mailer.ts`.
 - `NotificationService.dispatchToRecipient` sends plain-text email
   notifications through the same provider.
-- There is no retry, bounce handling, or delivery tracking.
+- Notification email failures are retried automatically at +1 minute and
+  +5 minutes when transient; permanent SMTP 5xx responses are terminal. The
+  provider error is stored on the recipient row.
+- Auth emails still have no retry, bounce handling, or delivery tracking.
 
 ### Environment variables
 
@@ -97,9 +108,30 @@ The root README lists eSewa and Khalti as future improvements. They are **Not Im
 
 ## 7. SMS
 
-`Notification.type` includes `SMS`, and the controller accepts it. `dispatchToRecipient` has no SMS branch, so the recipient is immediately marked `Sent` without any provider call.
+Source: `server/src/shared/provider/sms.provider.ts`
 
-Status: **Not Implemented**; the API surface is misleading.
+`Notification.type` includes `SMS`. Delivery uses a generic HTTP webhook:
+
+- `POST SMS_WEBHOOK_URL` with JSON `{ to, message }`.
+- `content-type: application/json`; `authorization: Bearer <SMS_API_KEY>` when
+  the key is set.
+- 5-second timeout via `AbortSignal.timeout`.
+- Any 2xx is success. A non-2xx response throws a retryable error containing
+  the status and a short body.
+- A network or timeout error is retryable.
+- Missing `SMS_WEBHOOK_URL` is non-retryable.
+- A recipient without `User.phone` is non-retryable and fails with
+  `"Recipient has no phone number"`.
+
+Environment variables:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `SMS_WEBHOOK_URL` | For SMS | Provider endpoint |
+| `SMS_API_KEY` | No | Bearer token sent to the provider |
+
+Status: **Implemented** for the webhook contract above. No vendor-specific SDK
+is bundled.
 
 ## 8. File uploads
 
@@ -116,16 +148,23 @@ Status: **Not Implemented**; the API surface is misleading.
 | MongoDB | Startup and every request |
 | Redis | Startup, cache operations, and auth rate limiting |
 | SMTP | Email dispatch only (lazy transport) |
+| SMS webhook | SMS dispatch only (`SMS_WEBHOOK_URL`) |
 | No other services | — |
 
 No HTTP client is used for business integrations.
 
 ## 11. Operational implications
 
-- A deployment must provide MongoDB and Redis; the SMTP path is best-effort.
-- Real email requires `SMTP_HOST` (and credentials when the server requires auth); otherwise verification/reset links are logged to the console and notification emails are not delivered.
+- A deployment must provide MongoDB and Redis. The SMTP path is best-effort in
+  development but mandatory in production.
+- Real email requires `SMTP_HOST` (and credentials when the server requires
+  auth). Production refuses to boot without it; in development verification and
+  reset links are logged to the console.
+- SMS requires `SMS_WEBHOOK_URL` and a recipient `phone`; otherwise the row fails with a clear, non-retryable error.
 - There is no integration health check; `/health` returns OK regardless of dependencies.
-- No retry/outbox exists for failed emails; failed recipients can be re-dispatched manually.
+- Notification email and SMS failures are retried at +1m/+5m; auth email still has no retry/outbox.
+- SMTP connect/greeting (10s) and socket (20s) timeouts keep a hung provider from
+  blocking the at-least-once dispatch window.
 
 ## 12. Configuration checklist
 
@@ -138,6 +177,7 @@ No HTTP client is used for business integrations.
 | Port | `PORT` |
 | Cookies | `NODE_ENV` |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` |
+| SMS | `SMS_WEBHOOK_URL`, optionally `SMS_API_KEY` |
 
 ## Related documents
 

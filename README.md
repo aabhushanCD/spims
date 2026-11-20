@@ -537,13 +537,18 @@ UPSTASH_REDIS_REST_TOKEN=
 
 ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
 
-# Optional. Without SMTP_HOST, links are logged to the server console.
+# Optional in development (links are logged). Required in production:
+# the server refuses to boot without SMTP_HOST when NODE_ENV=production.
 SMTP_HOST=
 SMTP_PORT=
 SMTP_SECURE=
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
+
+# Optional. SMS notifications require SMS_WEBHOOK_URL.
+SMS_WEBHOOK_URL=
+SMS_API_KEY=
 ```
 
 `JWT_REFRESH_SECRET` and `CLIENT_URL` are required when
@@ -593,8 +598,6 @@ https://spims-rmuk.vercel.app/
 - Barcode Scanner Integration
 - eSewa Integration
 - Khalti Integration
-- Email Notifications
-- SMS Notifications
 - Multi-Branch Pharmacy Support
 - AI Demand Forecasting
 - Prescription Management

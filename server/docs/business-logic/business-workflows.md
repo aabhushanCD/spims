@@ -225,22 +225,24 @@ sequenceDiagram
   participant DB as MongoDB
   participant W as WebSocket
   participant M as SMTP
+  participant S as SMS webhook
 
   Trigger->>N: createNotification(userIds)
   N->>DB: notification + recipients (Pending)
   N-->>Trigger: return
   N->>N: dispatch async
-  loop recipients
+  loop eligible recipients
     alt InApp
       N->>W: push
     else Email
       N->>M: send
     else SMS
-      N->>N: no-op
+      N->>S: POST webhook
     end
-    N->>DB: Sent/Failed
+    N->>DB: Sent/Failed/Skipped
   end
   N->>DB: parent status
+  Note over N,DB: Retry cron at +1m / +5m
 ```
 
 ## 8. Daily operational timeline
@@ -263,8 +265,12 @@ Cron uses server-local time. There is no timezone configuration.
 | Receipt DB failure | Transaction abort | Retry |
 | Disposal aggregate failure | Batch zeroed, aggregate not reduced | Manual reconciliation |
 | GOOD return enum failure | Transaction abort | Change implementation or condition |
-| SMTP failure | Recipient `Failed`, notification may be `Failed` | Re-dispatch |
-| WS user offline | Recipient marked `Sent` (push result ignored) | No retry |
+| SMTP failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |
+| Permanent SMTP 5xx | Recipient `Failed`, error stored | No retry |
+| SMS webhook failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |
+| Notification opted out | Recipient `Skipped` | No retry; preference change required |
+| Process dies after notification create before dispatch | Recipient remains `Pending` | Retry sweep picks up never-attempted rows on the next tick; abandoned claims after 15 minutes |
+| WS user offline | Recipient marked `Sent` (push result ignored) | No retry; inbox is durable |
 | Redis down at startup | Process exits | Restore Redis |
 | Redis down at runtime | Cache calls throw; dashboard may 500 | Redis client reconnects |
 | Cron crash | Job marked `FAILED` if `runJob` recorded it | Manual re-run/generate |

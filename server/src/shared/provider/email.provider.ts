@@ -24,12 +24,30 @@ function getTransporter(): Transporter {
     host,
     port: Number(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === "true",
+    // Bound every phase so a wedged SMTP server cannot hold a notification
+    // row in flight indefinitely.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     ...(smtpUser && smtpPass
       ? { auth: { user: smtpUser, pass: smtpPass } }
       : {}),
   });
 
   return transporter;
+}
+
+/**
+ * Production must deliver real email. Without SMTP_HOST the provider falls
+ * back to nodemailer's JSON transport, which reports success while writing
+ * nothing, so fail fast at boot instead of marking notifications Sent.
+ */
+export function assertEmailConfig(): void {
+  if (process.env.NODE_ENV === "production" && !process.env.SMTP_HOST) {
+    throw new Error(
+      "SMTP_HOST is not configured; refusing to run in production with the JSON email transport",
+    );
+  }
 }
 
 export interface EmailMessage {

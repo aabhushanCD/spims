@@ -34,7 +34,7 @@ Base: `/api/dashboard`, roles: all three.
 | `/expiry` | Disposal queue and expiring count |
 | `/recent-activity?limit=` | Latest inventory movements |
 | `/system-health` | Stale background jobs |
-| `/notifications` | Failed/pending deliveries |
+| `/notifications` | Failed/pending/skipped deliveries |
 | `/profit` | Gross profit and margin |
 | `/sales-comparison` | This month vs last month |
 | `/suppliers` | Active/inactive counts |
@@ -165,6 +165,8 @@ Jobs with status `IN_PROGRESS` whose `startedAt` is older than 60 minutes. It re
 ### Notifications
 
 Counts of all recipient rows by status, not per notification or per user.
+`failedDeliveries` excludes opted-out rows; `skippedDeliveries` counts them
+separately.
 
 ## 8. Caching
 

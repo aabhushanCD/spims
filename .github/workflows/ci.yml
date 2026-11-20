@@ -60,7 +60,7 @@ jobs:
         run: npm run build
 
   frontend:
-    name: Frontend (lint, typecheck, build)
+    name: Frontend (lint, typecheck, test, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -85,6 +85,9 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
+
+      - name: Test
+        run: npm run test
 
       - name: Build
         run: npm run build

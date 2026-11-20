@@ -70,7 +70,11 @@ Full contracts: [endpoints.md](../api/endpoints.md#users).
 
 ## 7. Model
 
-`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider, `select: false`), `provider`, `role`, `isActive`, `emailVerified`, `lastLogin`, timestamps, plus select-false email-verification and password-reset token hashes. The legacy `refreshToken` / `refreshTokenExpiresAt` fields remain but the refresh flow now uses the `authsessions` collection.
+`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider, `select: false`), `provider`, `role`, optional `phone`, `notificationPreferences` (`{ email, sms }`, both default `true`), `isActive`, `emailVerified`, `lastLogin`, timestamps, plus select-false email-verification and password-reset token hashes. The legacy `refreshToken` / `refreshTokenExpiresAt` fields remain but the refresh flow now uses the `authsessions` collection.
+
+`phone` is the optional SMS destination. `notificationPreferences` is written by
+the notification preference routes through dedicated repository methods; it is
+not part of the generic user update contract.
 
 `lastLogin` is written by successful logins. Public user responses are sanitized by `modules/user/utils/publicUser.ts`, so password and token hashes are never returned.
 
@@ -81,6 +85,8 @@ Full contracts: [endpoints.md](../api/endpoints.md#users).
 - `POST /users` accepts arbitrary fields; the Mongoose schema filters unknown paths.
 - `PUT /users/:id` accepts arbitrary fields. A supplied `password` is bcrypt-hashed by the service.
 - `role` values are checked in both `createUser` and `updateUser`; invalid values return `400`.
+- `updateUserSchema` now accepts an optional `phone` (7–20 characters) but the
+  route does not run it; the Mongoose schema trims and stores the value.
 - Email changes do not reset `emailVerified`.
 
 ## 9. Middleware

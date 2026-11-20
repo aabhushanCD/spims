@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-The backend is an Express 5 application that exposes a JSON API under `/api`, a health probe at `/health`, and a WebSocket endpoint at `/ws`. It persists data in MongoDB through Mongoose and uses Redis for caching. Two in-process cron jobs run daily.
+The backend is an Express 5 application that exposes a JSON API under `/api`, a health probe at `/health`, and a WebSocket endpoint at `/ws`. It persists data in MongoDB through Mongoose and uses Redis for caching. Two in-process cron jobs run daily and a third runs every minute for notification retries.
 
 There is no separate worker process, message broker, API gateway, or container configuration in this repository. Everything starts from `server/src/server.ts`.
 
@@ -53,11 +53,11 @@ flowchart TB
 | Repositories | `src/modules/*/repo/*` | Mongoose queries, aggregations, optional session propagation |
 | Models | `src/modules/*/model(s)/*` | Schema, defaults, enums, validators, indexes |
 | Validation schemas | `src/modules/*/schema/*` | Zod request-body contracts |
-| Providers | `src/shared/provider/*` | Redis cache helpers, WebSocket registry, email transport |
+| Providers | `src/shared/provider/*` | Redis cache helpers, WebSocket registry, email transport, SMS webhook |
 
 ### Deviations from a strict layering
 
-- Several controllers contain business checks (for example notification input checks and sale item shape checks) rather than delegating fully to services.
+- Several controllers contain business checks (for example sale item shape checks) rather than delegating fully to services.
 - `BatchService` calls `InventoryService` directly, and `PurchaseOrderService` calls both `BatchService` and inventory services. Cross-module coupling is intentional and concentrated in services.
 - Some modules do not validate request bodies at all (batches, inventory, returns, sale updates). See [API overview](../api/api-overview.md).
 - `StockAdjustmentService` exists but is not constructed in the container and is not reachable from any route.
@@ -83,7 +83,7 @@ sequenceDiagram
     Process->>Process: process.exit(1)
   end
   Process->>Mongo: mongoose.connect(MONGO_URI)
-  Process->>Cron: schedule expiry-check (01:00) and reorder (02:00)
+  Process->>Cron: schedule expiry-check (01:00), reorder (02:00), notification retry (every minute)
   Process->>HTTP: listen(PORT || 3000)
 ```
 
@@ -191,7 +191,7 @@ Key couplings to be aware of:
 - No scheduled job persistence/locking beyond a `BackgroundJob` audit collection.
 - No request tracing, correlation IDs, structured logging, or metrics.
 - No API versioning.
-- No pagination, filtering DSL, or sorting conventions.
+- No pagination, filtering DSL, or sorting conventions outside the notification cursor API.
 - No file storage; the purchase invoice "file" is a string field.
 - No payment gateway or payment ledger.
 

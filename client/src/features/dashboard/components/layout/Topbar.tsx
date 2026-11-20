@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import NotificationDropdown from "@/components/dashboard/NotificationDropdown";
+import NotificationDropdown from "@/features/notification/components/NotificationDropdown";
 import MobileSidebar from "@/components/MobileSidebar";
 import { useAuth } from "@/features/auth/context/authContext";
 import { useLogout } from "@/features/auth/hooks/useLogout";

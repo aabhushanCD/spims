@@ -58,10 +58,13 @@ Validation is implemented with Zod and applied by `validate(schema)` middleware.
 | returns | schema exists but **not wired** | **no** | — |
 | inventory | schema exists but **not wired** | **no** | **no** |
 | batches | **no** | **no** | **no** |
-| notifications | **no** (manual checks) | — | — |
+| notifications | yes (Zod body; `parseOrThrow` for params/query) | preferences (Zod body) | dispatch/retry/get detail: `owner`/`pharmacist` |
 | smart reorders | **no** | — | — |
 
-Params and query strings are never validated by middleware; controllers validate a few numeric query parameters manually (`threshold`, `quantity`, `limit`, `year`).
+Params and query strings are not validated by the shared body middleware.
+Notification routes validate params/query in the controller with
+`parseOrThrow`; a few other controllers validate numeric query parameters
+manually (`threshold`, `quantity`, `limit`, `year`).
 
 ## 6. Response envelopes
 
@@ -94,14 +97,21 @@ Validation errors use a different shape:
 ## 7. Identifiers, dates, and money
 
 - All identifiers are 24-character MongoDB ObjectId strings.
-- Most endpoints do not validate ObjectId format before querying; supplier endpoints are the exception (explicit `isValid` checks). Invalid ids elsewhere usually surface as Mongoose `CastError` and become HTTP 500.
+- Most endpoints do not validate ObjectId format before querying; supplier and notification endpoints are the exceptions (explicit checks). Invalid ids elsewhere usually surface as Mongoose `CastError` and become HTTP 500.
 - Dates are ISO-8601 strings on input. Zod schemas coerce strings to `Date`. Endpoints without validation pass raw strings to Mongoose.
 - Money is a JSON number with no currency code. No rounding contract exists except sales VAT, which is rounded to 2 decimals.
 - `saleDate`, `returnDate`, `orderDate`, `expectedDeliveryDate`, `manufacturingDate`, and `expiryDate` are client-supplied.
 
 ## 8. Pagination, filtering, sorting
 
-None of the list endpoints paginate. They return every matching document. Only these filtering options exist:
+Notification list and inbox endpoints use cursor pagination:
+
+- Base64url cursor over `createdAt` plus `_id`, newest first.
+- Default `limit=20`, maximum `100`.
+- Response `{ items, nextCursor }`; inbox responses add `unreadCount`.
+
+Other list endpoints do not paginate. They return every matching document. Only
+these filtering options exist:
 
 | Endpoint | Filter |
 |---|---|
@@ -114,7 +124,8 @@ None of the list endpoints paginate. They return every matching document. Only t
 | `GET /users/role/:role`, status/last-login variants | role/status/date |
 | `GET /users/last-login/:date` | last login |
 
-No `page`, `pageSize`, `sort`, or `order` parameters exist.
+No `page`, `pageSize`, `sort`, or `order` parameters exist. Notification
+endpoints use `cursor` + `limit` instead.
 
 ## 9. Route ordering caveats
 
@@ -166,7 +177,7 @@ The complete reference lives in [endpoints.md](endpoints.md). Summary by module:
 | Returns | 4 | `/returns` |
 | Batches | 17 | `/batches` |
 | Smart reorders | 9 | `/smart-reorders` |
-| Notifications | 7 | `/notifications` |
+| Notifications | 14 | `/notifications` |
 | Dashboard | 14 | `/dashboard` |
 
 ## Related documents

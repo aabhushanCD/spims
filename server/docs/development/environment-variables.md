@@ -22,12 +22,14 @@ All variables are read via `process.env`. No values are reproduced here.
 | `UPSTASH_REDIS_REST_URL` | Yes (for startup) | `config/redis.config.ts` | Redis URL | Passed directly to `ioredis` when set; `https://` REST URLs are not valid for ioredis |
 | `UPSTASH_REDIS_REST_TOKEN` | No | `config/redis.config.ts` | Redis password in fallback branch | Used as the ioredis password |
 | `NODE_ENV` | No | Cookie and token config | Cookie security and production-required env checks | `production` enables `secure`, `SameSite=None`, and requires refresh/CLIENT env values |
-| `SMTP_HOST` | No | `email.provider.ts` | SMTP host | If missing, the JSON transport logs email text to the console |
+| `SMTP_HOST` | Production | `email.provider.ts` | SMTP host | In development, missing value uses the JSON transport that logs email text. In production, `assertEmailConfig()` refuses to boot without it |
 | `SMTP_PORT` | No | `email.provider.ts` | SMTP port | Default `587` |
 | `SMTP_SECURE` | No | `email.provider.ts` | `"true"` for TLS | Default `false` |
 | `SMTP_USER` | No | `email.provider.ts` | SMTP username | Optional |
 | `SMTP_PASS` | No | `email.provider.ts` | SMTP password | Optional |
 | `SMTP_FROM` | No | `email.provider.ts` | From address | Defaults to `SMTP_USER` or `no-reply@spims.local` |
+| `SMS_WEBHOOK_URL` | For SMS | `sms.provider.ts` | SMS provider endpoint | Missing value makes SMS delivery fail non-retryably |
+| `SMS_API_KEY` | No | `sms.provider.ts` | Bearer token for the SMS webhook | Sent only when set |
 
 ## 2. Example template (names only)
 
@@ -56,6 +58,8 @@ SMTP_SECURE=
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
+SMS_WEBHOOK_URL=
+SMS_API_KEY=
 ```
 
 ## 3. Value formats
@@ -74,6 +78,8 @@ SMTP_FROM=
 | `PORT` | Integer string | `3000` |
 | `ALLOWED_ORIGINS` | JSON array of exact origins | `["https://app.example.com"]` |
 | `UPSTASH_REDIS_REST_URL` | Redis URL for ioredis | `redis://host:6379` or `rediss://...` |
+| `SMS_WEBHOOK_URL` | HTTPS URL | `https://sms.example.com/send` |
+| `SMS_API_KEY` | Random string | Sent as `Authorization: Bearer <key>` |
 | `NODE_ENV` | `development` / `production` | unset in development |
 
 ## 4. Loading order and an order-dependent side effect
@@ -114,7 +120,8 @@ Status: **Implemented by import-order side effect**, not by a deliberate bootstr
 | `CLIENT_URL` | Required in production at startup |
 | `ALLOWED_ORIGINS` | JSON parse with fallback |
 | Redis URL | Only by `ioredis`/`ping`; failure exits |
-| SMTP | Not validated; missing `SMTP_HOST` logs email text to the console |
+| SMTP | `assertEmailConfig()` requires `SMTP_HOST` in production; development falls back to the JSON transport |
+| SMS | Not validated at startup; missing `SMS_WEBHOOK_URL` fails each SMS recipient non-retryably |
 | `NODE_ENV` | Not validated; any value other than `production` behaves as development |
 
 ## 7. Recommended additions (not implemented)
