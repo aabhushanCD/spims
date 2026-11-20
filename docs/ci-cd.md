@@ -32,7 +32,7 @@ pull request targeting `main`.
 | Job | Steps | Working directory |
 |---|---|---|
 | Backend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, test with coverage, upload coverage artifact, build | `server` |
-| Frontend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, build | `client` |
+| Frontend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, test, build | `client` |
 
 Both jobs use a 15-minute timeout, a frozen lockfile install (`npm ci`), and
 read-only repository permissions. Concurrency cancellation stops superseded
@@ -60,7 +60,7 @@ schedule, and uploads results to GitHub code scanning.
 Configure branch protection for `main` to require:
 
 - `Backend (lint, typecheck, test, build)`
-- `Frontend (lint, typecheck, build)`
+- `Frontend (lint, typecheck, test, build)`
 - `Dependency audit (server)`
 - `Dependency audit (client)`
 - `Secret scan (Gitleaks)`
