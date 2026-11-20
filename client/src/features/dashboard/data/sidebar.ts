@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Bell,
   Boxes,
   ShoppingCart,
   FileText,
@@ -13,6 +14,12 @@ export const sidebarItems = [
     title: "Dashboard",
     icon: LayoutDashboard,
     path: "/",
+  },
+
+  {
+    title: "Notifications",
+    icon: Bell,
+    path: "/notifications",
   },
 
   {
@@ -128,6 +135,11 @@ export const sidebarItems = [
       {
         title: "Security",
         path: "/settings/security",
+      },
+
+      {
+        title: "Notifications",
+        path: "/settings/notifications",
       },
     ],
   },

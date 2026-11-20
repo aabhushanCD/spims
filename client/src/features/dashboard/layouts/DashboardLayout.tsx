@@ -2,9 +2,11 @@ import { Outlet } from "react-router";
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
 import { useAuth } from "@/features/auth/context/authContext";
+import { useNotificationSocket } from "@/features/notification/hooks/useNotificationSocket";
 
 export default function DashboardLayout() {
   const { theme } = useAuth();
+  useNotificationSocket();
 
   return (
     <div

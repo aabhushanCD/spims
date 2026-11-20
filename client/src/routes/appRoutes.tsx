@@ -16,6 +16,8 @@ import GenericNamePage from "@/features/genericName/pages/GenericNamePage";
 import UnitPage from "@/features/genericName/pages/UnitPage";
 import InventoryPage from "@/features/inventory/pages/InventoryPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
+import NotificationsPage from "@/features/notification/pages/NotificationsPage";
+import NotificationSettingsPage from "@/features/notification/pages/NotificationSettingsPage";
 import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
@@ -58,6 +60,11 @@ export default function AppRoutes() {
           <Route path="/users" element={<UserPage />} />
           <Route path="/batches" element={<BatchPage />} />
           <Route path="/stock" element={<InventoryPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route
+            path="/settings/notifications"
+            element={<NotificationSettingsPage />}
+          />
           <Route path="/settings/security" element={<SecurityPage />} />
         </Route>
       </Routes>

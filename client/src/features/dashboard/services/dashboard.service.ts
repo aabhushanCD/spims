@@ -69,10 +69,6 @@ const getSalesComparison = async () => {
   const response = await api.get("/dashboard/sales-comparison");
   return response.data;
 };
-const getNotification = async () => {
-  const response = await api.get("/notifications/me");
-  return response.data;
-};
 export const dashboardService = {
   getDashboard,
   getSummary,
@@ -83,7 +79,6 @@ export const dashboardService = {
   getTopSelling,
   getExpiry,
   getReorder,
-  getNotification,
   getNotifications,
   getRecentActivity,
   getSystemHealth,

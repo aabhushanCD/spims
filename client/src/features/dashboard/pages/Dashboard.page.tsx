@@ -8,7 +8,7 @@ import InventoryHealth from "@/components/dashboard/InventoryHealth";
 // import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
 import QuickActions from "@/components/dashboard/QuickActions";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
-// import NotificationsPanel from "@/components/dashboard/NotificationsPanel";
+import NotificationsPanel from "@/features/notification/components/NotificationsPanel";
 import { useAuth } from "@/features/auth/context/authContext";
 import { useGetDashboard } from "../hooks/useGetDashboard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -79,10 +79,7 @@ export default function Dashboard() {
         {/* <RecentSales
         // activities={dashboard.recentActivity}
         /> */}
-        {/* <NotificationsPanel
-          notifications={dashboard.notifications}
-          health={dashboard.health}
-        /> */}
+        <NotificationsPanel />
       </section>
     </div>
   );
