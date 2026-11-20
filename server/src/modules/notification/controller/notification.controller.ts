@@ -1,85 +1,188 @@
 // notification.controller.ts
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../../../shared/error.ts";
-import type { NotificationService } from "../services/notification.service.ts";
+import type { UserRole } from "../../user/model/user.model.ts";
+import { parseOrThrow } from "../../../shared/utils/parseOrThrow.ts";
+import type {
+  NotificationService,
+  NotificationViewer,
+} from "../services/notification.service.ts";
+import {
+  forceRetryQuerySchema,
+  notificationIdParamSchema,
+  paginationQuerySchema,
+  userIdParamSchema,
+  type CreateNotificationInput,
+  type PreferencesInput,
+} from "../schema/notification.schema.ts";
 
 const asyncHandler =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) =>
     Promise.resolve(fn(req, res, next)).catch(next);
 
+const USER_ROLES: readonly UserRole[] = [
+  "owner",
+  "pharmacist",
+  "inventory_manager",
+];
+
+function isUserRole(value: unknown): value is UserRole {
+  return (
+    typeof value === "string" &&
+    (USER_ROLES as readonly string[]).includes(value)
+  );
+}
+
+function requireViewer(req: Request): NotificationViewer {
+  const user = req.user;
+  if (!user?.userId || !isUserRole(user.role)) {
+    throw AppError.unauthorized("Authenticated user required");
+  }
+  return { userId: user.userId, role: user.role };
+}
+
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   // POST /notifications
-  // body: { title, message, type: "Email" | "SMS" | "InApp", userIds: string[] }
-  // Creates + fans out to recipients, then dispatches asynchronously
-  // (fire-and-forget inside the service) — this responds as soon as the
-  // notification + recipient rows are created, not after delivery completes.
+  // Body is validated by the shared validate middleware before this handler.
   createNotification = asyncHandler(async (req: Request, res: Response) => {
-    const { title, message, type, userIds } = req.body;
-
-    if (!title || !message) {
-      throw AppError.badRequest("title and message are required");
-    }
-    if (!["Email", "SMS", "InApp"].includes(type)) {
-      throw AppError.badRequest("type must be Email, SMS, or InApp");
-    }
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      throw AppError.badRequest("userIds must be a non-empty array");
-    }
-
-    const notification = await this.notificationService.createNotification({
-      title,
-      message,
-      type,
-      userIds,
-    });
+    const dto = req.body as CreateNotificationInput;
+    const notification =
+      await this.notificationService.createNotification(dto);
 
     res.status(201).json({ success: true, data: notification });
   });
 
-  // POST /notifications/:id/dispatch
-  // Manual re-trigger — useful for retrying Pending/Failed recipients
-  // without recreating the whole notification.
+  // POST /notifications/:id/dispatch?force=true
   dispatch = asyncHandler(async (req: Request, res: Response) => {
-    const notification = await this.notificationService.dispatch(req.params.id as string); ;
+    const { id } = parseOrThrow(notificationIdParamSchema, req.params);
+    const { force } = parseOrThrow(forceRetryQuerySchema, req.query);
+    const notification = await this.notificationService.dispatch(id, {
+      force: force === true,
+    });
+    res.status(200).json({ success: true, data: notification });
+  });
+
+  // POST /notifications/:id/retry
+  retry = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = parseOrThrow(notificationIdParamSchema, req.params);
+    const notification = await this.notificationService.dispatch(id, {
+      force: true,
+    });
     res.status(200).json({ success: true, data: notification });
   });
 
   // GET /notifications/:id
   getById = asyncHandler(async (req: Request, res: Response) => {
-    const notification = await this.notificationService.getById(req.params.id as string);
+    const { id } = parseOrThrow(notificationIdParamSchema, req.params);
+    const viewer = requireViewer(req);
+    const notification = await this.notificationService.getById(id, viewer);
     res.status(200).json({ success: true, data: notification });
   });
 
   // GET /notifications
-  getAll = asyncHandler(async (_req: Request, res: Response) => {
-    const notifications = await this.notificationService.getAll();
+  getAll = asyncHandler(async (req: Request, res: Response) => {
+    const page = parseOrThrow(paginationQuerySchema, req.query);
+    const notifications = await this.notificationService.getAll(page);
     res.status(200).json({ success: true, data: notifications });
   });
 
-  // GET /notifications/me — current authenticated user's notification inbox
+  // GET /notifications/me
   getForCurrentUser = asyncHandler(async (req: Request, res: Response) => {
-    const userId = req.user?.userId;
-    if (!userId) {
-      throw AppError.unauthorized("Authenticated user required");
-    }
-    const notifications = await this.notificationService.getForUser(userId);
-    res.status(200).json({ success: true, data: notifications });
-  });
-
-  // GET /notifications/user/:userId — admin lookup for a specific user
-  getForUser = asyncHandler(async (req: Request, res: Response) => {
+    const viewer = requireViewer(req);
+    const page = parseOrThrow(paginationQuerySchema, req.query);
     const notifications = await this.notificationService.getForUser(
-      req.params.userId as string,
+      viewer.userId,
+      viewer,
+      page,
     );
     res.status(200).json({ success: true, data: notifications });
   });
 
+  // GET /notifications/user/:userId
+  getForUser = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = parseOrThrow(userIdParamSchema, req.params);
+    const viewer = requireViewer(req);
+    const page = parseOrThrow(paginationQuerySchema, req.query);
+    const notifications = await this.notificationService.getForUser(
+      userId,
+      viewer,
+      page,
+    );
+    res.status(200).json({ success: true, data: notifications });
+  });
+
+  // PATCH /notifications/me/:id/read
+  markRead = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = parseOrThrow(notificationIdParamSchema, req.params);
+    const viewer = requireViewer(req);
+    const result = await this.notificationService.markRead(viewer.userId, id);
+    res.status(200).json({ success: true, data: result });
+  });
+
+  // PATCH /notifications/me/read-all
+  markAllRead = asyncHandler(async (req: Request, res: Response) => {
+    const viewer = requireViewer(req);
+    const result = await this.notificationService.markAllRead(viewer.userId);
+    res.status(200).json({ success: true, data: result });
+  });
+
+  // GET /notifications/preferences/me
+  getMyPreferences = asyncHandler(async (req: Request, res: Response) => {
+    const viewer = requireViewer(req);
+    const preferences = await this.notificationService.getPreferences(
+      viewer.userId,
+      viewer,
+    );
+    res.status(200).json({ success: true, data: preferences });
+  });
+
+  // PATCH /notifications/preferences/me
+  updateMyPreferences = asyncHandler(async (req: Request, res: Response) => {
+    const viewer = requireViewer(req);
+    const patch = req.body as PreferencesInput;
+    const preferences = await this.notificationService.updatePreferences(
+      viewer.userId,
+      viewer,
+      patch,
+    );
+    res.status(200).json({ success: true, data: preferences });
+  });
+
+  // GET /notifications/preferences/:userId
+  getPreferencesForUser = asyncHandler(
+    async (req: Request, res: Response) => {
+      const { userId } = parseOrThrow(userIdParamSchema, req.params);
+      const viewer = requireViewer(req);
+      const preferences = await this.notificationService.getPreferences(
+        userId,
+        viewer,
+      );
+      res.status(200).json({ success: true, data: preferences });
+    },
+  );
+
+  // PATCH /notifications/preferences/:userId
+  updatePreferencesForUser = asyncHandler(
+    async (req: Request, res: Response) => {
+      const { userId } = parseOrThrow(userIdParamSchema, req.params);
+      const viewer = requireViewer(req);
+      const patch = req.body as PreferencesInput;
+      const preferences = await this.notificationService.updatePreferences(
+        userId,
+        viewer,
+        patch,
+      );
+      res.status(200).json({ success: true, data: preferences });
+    },
+  );
+
   // DELETE /notifications/:id
   delete = asyncHandler(async (req: Request, res: Response) => {
-    await this.notificationService.delete(req.params.id as string);
+    const { id } = parseOrThrow(notificationIdParamSchema, req.params);
+    await this.notificationService.delete(id);
     res.status(200).json({ success: true, message: "Notification deleted" });
   });
 }

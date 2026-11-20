@@ -17,6 +17,13 @@ export const updateUserSchema = z.object({
     .min(6, { message: "Password must be at least 6 characters long" })
     .optional(),
   role: z.enum(["inventory_manager", "owner", "pharmacist"]).optional(),
+  phone: z
+    .string()
+    .trim()
+    .min(7, { message: "Phone number must be at least 7 characters" })
+    .max(20, { message: "Phone number must be at most 20 characters" })
+    .regex(/^\+?[0-9\s\-()]+$/, { message: "Invalid phone number" })
+    .optional(),
   isActive: z.boolean().optional(),
 });
 

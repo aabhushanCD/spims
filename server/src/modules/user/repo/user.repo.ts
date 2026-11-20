@@ -50,6 +50,13 @@ export class UserRepository {
     return await this.userModel.findById(id).exec();
   }
 
+  async findByIds(ids: string[]): Promise<IUser[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    return await this.userModel.find({ _id: { $in: ids } }).exec();
+  }
+
   async findByEmail(email: string): Promise<IUser | null> {
     return await this.userModel.findOne({ email }).lean();
   }
@@ -165,5 +172,47 @@ export class UserRepository {
     return await this.userModel
       .find({ role, lastLogin: { $gte: date } })
       .exec();
+  }
+
+  async getNotificationPreferences(
+    userId: string,
+  ): Promise<{ email: boolean; sms: boolean } | null> {
+    const user = await this.userModel
+      .findById(userId)
+      .select("notificationPreferences")
+      .lean()
+      .exec();
+    if (!user) {
+      return null;
+    }
+    return {
+      email: user.notificationPreferences?.email ?? true,
+      sms: user.notificationPreferences?.sms ?? true,
+    };
+  }
+
+  async updateNotificationPreferences(
+    userId: string,
+    patch: { email?: boolean | undefined; sms?: boolean | undefined },
+  ): Promise<{ email: boolean; sms: boolean } | null> {
+    const set: Record<string, boolean> = {};
+    if (patch.email !== undefined) {
+      set["notificationPreferences.email"] = patch.email;
+    }
+    if (patch.sms !== undefined) {
+      set["notificationPreferences.sms"] = patch.sms;
+    }
+
+    const user = await this.userModel
+      .findByIdAndUpdate(userId, { $set: set }, { new: true })
+      .lean()
+      .exec();
+    if (!user) {
+      return null;
+    }
+    return {
+      email: user.notificationPreferences?.email ?? true,
+      sms: user.notificationPreferences?.sms ?? true,
+    };
   }
 }

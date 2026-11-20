@@ -1,7 +1,24 @@
 // notification.repo.ts
+import { Types } from "mongoose";
 import type mongoose from "mongoose";
 import type { INotification } from "../model/notification.model.ts";
 import type NotificationModel from "../model/notification.model.ts";
+import type { PageCursor } from "../utils/notification.pagination.ts";
+
+function cursorFilter(cursor: PageCursor | null): Record<string, unknown> {
+  if (!cursor) {
+    return {};
+  }
+  return {
+    $or: [
+      { createdAt: { $lt: cursor.createdAt } },
+      {
+        createdAt: cursor.createdAt,
+        _id: { $lt: new Types.ObjectId(cursor.id) },
+      },
+    ],
+  };
+}
 
 export class NotificationRepo {
   constructor(private readonly notificationModel: typeof NotificationModel) {}
@@ -27,11 +44,48 @@ export class NotificationRepo {
     return this.notificationModel.findById(id).lean().exec();
   }
 
+  async findByIds(
+    ids: string[],
+    session?: mongoose.ClientSession,
+  ): Promise<INotification[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    if (session) {
+      return this.notificationModel
+        .find({ _id: { $in: ids } })
+        .session(session)
+        .lean()
+        .exec();
+    }
+    return this.notificationModel
+      .find({ _id: { $in: ids } })
+      .lean()
+      .exec();
+  }
+
   async findAll(session?: mongoose.ClientSession): Promise<INotification[]> {
     if (session) {
       return this.notificationModel.find().session(session).lean().exec();
     }
     return this.notificationModel.find().lean().exec();
+  }
+
+  async findAllPaged(
+    cursor: PageCursor | null,
+    limit: number,
+    session?: mongoose.ClientSession,
+  ): Promise<INotification[]> {
+    const query = this.notificationModel
+      .find(cursorFilter(cursor))
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1);
+
+    if (session) {
+      query.session(session);
+    }
+
+    return query.lean().exec();
   }
 
   async update(
@@ -65,6 +119,4 @@ export class NotificationRepo {
     }
     return this.notificationModel.findByIdAndDelete(id).lean().exec();
   }
-
- 
 }

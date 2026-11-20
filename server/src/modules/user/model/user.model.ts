@@ -7,6 +7,11 @@ export interface IUser extends Document {
   email: string;
   password?: string; // Optional for Google OAuth
   role: UserRole;
+  phone?: string | null;
+  notificationPreferences: {
+    email: boolean;
+    sms: boolean;
+  };
   isActive: boolean;
   emailVerified: boolean;
   lastLogin: Date | null;
@@ -35,6 +40,17 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
+    },
+
+    phone: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    notificationPreferences: {
+      email: { type: Boolean, default: true },
+      sms: { type: Boolean, default: true },
     },
 
     password: {

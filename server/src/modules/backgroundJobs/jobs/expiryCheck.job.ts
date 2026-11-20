@@ -22,6 +22,7 @@ export function scheduleExpiryCheckJob() {
             message: `${newlyExpired.length} batch(es) expired overnight and are pulled from sellable stock. Please confirm disposal to complete write-off.`,
             type: "InApp",
             userIds: pharmacistIds,
+            critical: true,
           });
         }
       });

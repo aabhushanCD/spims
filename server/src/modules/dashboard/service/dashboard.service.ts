@@ -132,11 +132,16 @@ export class DashboardService {
   }
 
   async getNotificationSummary() {
-    const [failed, pending] = await Promise.all([
+    const [failed, pending, skipped] = await Promise.all([
       this.notificationRecipientRepo.countByStatus("Failed"),
       this.notificationRecipientRepo.countByStatus("Pending"),
+      this.notificationRecipientRepo.countByStatus("Skipped"),
     ]);
-    return { failedDeliveries: failed, pendingDeliveries: pending };
+    return {
+      failedDeliveries: failed,
+      pendingDeliveries: pending,
+      skippedDeliveries: skipped,
+    };
   }
 
   async getProfitSummary() {

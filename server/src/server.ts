@@ -10,9 +10,11 @@ import { verifyJwt } from "./shared/middleware/verifyJwt.ts";
 import { register } from "./shared/provider/websocker.provider.ts";
 import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryCheck.job.ts";
 import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
+import { scheduleNotificationRetryJob } from "./modules/backgroundJobs/jobs/notificationRetry.job.ts";
 import redis from "./config/redis.config.ts";
 import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
 import { assertAuthConfig } from "./modules/auth/utils/authConfig.ts";
+import { assertEmailConfig } from "./shared/provider/email.provider.ts";
 
 dotenv.config();
 const app = express();
@@ -110,10 +112,12 @@ const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
     assertAuthConfig();
+    assertEmailConfig();
     await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();
     scheduleReorderCalculationJob();
+    scheduleNotificationRetryJob();
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

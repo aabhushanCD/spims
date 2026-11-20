@@ -21,9 +21,29 @@ export function push(
   if (!sockets || sockets.size === 0) {
     return false;
   }
+
   const data = JSON.stringify(payload);
-  for (const socket of sockets) {
-    socket.send(data);
+  let delivered = false;
+
+  for (const socket of [...sockets]) {
+    if (socket.readyState !== socket.OPEN) {
+      sockets.delete(socket);
+      continue;
+    }
+
+    try {
+      socket.send(data);
+      delivered = true;
+    } catch {
+      // A socket can close between the readyState check and send(). Never let
+      // that surface as a delivery failure for the notification row.
+      sockets.delete(socket);
+    }
   }
-  return true;
+
+  if (sockets.size === 0) {
+    connections.delete(userId);
+  }
+
+  return delivered;
 }
