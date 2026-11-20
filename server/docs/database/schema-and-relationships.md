@@ -57,6 +57,8 @@ Source: `server/src/modules/user/model/user.model.ts`
 | `password` | String | conditional R | Required only when `provider === "local"`; stores a bcrypt hash when written by auth/user creation |
 | `provider` | String | D `local`, enum `local`/`google` | Google flow not implemented |
 | `role` | String | D `pharmacist`, enum | `owner`, `pharmacist`, `inventory_manager` |
+| `phone` | String \| null | D `null`, trim | Optional SMS destination |
+| `notificationPreferences` | Object | D `{ email: true, sms: true }` | Per-channel opt-out; in-app is always on |
 | `isActive` | Boolean | D `true` | Not checked during login |
 | `lastLogin` | Date | D `null` | Never updated by the login flow |
 | `refreshToken` | String | D `null` | Unused |
@@ -332,16 +334,49 @@ No timestamps. `createRecommendation` (manual/admin) is defined in the service b
 | `message` | String | R |
 | `type` | String enum `Email`/`SMS`/`InApp` | R |
 | `status` | String enum `Pending`/`Sent`/`Failed` | D `Pending` |
+| `isCritical` | Boolean | D `false`; internal opt-out bypass |
 | `createdAt`, `updatedAt` | Date | timestamps |
+
+Index: `{ createdAt: -1, _id: -1 }`.
 
 | `NotificationRecipient` | Type | Flags |
 |---|---|---|
 | `notificationId` | ObjectId → `Notification` | R |
 | `userId` | ObjectId → `User` | R |
-| `sentAt` | Date | O |
-| `status` | String enum | D `Pending` |
+| `sentAt` | Date \| null | D `null` |
+| `status` | String enum `Pending`/`Sent`/`Failed`/`Skipped` | D `Pending` |
+| `error` | String \| null | D `null`; truncated provider error |
+| `attempts` | Number | D `0` |
+| `lastAttemptAt` | Date \| null | D `null` |
+| `nextAttemptAt` | Date \| null | D `null`; retry schedule |
+| `readAt` | Date \| null | D `null`; per-recipient read state |
+| `createdAt`, `updatedAt` | Date | timestamps |
 
-`NotificationRecipient` has no timestamps and no declared indexes.
+Indexes: unique `{ notificationId: 1, userId: 1 }`,
+`{ userId: 1, createdAt: -1, _id: -1 }`, `{ status: 1, nextAttemptAt: 1 }`.
+
+Existing recipient rows created before timestamps were enabled may lack
+`createdAt`. Pagination sorts and filters on `createdAt`, so those rows are
+unreachable after the first page and the retry sweep never sees them. There is
+no migration framework; run the backfill before relying on the inbox:
+
+```bash
+npm --prefix server run notification:backfill -- --dry-run
+npm --prefix server run notification:backfill
+```
+
+`createdAt`/`updatedAt` are derived from the ObjectId insert time. Existing
+duplicate `(notificationId, userId)` rows must also be merged before the unique
+index can be created:
+
+```bash
+npm --prefix server run notification:dedupe -- --dry-run
+npm --prefix server run notification:dedupe
+npm --prefix server run notification:dedupe -- --sync-indexes
+```
+
+Do not assume the collection was empty at deploy time; verify both counts with
+the dry runs first.
 
 ### 7.3 `backgroundjobs` — `BackgroundJob`
 

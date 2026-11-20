@@ -95,6 +95,9 @@ sequenceDiagram
 
 If the user is offline, the recipient is still marked `Sent` because `push`'s boolean is ignored. The notification remains queryable via `GET /notifications/me`, so the inbox is the durable record.
 
+Email and SMS failures are retried by the one-minute notification-retry sweep
+at +1m/+5m. In-app delivery has no provider failure to retry.
+
 ## 6. Authentication and authorization
 
 - Any authenticated role can connect.
@@ -120,7 +123,9 @@ If the user is offline, the recipient is still marked `Sent` because `push`'s bo
 - Connect to `/ws` with credentials so the cookie is sent.
 - Reconnect with backoff; the server sends no heartbeat or resume marker.
 - Expect only server-initiated JSON payloads with `title` and `message`.
-- Use `GET /api/notifications/me` to fetch history; WebSocket payloads are not persisted with ids.
+- Use `GET /api/notifications/me` to fetch history and `unreadCount`; use
+  `PATCH /api/notifications/me/:id/read` or `/me/read-all` to update read state.
+  WebSocket payloads are not persisted with ids.
 
 ## 9. Limitations
 
@@ -132,6 +137,8 @@ If the user is offline, the recipient is still marked `Sent` because `push`'s bo
 | Presence/online status | Not Implemented |
 | Heartbeat/reconnect protocol | Not Implemented |
 | Delivery acknowledgement | Not Implemented |
+| Read/unread state over WebSocket | Not Implemented (HTTP endpoints only) |
+| Retry of email/SMS failures | Implemented in the notification service |
 | Multi-instance fan-out | Not Implemented |
 | Payload ids/types | Not Implemented |
 | Origin validation | Not Implemented |

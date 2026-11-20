@@ -4,12 +4,13 @@
 
 Jobs use `node-cron` inside the API process. There is no external queue, worker deployment, or distributed lock.
 
-Two jobs are scheduled from `server.ts`:
+Three jobs are scheduled from `server.ts`:
 
 | Job name | Schedule | Function |
 |---|---|---|
 | `expiry-check` | `0 1 * * *` (01:00 daily) | Flag expired batches and notify pharmacists |
 | `reorder-calculation` | `0 2 * * *` (02:00 daily) | Generate smart reorder recommendations |
+| `notification-retry` | `* * * * *` (every minute) | Retry due failed notification recipients |
 
 Cron expressions use server-local time.
 
@@ -19,7 +20,9 @@ Sources: `server/src/modules/backgroundJobs/jobs/expiryCheck.job.ts`, `reorderCa
 
 ## 2. Job tracking
 
-Every run is wrapped by `BackgroundJobService.runJob`:
+Every run is wrapped by `BackgroundJobService.runJob` **except the
+notification-retry sweep**, which runs every minute and intentionally writes no
+`backgroundjobs` record (1,440 rows/day would add noise without useful signal).
 
 ```mermaid
 sequenceDiagram
@@ -65,7 +68,7 @@ No timestamps are enabled on the model, so there is no `createdAt`/`updatedAt` a
      -> set isExpired = true
 2. If any newly expired:
    - find all users with role "pharmacist"
-   - createNotification({ type: "InApp", title, message, userIds })
+   - createNotification({ type: "InApp", title, message, userIds, critical: true })
 ```
 
 Behavior:
@@ -96,13 +99,46 @@ Notes:
 - Redis availability is required for every medicine (cache read/write). A Redis outage is caught per medicine, so every medicine is reported as `skipped` and the job still completes successfully.
 - Recommendations persist indefinitely; nothing archives old ones.
 
-## 5. Stale-job detection
+## 5. Notification retry job
+
+```text
+every minute
+1. notificationService.retryScheduled()
+2. Find distinct notificationId values where:
+   status = "Failed" AND attempts < 3 AND nextAttemptAt != null AND nextAttemptAt <= now
+   OR status = "Pending" AND attempts < 3
+      AND (lastAttemptAt = null OR lastAttemptAt <= now - 15 minutes)
+3. dispatch() each notification; catch and log per-notification errors
+4. Return { attempted }
+```
+
+Behavior:
+
+- Retries happen at +1 minute and +5 minutes after the first and second
+  failures, then become terminal.
+- Recipients marked `Skipped` are never retried.
+- Non-retryable failures (missing `SMS_WEBHOOK_URL`, missing phone, permanent
+  SMTP 5xx) never get a `nextAttemptAt` and are not swept.
+- `Pending` rows that were never attempted are swept immediately. A row that was
+  claimed but never finished (crash mid-send) is recovered only after the
+  15-minute `STALE_IN_FLIGHT_MS` window, so a slow provider call is not resent.
+- Each send goes through `claimForDispatch` (`_id` + `status` + `attempts` +
+  `lastAttemptAt` compare-and-swap), so the sweep and the request path cannot
+  both send the same row. Delivery is at-least-once.
+- The sweep is not wrapped in `runJob`; recipient rows are the audit trail.
+- One failing notification does not stop the rest of the sweep.
+- An in-process `running` flag skips a tick if the previous sweep is still
+  active. This does not coordinate across processes.
+
+Source: `server/src/modules/backgroundJobs/jobs/notificationRetry.job.ts`
+
+## 6. Stale-job detection
 
 `BackgroundJobService.getStaleJobs(60)` returns `IN_PROGRESS` jobs started more than 60 minutes ago. It is surfaced by `GET /dashboard/system-health`.
 
 This only detects jobs that crashed hard enough to skip `markCompleted`/`markFailed` (for example a process kill). It does not detect missed schedules.
 
-## 6. Repository defect
+## 7. Repository defect
 
 `BackgroundJobRepo.create`:
 
@@ -115,32 +151,38 @@ return await job.save();
 
 With a session, the document is saved twice. The second `save()` runs outside the supplied session. No current job passes a session, so this is latent, but any future transactional use should fix it.
 
-## 7. Multi-instance behavior
+## 8. Multi-instance behavior
 
 There is no leader election or lock. If the API runs on multiple instances:
 
 - Each instance schedules its own cron and runs the same jobs.
 - Expiry flagging is mostly idempotent (checks `!isExpired`), but races can produce duplicate notifications.
 - Reorder generation can create duplicate recommendations (no unique constraint).
+- Every instance runs the notification retry sweep; the in-process overlap guard is per instance, and combined with the lack of an atomic dispatch claim, duplicate sends are possible.
 
 Deployment guidance: run a single API instance, or move cron to a dedicated process.
 
-## 8. Time zones and daylight saving
+## 9. Time zones and daylight saving
 
 `node-cron` uses the host time zone. The schedules are wall-clock times, so they shift with DST if the host does. No `timezone` option is configured.
 
-## 9. Failure handling
+## 10. Failure handling
 
 | Failure | Result |
 |---|---|
 | Batch scan exception | Job `FAILED`, cron catches and logs |
 | Notification creation failure | Job `FAILED` after batches were already flagged |
 | Redis unavailable during reorder | Job `FAILED` |
-| SMTP failure during dispatch | Recipient `Failed`; job itself already returned |
+| SMTP failure during dispatch | Recipient `Failed`; retried at +1m/+5m when transient |
+| Permanent SMTP 5xx | Recipient `Failed` with no retry |
+| SMS webhook failure during dispatch | Recipient `Failed`; retried when the failure is retryable |
+| Notification retry sweep failure | Cron catches and logs; other notifications still attempted |
+| Retry sweep overlap (single instance) | Next tick is skipped while the current sweep runs |
 | Process restart mid-job | Record stuck `IN_PROGRESS` until manually cleaned; appears in system health |
 | Missed run while process down | No catch-up; next scheduled time only |
+| Missed retry sweep while down | The next sweep picks up rows whose `nextAttemptAt` has passed |
 
-## 10. Manual triggers
+## 11. Manual triggers
 
 | Action | Endpoint |
 |---|---|
@@ -150,7 +192,7 @@ Deployment guidance: run a single API instance, or move cron to a dedicated proc
 
 Manual triggers call the services directly and do not create `BackgroundJob` records. The 02:00 cron run does create one through `runJob`.
 
-## 11. Limitations
+## 12. Limitations
 
 | Issue | Status |
 |---|---|
@@ -162,7 +204,10 @@ Manual triggers call the services directly and do not create `BackgroundJob` rec
 | Catch-up for missed runs | Not Implemented |
 | Timezone configuration | Not Implemented |
 | Duplicate scheduler file | Dead code |
-| Notification failure isolation | Partial (per-recipient) |
+| Notification failure isolation | Implemented (per-recipient, with scheduled retries) |
+| Notification retry audit record | Intentionally not recorded; recipient rows are the audit trail |
+| Retry overlap across instances | In-process guard only; the stale-claim window bounds duplicate sends |
+| Atomic dispatch claim | Implemented (`_id` + `status` + `attempts` + `lastAttemptAt` compare-and-swap); delivery is at-least-once |
 | Pagination of jobs | Not Implemented |
 
 ## Related documents

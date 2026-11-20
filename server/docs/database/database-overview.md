@@ -18,6 +18,12 @@ Source: `server/src/config/db.config.ts`
 
 There is no migration framework, no schema version field, and no seed command. Collections and indexes are created by Mongoose when a model is first used (subject to `autoIndex`, which is enabled by default and is not overridden anywhere).
 
+One-off data fixes use scripts under `server/src/scripts/` (run through `tsx`
+package scripts, e.g. `npm --prefix server run notification:backfill`). They are
+idempotent, support `--dry-run`, and are documented next to the feature that
+needs them. They are not migrations: there is no ordering, ledger, or automatic
+execution at boot.
+
 ## 2. Collections
 
 22 models are registered:
@@ -37,7 +43,7 @@ There is no migration framework, no schema version field, and no seed command. C
 
 - All schemas are declared in TypeScript with an `I<Name> extends Document` interface.
 - `authsessions` has a TTL index on `expiresAt` and an index on `userId`. The user collection has sparse indexes on the verification and reset token hashes.
-- Most schemas use `{ timestamps: true }`. Four do not: `Inventory`, `NotificationRecipient`, `SmartReorder`, and `BackgroundJob`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field.
+- Most schemas use `{ timestamps: true }`. Three do not: `Inventory`, `SmartReorder`, and `BackgroundJob`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field.
 - No schema uses Mongoose `strict: false`; unknown fields are dropped.
 - No schema uses `versionKey: false`; documents carry `__v`.
 - Enums are enforced by Mongoose validators for document `save()` calls. Updates through `findByIdAndUpdate` do **not** run validators unless `runValidators: true` is set, and no repository sets it.
@@ -101,7 +107,8 @@ These fields are queried frequently but have no declared index:
 | `sales` | `saleDate`, `status` | analytics, comparisons |
 | `purchaseorders` | `status`, `orderDate`, `receivedDate`, `supplierId` | dashboard, smart reorder |
 | `returns` | `salesId`, `returnNumber` | detail and lookup |
-| `notificationrecipients` | `userId`, `notificationId`, `status` | inbox and counts |
+| `notificationrecipients` | `userId`, `notificationId`, `status`; unique `{ notificationId, userId }`, `{ userId, createdAt, _id }`, `{ status, nextAttemptAt }` | inbox, retry sweep, counts |
+| `notifications` | `{ createdAt: -1, _id: -1 }` | cursor pagination |
 | `smartreorders` | `medicineId`, `status` | pending list, per-medicine |
 | `users` | `lastLogin`, `role` | admin filters |
 | `stockadjustments` | `medicineId` | adjustments lookup |
@@ -123,7 +130,7 @@ These fields are queried frequently but have no declared index:
 | `returns.returnItems.condition` | `GOOD`, `DAMAGED`, `EXPIRED`, `OPENED` |
 | `notifications.type` | `Email`, `SMS`, `InApp` |
 | `notifications.status` | `Pending`, `Sent`, `Failed` |
-| `notificationrecipients.status` | `Pending`, `Sent`, `Failed` |
+| `notificationrecipients.status` | `Pending`, `Sent`, `Failed`, `Skipped` |
 | `smartreorders.status` | `PENDING`, `APPROVED`, `REJECTED` |
 | `backgroundjobs.status` | `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 

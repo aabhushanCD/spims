@@ -463,24 +463,40 @@ Details: [smart-reorder.md](../modules/smart-reorder.md).
 
 Source: `server/src/modules/notification/routes/notification.routes.ts`
 
-| Method | Path | Purpose | Body | Success |
+| Method | Path | Purpose | Body / Query | Success |
 |---|---|---|---|---|
-| GET | `/notifications/me` | Current user's inbox | — | `200` `{ success, data }` |
-| GET | `/notifications/user/:userId` | Another user's inbox | — | `200` `{ success, data }` |
+| GET | `/notifications/me` | Current user's inbox | `cursor`, `limit` | `200` `{ success, data: { items, nextCursor, unreadCount } }` |
+| GET | `/notifications/user/:userId` | Another user's inbox (role hierarchy) | `cursor`, `limit` | `200`; `403` lower role; `404` target |
 | POST | `/notifications` | Create + dispatch | `title`, `message`, `type`, `userIds[]` | `201` `{ success, data: notification }` |
-| GET | `/notifications` | List all | — | `200` `{ success, data }` |
-| GET | `/notifications/:id` | Detail + recipients | — | `200`; `404` |
-| POST | `/notifications/:id/dispatch` | Retry pending recipients | — | `200` `{ success, data }`; `404` |
-| DELETE | `/notifications/:id` | Delete + recipients | — | `200` `{ message }`; `404` |
+| GET | `/notifications` | List all notifications | `cursor`, `limit` | `200` `{ success, data: { items, nextCursor } }` |
+| GET | `/notifications/:id` | Detail + recipients (owner/pharmacist) | — | `200`; `403`; `404` |
+| POST | `/notifications/:id/dispatch` | Dispatch eligible recipients (owner/pharmacist) | `force=true\|false\|1\|0` | `200` `{ success, data }`; `404` |
+| POST | `/notifications/:id/retry` | Forced retry of failed recipients (owner/pharmacist) | — | `200` `{ success, data }`; `404` |
+| PATCH | `/notifications/me/:id/read` | Mark one own recipient row read | — | `200` `{ success, data: { readAt } }`; `404` |
+| PATCH | `/notifications/me/read-all` | Mark all own unread rows read | — | `200` `{ success, data: { updated } }` |
+| GET | `/notifications/preferences/me` | Own channel preferences | — | `200` `{ success, data: { email, sms } }` |
+| PATCH | `/notifications/preferences/me` | Update own preferences (validated body) | `email?`, `sms?` | `200`; `400` |
+| GET | `/notifications/preferences/:userId` | Self or owner | — | `200`; `403` |
+| PATCH | `/notifications/preferences/:userId` | Owner only (validated body) | `email?`, `sms?` | `200`; `403` |
+| DELETE | `/notifications/:id` | Delete + recipients | — | `200` `{ success: true, message }`; `404` |
 
 Create checks:
 
-- `title` and `message` truthy.
-- `type` in `Email`, `SMS`, `InApp`.
-- `userIds` non-empty array.
+- Zod body: `title` 1–200, `message` 1–5000, `type` in `Email`, `SMS`, `InApp`,
+  `userIds` a non-empty array of 24-hex ObjectIds. The service normalizes and
+  deduplicates ids and rejects more than 500 unique recipients with `400`.
+- `critical` is not accepted over HTTP and is stripped from the body.
+- Duplicate `userIds` are deduplicated.
 - Every user must exist (`404` otherwise).
+- Malformed params or cursors return `400`.
 
-Dispatch is asynchronous (fire-and-forget). `SMS` is accepted but no provider is called. See [notifications.md](../modules/notifications.md).
+Dispatch is asynchronous (fire-and-forget). `SMS` uses the
+`SMS_WEBHOOK_URL` webhook, and failed recipients are retried automatically at
++1m/+5m. Each send is gated by an atomic claim, so concurrent dispatches skip
+rather than double-send; the claim becomes eligible for the sweep after 15
+minutes if the process dies. A `dispatch`/`retry` call returns `404` if the
+notification is deleted before the status write. See
+[notifications.md](../modules/notifications.md).
 
 ## Dashboard
 
@@ -496,7 +512,7 @@ All endpoints are `GET`, return `{ success: true, data }`, and accept no body.
 | `/dashboard/expiry` | Expiry widget | — | `batchesAwaitingDisposal`, `unitsAwaitingDisposal`, `expiringSoonCount` |
 | `/dashboard/recent-activity` | Latest movements | `limit` > 0 (default 10) | movement documents with medicine/batch/user populated |
 | `/dashboard/system-health` | Stale jobs | — | `staleJobCount`, `staleJobs[]` |
-| `/dashboard/notifications` | Delivery counts | — | `failedDeliveries`, `pendingDeliveries` |
+| `/dashboard/notifications` | Delivery counts | — | `failedDeliveries`, `pendingDeliveries`, `skippedDeliveries` |
 | `/dashboard/profit` | Gross profit | — | `totalSales`, `totalPurchases`, `grossProfit`, `marginPercent` |
 | `/dashboard/sales-comparison` | Month over month | — | `thisMonth`, `lastMonth`, `percentChange` (nullable) |
 | `/dashboard/suppliers` | Supplier counts | — | `activeSuppliers`, `inactiveSuppliers`, `total` |

@@ -12,7 +12,7 @@ It is not production-hardened. The main risks are:
 - Authorization is almost flat across roles.
 - Security defects in user management and registration.
 - Missing validation on many write endpoints.
-- No automated coverage beyond four auth tests.
+- Automated coverage remains modest; there are no HTTP integration tests.
 - Several endpoints have logic defects (batch allocation, sync filters, VAT on returns, purchase totals).
 
 ## 2. Endpoint and model inventory
@@ -22,12 +22,12 @@ It is not production-hardened. The main risks are:
 | Mongoose models | 21 |
 | Router files | 18 (including `app.routes.ts`) |
 | Mounted route prefixes | 17 |
-| Route registrations (actual calls) | 134 |
-| Distinct live handlers | 133 (one duplicate path/method; one additional line is commented out) |
-| Endpoint rows documented | 134 (133 distinct) |
+| Route registrations (actual calls) | 141 |
+| Distinct live handlers | 140 (one duplicate path/method; one additional line is commented out) |
+| Endpoint rows documented | 141 (140 distinct) |
 | Transactions | 7 flows |
-| Cron jobs | 2 active, 1 dead duplicate |
-| Tests | 12 files, 109 cases |
+| Cron jobs | 3 active, 1 dead duplicate |
+| Tests | 19 files, 201 cases |
 
 ## 3. Module status matrix
 
@@ -42,11 +42,11 @@ It is not production-hardened. The main risks are:
 | Purchases | Partially Implemented | Create/approve; receive logic present | **Receiving aborts because batch creation fails validation**, VAT/discount ignored, no partial receipt, stale totals, hard delete |
 | Sales | Implemented | FEFO allocation, VAT, invoice counter, transaction | Delete doesn't restore batches, no payment ledger, item edits don't recompute totals |
 | Returns | Partially Implemented | Create/list/update, refunds, partial/full status | GOOD path enum mismatch, damaged restocked, no VAT refund, statuses unreachable |
-| Notifications | Partially Implemented | Create/dispatch, inbox, WS/email | SMS no-op, push result ignored, no retry beyond manual dispatch |
+| Notifications | Implemented | Create/dispatch with atomic claim, inbox, WS/email/SMS, retries, preferences, read state, cursor pagination, hierarchy authz | Templates out of scope; multi-instance retry sweep; legacy backfill/dedupe is a deployment step |
 | Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cron, cache, approve/reject | No PO creation, stale cache, no dedupe, missing date handling |
 | Dashboard/reporting | Implemented | 14 endpoints, 8-part cached payload | Year params ignored, profit not COGS, top-selling includes returns |
 | Redis caching | Partially Implemented | Dashboard + reorder cache | No invalidation, fragile connection config, hard startup dependency |
-| Background jobs | Implemented | 2 cron jobs + job audit records | In-process, no lock/retry, duplicate dead scheduler |
+| Background jobs | Implemented | 3 cron jobs (incl. notification retry) + job audit records | In-process, no lock; retry sweep intentionally unrecorded |
 | WebSocket | Implemented | Cookie-auth upgrade, per-user push | No heartbeat/acks/rooms, offline marked Sent |
 | Email | Implemented | Lazy Nodemailer transport, HTML auth emails, console fallback | No retry/bounce tracking; real SMTP must be configured |
 | Swagger/OpenAPI | Not Implemented | Stubs exist | Not mounted, most files empty, `swagger-jsdoc` not a dependency |
@@ -55,7 +55,7 @@ It is not production-hardened. The main risks are:
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Partially Implemented | 12 suites / 109 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
+| Automated tests | Partially Implemented | 19 suites / 201 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
 
 ## 4. Implemented features
 
@@ -87,11 +87,11 @@ It is not production-hardened. The main risks are:
 | Stock adjustments | Batch adjust endpoint | No movement log; `StockAdjustment` service unreachable |
 | Purchase totals | Base total computed | VAT/discount ignored, recalculate not persisted |
 | Email notifications | Sending works if SMTP is reachable; auth emails have HTML templates | No retry/bounce tracking; console fallback when SMTP is unconfigured |
-| SMS notifications | Accepted and marked Sent | No provider call |
+| SMS notifications | Implemented via `SMS_WEBHOOK_URL` | Requires `SMS_WEBHOOK_URL` and a recipient phone |
 | Inventory reconciliation | Sync method exists | Non-session branch includes unsellable batches; manual ops drift |
 | Dashboard analytics | Metrics returned | Several filters/parameters ignored; some counts always zero |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 12 suites / 109 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
+| Tests | 19 suites / 201 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
 
 ## 6. Not implemented
 
@@ -167,9 +167,9 @@ It is not production-hardened. The main risks are:
 
 | Claim in root docs | Actual |
 |---|---|
-| Pagination | Not implemented |
-| Refresh-token mechanism (`SECURITY.md`) | Placeholder only |
-| Email/SMS notifications (`README` future list) | Email partial, SMS no-op |
+| Pagination | Implemented for notifications only |
+| Refresh-token mechanism (`SECURITY.md`) | Implemented (rotating refresh sessions) |
+| Email/SMS notifications (`README` future list) | Implemented; SMS requires a webhook |
 | Payment recording | Only a payment method string |
 | Swagger/OpenAPI | Unmounted stubs, missing dependency |
 | Docker/NGINX/HTTPS/CI security checks (`SECURITY.md`) | Not present in repository |

@@ -34,7 +34,7 @@ sequenceDiagram
 Characteristics:
 
 - Authentication is cookie-based; there is no `Authorization: Bearer` handling even though the unused Swagger spec declares bearer auth.
-- Validation, when present, applies **only to `req.body`**, never to params/query.
+- Validation: the shared `validate` middleware applies to request bodies. Notification params/query are parsed in the controller with `parseOrThrow` because Express 5 exposes `req.query` as a read-only getter. Other modules validate params/query ad hoc or not at all.
 - Responses use different envelopes per module (`{ success, data }`, raw document, `{ message, data }`).
 - Express 5 can forward rejected promises, but most controllers use explicit `try/catch` + `next(error)` or a local `asyncHandler`.
 
@@ -239,26 +239,30 @@ sequenceDiagram
   participant DB as MongoDB
   participant WS as WebSocket registry
   participant Mail as SMTP
+  participant SMS as SMS webhook
 
   API->>NS: createNotification(title, message, type, userIds)
   NS->>DB: validate each user
   NS->>DB: insert Notification (Pending) + recipients (Pending)
   NS-->>API: 201 immediately
   NS->>NS: dispatch() fire-and-forget
-  loop pending recipients
+  loop eligible recipients
     alt type InApp
       NS->>WS: push(userId, payload)
     else type Email
       NS->>Mail: sendEmail
     else type SMS
-      NS->>NS: no provider call
+      NS->>SMS: POST {to, message}
     end
-    NS->>DB: recipient Sent/Failed
+    NS->>DB: recipient Sent/Failed/Skipped
   end
   NS->>DB: recompute parent status
+  Note over NS,DB: Retry cron re-dispatches due Failed rows at +1m/+5m
 ```
 
-Delivery is asynchronous relative to the HTTP response. `SMS` recipients are marked `Sent` without any provider call.
+Delivery is asynchronous relative to the HTTP response. In-app delivery is
+always recorded as `Sent` (the inbox is the durable record). Email and SMS
+failures store an error and are retried at +1m/+5m when retryable.
 
 ## 9. WebSocket flow
 

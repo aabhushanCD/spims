@@ -48,7 +48,7 @@ Static factories:
 | `serviceUnavailable` | 503 | Service Unavailable |
 | `gatewayTimeout` | 504 | Gateway Timeout |
 
-Only 400, 401, 404, and 409 are used in practice. 403 comes from `authorize`, not `AppError`.
+400, 401, 403, 404, and 409 are used in practice. `authorize` returns `403 { message: "Access denied" }`; notification service checks also throw `AppError.forbidden`, which produces `{ success: false, message }`.
 
 ## 3. Zod validation errors
 
@@ -72,6 +72,8 @@ HTTP status is `400`.
 
 Zod v4 error handling is accessed through `error.flatten?.().fieldErrors` with a fallback to `error.errors`. This only covers body validation.
 
+Notification query/param validation uses `parseOrThrow`, which throws `AppError.badRequest`; those 400 responses use the standard `{ success: false, message }` shape instead of `errors`.
+
 ## 4. Common errors by status
 
 ### 400 — Bad Request
@@ -79,6 +81,7 @@ Zod v4 error handling is accessed through `error.flatten?.().fieldErrors` with a
 | Situation | Example source |
 |---|---|
 | Zod body validation | any validated route |
+| Invalid notification body, ObjectId, cursor, or `force` value | notification routes (`validate` + `parseOrThrow`) |
 | Invalid discount | `SalesService.createSale` |
 | Cart empty | `SalesService.createSale` |
 | Return list empty | `ReturnService.createReturn` |
@@ -103,7 +106,9 @@ The middleware response does **not** include `success: false`; controllers that 
 
 ### 403 — Forbidden
 
-`{ "message": "Access denied" }` from `authorize` when the role is not in the list.
+`authorize` returns `{ "message": "Access denied" }` when the role is not in the
+list. Service checks such as notification inbox hierarchy throw
+`AppError.forbidden`, which returns `{ "success": false, "message": "..." }`.
 
 ### 404 — Not Found
 
@@ -147,7 +152,8 @@ This is why several endpoints return 500 rather than 400 for bad input: no Objec
 |---|---|
 | `try { ... } catch (e) { next(e) }` | auth, users, medicines, catalog, suppliers, purchases, sales |
 | Local `asyncHandler` wrapper | inventory, batches, returns, sale items, notifications, dashboard, smart reorders |
-| Manual checks with direct `res.status(...)` | users (404s), notifications (400s), batch controller (400s) |
+| Manual checks with direct `res.status(...)` | users (404s), batch controller (400s) |
+| `parseOrThrow` for params/query | notifications |
 | No check | several list endpoints; failure becomes 500 |
 
 Express 5 would forward rejected async handlers automatically, but the code does not rely on that because every async controller either catches or is wrapped.
@@ -157,7 +163,7 @@ Express 5 would forward rejected async handlers automatically, but the code does
 | Location | Behavior |
 |---|---|
 | `NotificationService.createNotification` | `dispatch()` is fire-and-forget; failures are logged and never returned to the caller |
-| Notification per-recipient dispatch | Any error marks the recipient `Failed`; the error reason is not stored |
+| Notification per-recipient dispatch | Any error marks the recipient `Failed` and stores a truncated error; transient failures are retried |
 | `AuthService.registerUser` | Mongoose errors propagate |
 | Cron jobs | Catch and `console.error`; the `BackgroundJob` record is marked failed via `runJob` |
 | Return GOOD path | Expected to fail movement enum validation and abort the transaction (see below) |

@@ -67,15 +67,22 @@ This is a liveness check only, not readiness.
 `GET /api/dashboard/notifications` returns counts of recipient rows by status:
 
 ```json
-{ "failedDeliveries": 3, "pendingDeliveries": 10 }
+{
+  "failedDeliveries": 3,
+  "pendingDeliveries": 10,
+  "skippedDeliveries": 2
+}
 ```
 
 Limitations:
 
 - No time window; counts are all-time.
 - No per-channel breakdown.
-- No error reason stored.
-- Pending rows can remain forever if dispatch is never retried.
+- Failed rows store a truncated provider error; skipped rows store the opt-out
+  reason.
+- Pending rows are swept by the notification-retry job: never-attempted rows on
+  the next tick, claimed-but-unfinished rows after 15 minutes. A sweep that
+  keeps failing can still leave them pending.
 
 ## 6. Inventory/stock observability
 
@@ -93,7 +100,8 @@ The dashboard's inventory value and low-stock counts are derived from these same
 | HTTP 500 | Generic message to client; stack/error in server console |
 | Validation 400 | Field errors to client; nothing logged |
 | Failed login | 401/404 to client; no audit log |
-| Failed email | Recipient `Failed`; no reason |
+| Failed email | Recipient `Failed` with stored error and scheduled retries |
+| Failed SMS | Recipient `Failed` with stored error and scheduled retries |
 | Dropped WebSocket | Nothing |
 | Cron crash | `FAILED` job record + console error |
 | Redis outage | Console error; requests fail |
@@ -142,7 +150,7 @@ None of these exist in the repository.
 | Server exits at boot | `assertAuthConfig()` error, Redis `ping`, MongoDB URI |
 | Dashboard zeros | Collections empty, date filters (current month/year), or cached stale payload |
 | Reorder always 400 | Negative cache entry, no purchase history, stock above ROP |
-| Notifications stuck Pending | Dispatch not called or Redis/DB error |
+| Notifications stuck Pending | Dispatch not called, or the retry sweep is failing; never-attempted rows are swept next tick, abandoned claims after 15 minutes |
 | WebSocket never delivers | Cookie not sent on upgrade, expired token, no open socket |
 | Stock mismatch | Aggregate-only operations, GOOD returns, sale deletion, non-session sync |
 

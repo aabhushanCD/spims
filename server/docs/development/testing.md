@@ -10,11 +10,11 @@
 
 | Item | Value |
 |---|---|
-| Framework | Vitest 4 |
+| Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 8 files: auth, inventory, sales, returns, purchases, reorder math, batch repo, authorization |
-| Test count | 78 tests |
+| Test files | 19 files: auth, inventory, sales, returns, purchases, reorder math, batch repo, authorization, notifications, recipient repo, schemas, SMS, websocket, email config, dashboard |
+| Test count | 201 tests |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 

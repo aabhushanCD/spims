@@ -16,7 +16,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 - Sales returns with stock restoration and refund calculation.
 - Stock movement audit trail.
 - Dashboard analytics and smart reorder recommendations.
-- In-app, email, and (stub) SMS notifications.
+- In-app, email, and SMS (generic HTTP webhook) notifications.
 - JWT cookie authentication and role checks.
 
 ## Technology stack
@@ -27,13 +27,14 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | HTTP | Express 5 | `express.json()`, `cookie-parser`, `cors` |
 | Language | TypeScript | NodeNext, strict, `.ts` import specifiers |
 | Database | MongoDB + Mongoose 9 | 22 models, no migrations |
-| Validation | Zod 4 | Body-only middleware |
+| Validation | Zod 4 | Body middleware + `parseOrThrow` for params/query |
 | Auth | `jsonwebtoken`, `bcrypt` | 15m access JWT + rotating 7d refresh sessions, httpOnly cookies |
 | Cache | `ioredis` | Cache and auth rate limiting; `@upstash/redis` is installed but unused |
-| Jobs | `node-cron` | In-process; 01:00 and 02:00 daily |
+| Jobs | `node-cron` | In-process; daily 01:00/02:00 plus notification retry every minute |
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
 | Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
-| Tests | Vitest | 12 test files, 109 tests |
+| SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
+| Tests | Vitest | 19 test files, 201 tests |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -79,7 +80,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | [modules/purchases.md](modules/purchases.md) | Purchase orders and receiving |
 | [modules/sales.md](modules/sales.md) | Sales creation, pricing, deletion |
 | [modules/returns.md](modules/returns.md) | Sales returns |
-| [modules/notifications.md](modules/notifications.md) | Notification creation, dispatch, inbox |
+| [modules/notifications.md](modules/notifications.md) | Notification creation, dispatch, retries, preferences, inbox, pagination |
 | [modules/smart-reorder.md](modules/smart-reorder.md) | Reorder algorithm and recommendation lifecycle |
 | [modules/reporting.md](modules/reporting.md) | Dashboard and analytics endpoints |
 | [business-logic/inventory-management.md](business-logic/inventory-management.md) | Stock rules, reconciliation, edge cases |
@@ -116,7 +117,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | Stock adjustments | Partially Implemented — service not exposed |
 | Smart reorder | Implemented |
 | Dashboard analytics | Implemented |
-| Notifications | Partially Implemented — SMS is a no-op |
+| Notifications | Implemented — InApp/email/SMS, retries, preferences, read state, pagination; templates out of scope |
 | Redis caching | Partially Implemented |
 | Background jobs | Implemented |
 | WebSocket push | Implemented |

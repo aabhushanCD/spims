@@ -2,23 +2,25 @@
 
 ## Framework
 
-- **Vitest 4** with the Node environment.
-- Coverage via `@vitest/coverage-v8`.
-- Configuration: `server/vitest.config.ts`.
+- **Vitest 5.1.1** with the Node environment on both packages.
+- Server coverage via `@vitest/coverage-v8`.
+- Configuration: `server/vitest.config.ts` and `client/vitest.config.ts`.
 - Tests live next to the code as `*.test.ts`.
 
-The frontend has no unit-test harness yet. Its CI gate is lint, type check, and
-production build. Add Vitest + React Testing Library if component behaviour
-needs coverage later.
+The frontend harness is intentionally minimal: Node environment, pure logic
+only, no jsdom and no React Testing Library. It covers the notification socket
+URL resolver and the inbox cache updater. Component and hook behaviour is
+verified manually; add jsdom + Testing Library before claiming component
+coverage.
 
 ## Commands
 
 From the repository root:
 
 ```bash
-npm test                 # single CI run (server)
-npm run test:watch       # watch mode
-npm run test:coverage    # coverage report in server/coverage
+npm test                 # single CI run (server + client)
+npm run test:watch       # server watch mode
+npm run test:coverage    # server coverage report in server/coverage
 ```
 
 From `server/`:
@@ -31,12 +33,20 @@ npm run test:coverage
 npx vitest run src/modules/sales/services/sales.service.test.ts
 ```
 
+From `client/`:
+
+```bash
+npm test                 # single run of the pure-logic frontend tests
+npm run test:watch       # watch mode
+```
+
 ## Current coverage
 
-As of the authentication/security change: **12 test files, 109 tests**, all
-passing. Overall statement coverage is still modest because the coverage report
-includes the entire backend (controllers, routes, providers, models). Coverage
-of the targeted business logic is:
+As of the notification limitations change: **19 server test files, 201 tests**
+plus **2 client test files, 17 tests**, all passing. Overall statement coverage
+is still modest because the coverage report includes the entire backend
+(controllers, routes, providers, models). Coverage of the targeted business
+logic is:
 
 | Area | File | Line coverage |
 |---|---|---|
@@ -68,7 +78,16 @@ covered by automated tests.
 | `smartReorder.Calculatro.test.ts` | WADS, sample standard deviation, delay factor, lead time, safety stock, reorder point, ROQ, confidence |
 | `medicineBatch.repo.test.ts` | FEFO sort/filter construction, transaction scoping, conditional stock decrement |
 | `authorize.test.ts` | Allowed role, denied role, unauthenticated request, empty permission list |
+| `notification.service.test.ts` | Create/dedupe, InApp/email/SMS dispatch, retries, preferences, read state, pagination, hierarchy authorization, owner-only error detail, atomic claim contention, stale-claim recovery, attempt cap, missing-parent 404 |
+| `notificationRecipient.repo.test.ts` | Retry sweep filter, claim compare-and-swap lock, parent-aware unread aggregation, idempotent mark-read, bulk delete |
+| `notification.schema.test.ts` | Body/param/query validation, forced-retry flag parsing, preferences, `parseOrThrow` |
+| `websocker.provider.test.ts` | No-socket false, open-socket send, closed-socket eviction, send-failure isolation |
+| `email.provider.test.ts` | Production fail-fast without `SMTP_HOST`, allowed with host, development fallback |
+| `sms.provider.test.ts` | Missing webhook, bearer header, 2xx, non-2xx body, network failure |
+| `dashboard.service.test.ts` | Notification summary counts `Skipped` separately from `Failed` |
 | `mongoError.test.ts` | Mapping and pass-through of MongoDB duplicate/cast/validation errors |
+| `notificationSocketUrl.test.ts` (client) | Explicit WS URL, http(s)→ws(s), absolute API origin, relative `/api` via proxy origin, query/hash stripping, unparseable-origin fallback |
+| `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
 
 ## Test isolation
 
@@ -80,6 +99,8 @@ covered by automated tests.
 - JWT tests set and restore `process.env.JWT_SECRET`,
   `process.env.JWT_REFRESH_SECRET`, and `process.env.CLIENT_URL`.
 - Auth mail is injected as a fake mailer; no SMTP connection is opened.
+- Notification tests mock `push` and `sendEmail`; SMS tests stub global `fetch`
+  and never call a real provider.
 - Rate-limit tests inject a fake Redis store.
 - No test depends on wall-clock ordering. Date-sensitive assertions use fixed
   dates or compare against a captured `before` timestamp.
@@ -120,7 +141,7 @@ blockers:
 
 - `server/src/app/container.ts` constructs every service at import time.
 - `server.ts` starts HTTP, WebSocket, cron jobs, MongoDB, and Redis at import.
-- `email.provider.ts` creates an Ethereal account at import time.
+- `email.provider.ts` lazily creates its transport; tests still inject a fake.
 - `redis.config.ts` creates a client at import time.
 
 To add database integration tests locally:

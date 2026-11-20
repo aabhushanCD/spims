@@ -64,9 +64,11 @@ src/
 │   ├── provider/
 │   │   ├── redis.provider.ts
 │   │   ├── websocker.provider.ts   # note spelling
-│   │   └── email.provider.ts
+│   │   ├── email.provider.ts
+│   │   └── sms.provider.ts
 │   └── utils/
-│       └── generateJwtToken.ts
+│       ├── generateJwtToken.ts
+│       └── parseOrThrow.ts          # Zod for params/query
 └── types/
     └── global.ts                   # Express Request.user augmentation
 ```
@@ -95,7 +97,7 @@ Modules that deviate:
 | `inventory` | Has `model/` (singular folder) with three schemas, `services/` with three services, but `StockAdjustmentService` is never wired. |
 | `batch` | Model folder is `model/`; service folder is `service/`; controller is `controller/`. |
 | `sales` | Contains four models (`Sales`, `SalesItem`, `Return`, `Counter`), three services, three controllers, and three routers. |
-| `backgroundJobs` | No controller/routes. Contains model, repo, service, and two jobs. Filename typo: `backgroud.model.ts`. |
+| `backgroundJobs` | No controller/routes. Contains model, repo, service, and three jobs. Filename typo: `backgroud.model.ts`. |
 | `worker` | One unused cron file, `smartReorder.cron.ts`; never imported by `server.ts`. |
 | `dashboard` | Read-only; no model, repo, or schema. Aggregates other modules. |
 | `smartReorder` | Utility folder is misspelled `utils/smartReorder.Calculatro.ts`. |
