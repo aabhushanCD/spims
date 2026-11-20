@@ -20,11 +20,11 @@ There is no migration framework, no schema version field, and no seed command. C
 
 ## 2. Collections
 
-21 models are registered:
+22 models are registered:
 
 | Domain | Collections |
 |---|---|
-| Identity | `users` |
+| Identity | `users`, `authsessions` |
 | Catalog | `medicines`, `brands`, `categories`, `genericnames`, `units` |
 | Supply | `suppliers`, `purchaseorders`, `purchaseorderitems` |
 | Inventory | `batches`, `inventories`, `inventorymovements`, `stockadjustments` |
@@ -36,6 +36,7 @@ There is no migration framework, no schema version field, and no seed command. C
 ## 3. Schema conventions
 
 - All schemas are declared in TypeScript with an `I<Name> extends Document` interface.
+- `authsessions` has a TTL index on `expiresAt` and an index on `userId`. The user collection has sparse indexes on the verification and reset token hashes.
 - Most schemas use `{ timestamps: true }`. Four do not: `Inventory`, `NotificationRecipient`, `SmartReorder`, and `BackgroundJob`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field.
 - No schema uses Mongoose `strict: false`; unknown fields are dropped.
 - No schema uses `versionKey: false`; documents carry `__v`.

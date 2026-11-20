@@ -26,14 +26,14 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Runtime | Node.js 22 (CI matrix) | ESM (`"type": "module"`) |
 | HTTP | Express 5 | `express.json()`, `cookie-parser`, `cors` |
 | Language | TypeScript | NodeNext, strict, `.ts` import specifiers |
-| Database | MongoDB + Mongoose 9 | 21 models, no migrations |
+| Database | MongoDB + Mongoose 9 | 22 models, no migrations |
 | Validation | Zod 4 | Body-only middleware |
-| Auth | `jsonwebtoken`, `bcrypt` | HS256 JWT, 15-day expiry, httpOnly cookie |
-| Cache | `ioredis` | `@upstash/redis` is installed but unused |
+| Auth | `jsonwebtoken`, `bcrypt` | 15m access JWT + rotating 7d refresh sessions, httpOnly cookies |
+| Cache | `ioredis` | Cache and auth rate limiting; `@upstash/redis` is installed but unused |
 | Jobs | `node-cron` | In-process; 01:00 and 02:00 daily |
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
-| Email | `nodemailer` | Falls back to an Ethereal test account |
-| Tests | Vitest | One test file |
+| Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
+| Tests | Vitest | 12 test files, 109 tests |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -48,9 +48,9 @@ flowchart LR
   Controllers --> Services["Services (business logic)"]
   Services --> Repos["Repositories"]
   Repos --> Mongo[("MongoDB")]
-  Services --> Redis[("Redis cache")]
+  Services --> Redis[("Redis cache + rate limits")]
   Services --> SocketProvider["WebSocket registry"]
-  Services --> Mail["SMTP / Ethereal"]
+  Services --> Mail["SMTP / console fallback"]
   Cron["node-cron jobs"] --> Services
 ```
 

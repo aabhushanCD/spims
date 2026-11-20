@@ -3,10 +3,39 @@ import type { IUser } from "../model/user.model.js";
 import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
 import type mongoose from "mongoose";
 
+export type AuthUserUpdate = Partial<
+  Pick<
+    IUser,
+    | "password"
+    | "emailVerified"
+    | "lastLogin"
+    | "refreshToken"
+    | "refreshTokenExpiresAt"
+    | "emailVerificationTokenHash"
+    | "emailVerificationExpiresAt"
+    | "passwordResetTokenHash"
+    | "passwordResetExpiresAt"
+  >
+>;
+
+export type CreateUserWithAuthFields = CreateUserDto &
+  Partial<
+    Pick<
+      IUser,
+      | "emailVerified"
+      | "emailVerificationTokenHash"
+      | "emailVerificationExpiresAt"
+      | "passwordResetTokenHash"
+      | "passwordResetExpiresAt"
+      | "refreshToken"
+      | "refreshTokenExpiresAt"
+    >
+  >;
+
 export class UserRepository {
   constructor(private readonly userModel: Model<IUser>) {}
 
-  async create(userData: CreateUserDto): Promise<IUser> {
+  async create(userData: CreateUserWithAuthFields): Promise<IUser> {
     const user = new this.userModel(userData);
     return await user.save();
   }
@@ -23,6 +52,46 @@ export class UserRepository {
 
   async findByEmail(email: string): Promise<IUser | null> {
     return await this.userModel.findOne({ email }).lean();
+  }
+
+  async findByEmailWithPassword(email: string): Promise<IUser | null> {
+    return await this.userModel
+      .findOne({ email })
+      .select("+password")
+      .lean();
+  }
+
+  async findByPasswordResetTokenHash(
+    tokenHash: string,
+  ): Promise<IUser | null> {
+    return await this.userModel
+      .findOne({
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: { $gt: new Date() },
+      })
+      .select("+passwordResetTokenHash +passwordResetExpiresAt")
+      .lean();
+  }
+
+  async findByEmailVerificationTokenHash(
+    tokenHash: string,
+  ): Promise<IUser | null> {
+    return await this.userModel
+      .findOne({
+        emailVerificationTokenHash: tokenHash,
+        emailVerificationExpiresAt: { $gt: new Date() },
+      })
+      .select("+emailVerificationTokenHash +emailVerificationExpiresAt")
+      .lean();
+  }
+
+  async updateAuthFields(
+    id: string,
+    updateData: AuthUserUpdate,
+  ): Promise<IUser | null> {
+    return await this.userModel
+      .findByIdAndUpdate(id, updateData, { new: true })
+      .exec();
   }
 
   async update(id: string, updateData: UpdateUserDto): Promise<IUser | null> {

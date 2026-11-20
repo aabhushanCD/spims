@@ -61,28 +61,27 @@ Full contracts: [endpoints.md](../api/endpoints.md#users).
 
 | Method | Behavior |
 |---|---|
-| `createUser` | Role allow-list check → email uniqueness → bcrypt hash → create |
-| `updateUser` | Passes update straight to the repository |
+| `createUser` | Role allow-list check → email uniqueness → bcrypt hash → create verified user |
+| `updateUser` | Validates role → bcrypt-hashes a supplied password → update |
 | `deleteUser` | Requires the supplied role to equal `owner` |
 | `getAllUsers` / `getByRole` / `getActive` / `getInactive` | Read-only |
 | `getUsersByStatusAndLastLogin` / `getByRoleAndLastLogin` / `getByLastLogin` | Read-only |
 | `toggleUserActivation` | Flips `isActive` |
 
-No password hashing occurs on update.
-
 ## 7. Model
 
-`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider), `provider`, `role`, `isActive`, `lastLogin`, `refreshToken`, timestamps.
+`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider, `select: false`), `provider`, `role`, `isActive`, `emailVerified`, `lastLogin`, timestamps, plus select-false email-verification and password-reset token hashes. The legacy `refreshToken` / `refreshTokenExpiresAt` fields remain but the refresh flow now uses the `authsessions` collection.
 
-`lastLogin` and `refreshToken` are never written by the current code.
+`lastLogin` is written by successful logins. Public user responses are sanitized by `modules/user/utils/publicUser.ts`, so password and token hashes are never returned.
 
 ## 8. Validation
 
 `modules/user/schema/user.schema.ts` defines `createUserSchema` and `updateUserSchema`, but **neither is wired to a route**. Consequences:
 
 - `POST /users` accepts arbitrary fields; the Mongoose schema filters unknown paths.
-- `PUT /users/:id` accepts arbitrary fields, including a plaintext `password`.
-- `role` values are checked in `createUser` but not in `updateUser`; the Mongoose enum applies on update? No — `findByIdAndUpdate` does not run validators, so an invalid role can be persisted through update.
+- `PUT /users/:id` accepts arbitrary fields. A supplied `password` is bcrypt-hashed by the service.
+- `role` values are checked in both `createUser` and `updateUser`; invalid values return `400`.
+- Email changes do not reset `emailVerified`.
 
 ## 9. Middleware
 
@@ -118,11 +117,12 @@ The only meaningful distinctions are: user administration is closed to inventory
 ## 11. Business rules
 
 1. Email uniqueness is enforced by the database.
-2. New passwords are bcrypt-hashed (cost 10).
-3. Role defaults to `pharmacist`.
+2. Passwords are bcrypt-hashed (cost 10) on create, update, register, and reset.
+3. Role defaults to `pharmacist`; public registration always creates a pharmacist.
 4. Deletion is a hard delete, not a deactivation; `toggleUserActivation` is the soft option.
 5. Deleting a user does not check for references (sales, movements, returns, notifications).
-6. `isActive` has no effect on authentication.
+6. `isActive: false` blocks login and refresh. Existing access tokens remain valid until expiry.
+7. Users created from the admin dashboard are marked `emailVerified: true`; public registrations start unverified.
 
 ## 12. Dependencies
 
@@ -156,7 +156,7 @@ The only meaningful distinctions are: user administration is closed to inventory
 
 | Issue | Status |
 |---|---|
-| Invalid role accepted on update | Implemented behavior; 500/validation not applied |
+| Invalid role accepted on update | Fixed: service returns `400` |
 | Password update stored in plaintext | Implemented behavior — security defect |
 | Delete authorization uses request body | Implemented behavior — security defect |
 | `GET /users/active` unreachable | Implemented behavior |

@@ -519,13 +519,36 @@ Server
 MONGO_URI=
 
 JWT_SECRET=
+JWT_REFRESH_SECRET=
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+REFRESH_TOKEN_GRACE_PERIOD=60s
+CLIENT_URL=http://localhost:5173
+PASSWORD_RESET_EXPIRES_IN=30m
+EMAIL_VERIFICATION_EXPIRES_IN=24h
+MAX_SESSIONS_PER_USER=10
 
 PORT=
+NODE_ENV=
+TRUST_PROXY=
 
 UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 
 ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
+
+# Optional. Without SMTP_HOST, links are logged to the server console.
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURE=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
 ```
+
+`JWT_REFRESH_SECRET` and `CLIENT_URL` are required when
+`NODE_ENV=production`. Existing deployments should rotate to a fresh
+`JWT_REFRESH_SECRET` rather than reusing `JWT_SECRET`.
 
 ---
 

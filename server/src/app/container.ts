@@ -50,6 +50,9 @@ import { SmartReorderController } from "../modules/smartReorder/controllers/smar
 import { SupplierController } from "../modules/supplier/controller/supplier.controller.ts";
 import { AuthController } from "../modules/auth/controller/auth.controller.ts";
 import { AuthService } from "../modules/auth/services/auth.service.ts";
+import { AuthSessionRepo } from "../modules/auth/repo/authSession.repo.ts";
+import AuthSession from "../modules/auth/model/authSession.model.ts";
+import { createAuthMailer } from "../modules/auth/services/auth.mailer.ts";
 import { MedicineController } from "../modules/medicine/controller/medicine.controller.ts";
 import { MedicineService } from "../modules/medicine/services/medicine.sercive.ts";
 import { UnitController } from "../modules/medicine/controller/unit.controller.ts";
@@ -78,6 +81,8 @@ import { CounterRepository } from "../modules/sales/repo/counter.repo.ts";
 
 // This file serves as a centralized container for all repository instances used throughout the application. It imports the necessary models and repository classes, then creates instances of each repository, which can be exported and used in other parts of the application. This approach promotes modularity and makes it easier to manage dependencies.
 const userRepo = new UserRepository(User);
+const authSessionRepo = new AuthSessionRepo(AuthSession);
+const authMailer = createAuthMailer();
 const backgroundJobRepository = new BackgroundJobRepo(BackgroundJobModel);
 const medicineBatchRepo = new MedicineBatchRepo(Batch);
 const inventoryRepo = new InventoryRepo(Inventory);
@@ -103,7 +108,12 @@ const counterRepo = new CounterRepository();
 // services
 
 const userService = new UserService(userRepo);
-const authService = new AuthService(userRepo, AppError);
+const authService = new AuthService(
+  userRepo,
+  authSessionRepo,
+  AppError,
+  authMailer,
+);
 
 const backgroundJobService = new BackgroundJobService(
   backgroundJobRepository,
@@ -226,6 +236,7 @@ const medicineController = new MedicineController(medicineService);
 const dashboardController = new DashboardController(dashboardService);
 export {
   userRepo,
+  authSessionRepo,
   authService,
   authController,
   backgroundJobRepository,

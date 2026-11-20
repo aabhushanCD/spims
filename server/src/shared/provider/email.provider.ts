@@ -1,24 +1,58 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
-const user = await nodemailer.createTestAccount();
+let transporter: Transporter | null = null;
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || user.smtp.host,
-  port: Number(process.env.SMTP_PORT) || user.smtp.port,
-  secure: process.env.SMTP_SECURE === "true" || user.smtp.secure, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER || user.user,
-    pass: process.env.SMTP_PASS || user.pass,
-  },
-});
+function getTransporter(): Transporter {
+  if (transporter) {
+    return transporter;
+  }
 
-export async function sendEmail(to: string, subject: string, text: string) {
-  const mailOptions = {
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to,
-    subject,
-    text,
-  };
+  const host = process.env.SMTP_HOST;
 
-  return await transporter.sendMail(mailOptions);
+  if (!host) {
+    // Never call Ethereal or any external service at import time. In local
+    // development the JSON transport keeps messages in-process and we log
+    // them below so reset/verification links remain usable.
+    transporter = nodemailer.createTransport({ jsonTransport: true });
+    return transporter;
+  }
+
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  transporter = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === "true",
+    ...(smtpUser && smtpPass
+      ? { auth: { user: smtpUser, pass: smtpPass } }
+      : {}),
+  });
+
+  return transporter;
+}
+
+export interface EmailMessage {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}
+
+export async function sendEmail(message: EmailMessage) {
+  const info = await getTransporter().sendMail({
+    from:
+      process.env.SMTP_FROM ||
+      process.env.SMTP_USER ||
+      "no-reply@spims.local",
+    ...message,
+  });
+
+  if (!process.env.SMTP_HOST) {
+    console.info(
+      `[Email:dev] ${message.subject} -> ${message.to}\n${message.text}`,
+    );
+  }
+
+  return info;
 }

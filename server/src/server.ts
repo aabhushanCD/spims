@@ -12,9 +12,17 @@ import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryChec
 import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
 import redis from "./config/redis.config.ts";
 import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
+import { assertAuthConfig } from "./modules/auth/utils/authConfig.ts";
 
 dotenv.config();
 const app = express();
+
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy === "true") {
+  app.set("trust proxy", 1);
+} else if (trustProxy && /^\d+$/.test(trustProxy)) {
+  app.set("trust proxy", Number(trustProxy));
+}
 
 let allowedOrigins: string[];
 try {
@@ -101,6 +109,7 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 const PORT = process.env.PORT || 3000;
 async function startServer() {
   try {
+    assertAuthConfig();
     await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();

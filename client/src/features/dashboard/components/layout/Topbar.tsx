@@ -15,9 +15,13 @@ import {
 import NotificationDropdown from "@/components/dashboard/NotificationDropdown";
 import MobileSidebar from "@/components/MobileSidebar";
 import { useAuth } from "@/features/auth/context/authContext";
+import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useNavigate } from "react-router";
 
 export default function Topbar() {
   const { currentUser, toggleTheme, theme } = useAuth();
+  const logout = useLogout();
+  const navigate = useNavigate();
   return (
     <header className={`bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md ${theme === "dark" ? "gray text-white " : ""}`}>
       {/* Left */}
@@ -77,13 +81,26 @@ export default function Topbar() {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>Profile</DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => navigate("/settings/security")}
+            >
+              Profile &amp; security
+            </DropdownMenuItem>
 
-            <DropdownMenuItem>Account Settings</DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => navigate("/settings/security")}
+            >
+              Account Settings
+            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem>Logout</DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => logout.mutate()}
+            >
+              Logout
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

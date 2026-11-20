@@ -2,6 +2,10 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Login from "@/features/auth/pages/login.page";
 import Signup from "@/features/auth/pages/Signup";
+import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
+import VerifyEmailPage from "@/features/auth/pages/VerifyEmailPage";
+import SecurityPage from "@/features/security/pages/SecurityPage";
 import BatchPage from "@/features/batch/pages/BatchPage";
 
 import DashboardLayout from "@/features/dashboard/layouts/DashboardLayout";
@@ -26,6 +30,9 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         <Route
           path="/"
@@ -51,6 +58,7 @@ export default function AppRoutes() {
           <Route path="/users" element={<UserPage />} />
           <Route path="/batches" element={<BatchPage />} />
           <Route path="/stock" element={<InventoryPage />} />
+          <Route path="/settings/security" element={<SecurityPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

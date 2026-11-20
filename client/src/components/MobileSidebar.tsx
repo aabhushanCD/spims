@@ -11,10 +11,10 @@ import { useState } from "react";
 export default function MobileSidebar() {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
-  const toggleMenu = (path: string) => {
+  const toggleMenu = (menuKey: string) => {
     setOpenMenus((prev) => ({
       ...prev,
-      [path]: !prev[path],
+      [menuKey]: !prev[menuKey],
     }));
   };
   return (
@@ -34,10 +34,10 @@ export default function MobileSidebar() {
 
             if (item.children?.length) {
               return (
-                <div key={item.path}>
+                <div key={item.title}>
                   <button
                     type="button"
-                    onClick={() => toggleMenu(item.path!)}
+                    onClick={() => toggleMenu(item.title)}
                     className="hover:bg-muted flex w-full items-center justify-between rounded-xl px-4 py-3"
                   >
                     <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ export default function MobileSidebar() {
                     </div>
                   </button>
 
-                  {openMenus[item.path!] && (
+                  {openMenus[item.title] && (
                     <div className="mt-1 ml-8 space-y-1">
                       {item.children.map((child) => (
                         <NavLink

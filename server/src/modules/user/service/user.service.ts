@@ -24,6 +24,8 @@ export class UserService {
     return await this.userRepository.create({
       ...userData,
       password: hashPassword,
+      // Users created by an owner from the dashboard are trusted accounts.
+      emailVerified: true,
     });
   }
 
@@ -38,7 +40,23 @@ export class UserService {
     if (!id) {
       throw AppError.badRequest("User ID is required");
     }
-    return await this.userRepository.update(id, userData);
+
+    const updateData = { ...userData };
+
+    if (
+      updateData.role &&
+      !["inventory_manager", "owner", "pharmacist"].includes(
+        updateData.role,
+      )
+    ) {
+      throw AppError.badRequest("Invalid role specified");
+    }
+
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+
+    return await this.userRepository.update(id, updateData);
   }
 
   async deleteUser(id: string, role: string): Promise<IUser | null> {

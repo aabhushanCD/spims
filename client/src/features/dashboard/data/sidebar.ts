@@ -124,6 +124,11 @@ export const sidebarItems = [
         title: "Roles",
         path: "/roles",
       },
+
+      {
+        title: "Security",
+        path: "/settings/security",
+      },
     ],
   },
 ];

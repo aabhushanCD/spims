@@ -5,8 +5,8 @@
 | Integration | Status | Notes |
 |---|---|---|
 | MongoDB | Implemented | Primary datastore |
-| Redis (ioredis) | Implemented | Cache only |
-| SMTP / Nodemailer | Partially Implemented | Falls back to an Ethereal test account |
+| Redis (ioredis) | Implemented | Cache and auth rate limiting |
+| SMTP / Nodemailer | Implemented | Lazy transport; JSON/console fallback when `SMTP_HOST` is absent |
 | WebSocket (`ws`) | Implemented | In-process |
 | Upstash REST client | Not Implemented | Package installed, unused |
 | SMS provider | Not Implemented | Type accepted, no delivery |
@@ -19,28 +19,33 @@
 
 Source: `server/src/shared/provider/email.provider.ts`
 
-```ts
-const user = await nodemailer.createTestAccount();
+The transporter is created lazily on the first email, so importing the provider
+or the auth container performs no network call.
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || user.smtp.host,
-  port: Number(process.env.SMTP_PORT) || user.smtp.port,
-  secure: process.env.SMTP_SECURE === "true" || user.smtp.secure,
-  auth: {
-    user: process.env.SMTP_USER || user.user,
-    pass: process.env.SMTP_PASS || user.pass,
-  },
-});
+```ts
+const transporter = nodemailer.createTransport(
+  process.env.SMTP_HOST
+    ? {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: process.env.SMTP_SECURE === "true",
+        // auth only when SMTP_USER and SMTP_PASS are present
+      }
+    : { jsonTransport: true },
+);
 ```
 
 ### Behavior
 
-- At module import, `nodemailer.createTestAccount()` contacts Ethereal and creates a temporary account.
-- If SMTP env vars are absent, the Ethereal account is used.
-- `sendEmail` sends plain text with `from = SMTP_FROM || SMTP_USER`.
-- There is no HTML template, attachment, retry, or bounce handling.
-- The test account is ephemeral; messages are visible only in Ethereal, not delivered to real inboxes.
-- Because this runs at import time, startup performs an outbound network call before the server listens. Offline startup or Ethereal downtime can delay or break boot.
+- No Ethereal account is created and no network call happens at import time.
+- If `SMTP_HOST` is absent, the JSON transport keeps the message in-process and
+  the text (including the verification/reset link) is logged to the server
+  console.
+- The auth module sends HTML + plain-text verification and password-reset
+  emails through `modules/auth/services/auth.mailer.ts`.
+- `NotificationService.dispatchToRecipient` sends plain-text email
+  notifications through the same provider.
+- There is no retry, bounce handling, or delivery tracking.
 
 ### Environment variables
 
@@ -53,11 +58,12 @@ const transporter = nodemailer.createTransport({
 | `SMTP_PASS` | no | SMTP password |
 | `SMTP_FROM` | no | From address |
 
-None are in `.env.example`.
+All `SMTP_*` variables are now listed in `.env.example`.
 
 ### Usage
 
-Only `NotificationService.dispatchToRecipient` calls `sendEmail`, for notifications with `type: "Email"`.
+- `AuthMailer` sends verification and password-reset emails.
+- `NotificationService.dispatchToRecipient` sends notification emails with `type: "Email"`.
 
 ## 3. Redis / Upstash
 
@@ -68,6 +74,7 @@ Only `NotificationService.dispatchToRecipient` calls `sendEmail`, for notificati
 | Password variable | `UPSTASH_REDIS_REST_TOKEN` (fallback branch only) |
 | Package `@upstash/redis` | Installed, never imported |
 | Startup check | `redis.ping()` before listening |
+| Auth rate limiting | `shared/middleware/rateLimit.middleware.ts` uses `INCR` + `PEXPIRE` and fails open on Redis errors |
 
 The variable naming suggests Upstash's REST API, but the code passes the value to a TCP Redis client. See [Redis and caching](redis-and-caching.md) for the failure modes.
 
@@ -107,16 +114,16 @@ Status: **Not Implemented**; the API surface is misleading.
 | Destination | Trigger | Blocking? |
 |---|---|---|
 | MongoDB | Startup and every request |
-| Redis | Startup and cache operations |
-| Ethereal/SMTP | Module import and email dispatch |
+| Redis | Startup, cache operations, and auth rate limiting |
+| SMTP | Email dispatch only (lazy transport) |
 | No other services | — |
 
 No HTTP client is used for business integrations.
 
 ## 11. Operational implications
 
-- A deployment must provide MongoDB and Redis; the SMTP/Ethereal path is best-effort.
-- Real email requires all `SMTP_*` variables; otherwise messages are not delivered to users.
+- A deployment must provide MongoDB and Redis; the SMTP path is best-effort.
+- Real email requires `SMTP_HOST` (and credentials when the server requires auth); otherwise verification/reset links are logged to the console and notification emails are not delivered.
 - There is no integration health check; `/health` returns OK regardless of dependencies.
 - No retry/outbox exists for failed emails; failed recipients can be re-dispatched manually.
 

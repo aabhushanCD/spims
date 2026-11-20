@@ -8,8 +8,14 @@ export interface IUser extends Document {
   password?: string; // Optional for Google OAuth
   role: UserRole;
   isActive: boolean;
+  emailVerified: boolean;
   lastLogin: Date | null;
   refreshToken?: string | null;
+  refreshTokenExpiresAt?: Date | null;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | null;
+  passwordResetTokenHash?: string | null;
+  passwordResetExpiresAt?: Date | null;
   provider: "local" | "google";
   createdAt: Date;
   updatedAt: Date;
@@ -33,9 +39,10 @@ const UserSchema = new Schema<IUser>(
 
     password: {
       type: String,
-      required: function () {
+      required: function (this: IUser): boolean {
         return this.provider === "local";
       },
+      select: false,
     },
 
     provider: {
@@ -55,6 +62,11 @@ const UserSchema = new Schema<IUser>(
       default: true,
     },
 
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     lastLogin: {
       type: Date,
       default: null,
@@ -63,6 +75,39 @@ const UserSchema = new Schema<IUser>(
     refreshToken: {
       type: String,
       default: null,
+      select: false,
+    },
+
+    refreshTokenExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    emailVerificationTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+      index: { sparse: true },
+    },
+
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+      index: { sparse: true },
+    },
+
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
     },
   },
   {

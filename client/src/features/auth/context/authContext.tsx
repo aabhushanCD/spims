@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -14,11 +15,13 @@ export type User = {
   name: string;
   role: "owner" | "inventory_manager" | "pharmacist";
   isActive: boolean;
+  emailVerified?: boolean;
 };
 
 type AuthContextType = {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
+  refreshCurrentUser: () => Promise<void>;
   isLoading: boolean;
   toggleTheme: () => void;
   theme: "light" | "dark";
@@ -34,24 +37,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
   };
+
+  const refreshCurrentUser = useCallback(async () => {
+    try {
+      const user = await authServices.getCurrentUserService();
+      setCurrentUser(user);
+    } catch {
+      setCurrentUser(null);
+    }
+  }, []);
+
   useEffect(() => {
-    const data = async () => {
+    let cancelled = false;
+
+    const load = async () => {
       setLoading(true);
       try {
         const user = await authServices.getCurrentUserService();
-        setCurrentUser(user);
-      } catch (err) {
-        setCurrentUser(null);
+        if (!cancelled) {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    data();
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setCurrentUser(null);
+    };
+
+    window.addEventListener("auth:session-expired", handleSessionExpired);
+
+    return () => {
+      window.removeEventListener(
+        "auth:session-expired",
+        handleSessionExpired,
+      );
+    };
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ currentUser, setCurrentUser, isLoading, toggleTheme, theme }}
+      value={{
+        currentUser,
+        setCurrentUser,
+        refreshCurrentUser,
+        isLoading,
+        toggleTheme,
+        theme,
+      }}
     >
       {children}
     </AuthContext.Provider>

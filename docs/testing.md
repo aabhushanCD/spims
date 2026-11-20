@@ -33,10 +33,10 @@ npx vitest run src/modules/sales/services/sales.service.test.ts
 
 ## Current coverage
 
-As of the CI infrastructure change: **9 test files, 82 tests**, all passing.
-Overall statement coverage is about 11% because the coverage report includes the
-entire backend (controllers, routes, providers, models). Coverage of the
-targeted business logic is:
+As of the authentication/security change: **12 test files, 109 tests**, all
+passing. Overall statement coverage is still modest because the coverage report
+includes the entire backend (controllers, routes, providers, models). Coverage
+of the targeted business logic is:
 
 | Area | File | Line coverage |
 |---|---|---|
@@ -57,7 +57,10 @@ covered by automated tests.
 
 | File | Focus |
 |---|---|
-| `auth.service.test.ts` | Registration conflicts, password hashing, login failure/success, JWT payload, current user |
+| `auth.service.test.ts` | Registration conflicts/verification email, login status checks, refresh rotation/reuse detection, email verification, password reset, session listing/revocation, current user |
+| `authTokens.test.ts` | Access/refresh signing, token-type separation, hashing and constant-time comparison |
+| `rateLimit.middleware.test.ts` | Under-limit pass-through, 429 + `Retry-After`, Redis failure fails open |
+| `user.service.test.ts` | Admin-created verified users, password hashing on update, invalid-role rejection |
 | `inventory.service.test.ts` | FEFO allocation across batches, stock limits, non-positive quantities, concurrent deduction conflict, return conditions, reserve/release |
 | `sales.service.test.ts` | Empty cart, duplicate line merging, line and invoice discounts, 13% VAT rounding, discount validation |
 | `return.service.test.ts` | Refund net of line discount, full vs partial status, over-return, invalid item, date validation, condition handling |
@@ -74,7 +77,10 @@ covered by automated tests.
   are defined per test file and reset with `clearMocks`/`restoreMocks`.
 - Transactional services receive a fake `startSession()` whose
   `withTransaction` executes the callback. No production data is touched.
-- JWT tests set and restore `process.env.JWT_SECRET`.
+- JWT tests set and restore `process.env.JWT_SECRET`,
+  `process.env.JWT_REFRESH_SECRET`, and `process.env.CLIENT_URL`.
+- Auth mail is injected as a fake mailer; no SMTP connection is opened.
+- Rate-limit tests inject a fake Redis store.
 - No test depends on wall-clock ordering. Date-sensitive assertions use fixed
   dates or compare against a captured `before` timestamp.
 

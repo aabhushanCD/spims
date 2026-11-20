@@ -1,39 +1,79 @@
-import axios from "axios";
+import axios, {
+  type InternalAxiosRequestConfig,
+} from "axios";
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL;
+import { api } from "./apiClient";
+import { authServices } from "@/features/auth/services/authServices";
 
-const api = axios.create({
-  baseURL: baseUrl,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
 
-api.interceptors.request.use(
-  (config) => {
-    // You can modify the request config here if needed
-    return config;
-  },
-  (error) => {
-    // Handle request errors here
-    return Promise.reject(error);
-  },
-);
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/refresh",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/resend-verification",
+];
+
+let refreshPromise: Promise<unknown> | null = null;
+
+function refreshSession(): Promise<unknown> {
+  if (!refreshPromise) {
+    refreshPromise = authServices.refreshService().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+function shouldSkipRefresh(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  return AUTH_ENDPOINTS_WITHOUT_REFRESH.some((endpoint) =>
+    url.includes(endpoint),
+  );
+}
 
 api.interceptors.response.use(
-  (response) => {
-    // You can modify the response here if needed
-    return response;
-  },
-  async (error) => {
-    // Handle response errors here
-   
-    const status = error.response?.status;
-    if (status === 401) {
-      console.log("Unauthorized access. Redirecting to login page...");
+  (response) => response,
+  async (error: unknown) => {
+    if (!axios.isAxiosError(error)) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    const status = error.response?.status;
+    const originalRequest = error.config as
+      | RetryableRequestConfig
+      | undefined;
+
+    if (
+      status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry ||
+      shouldSkipRefresh(originalRequest.url)
+    ) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      await refreshSession();
+      return await api(originalRequest);
+    } catch (refreshError) {
+      // The auth context listens for this event and clears the current user.
+      // ProtectedRoute then redirects to /login without a hard reload loop.
+      window.dispatchEvent(new Event("auth:session-expired"));
+      return Promise.reject(refreshError);
+    }
   },
 );
+
 export { api };
