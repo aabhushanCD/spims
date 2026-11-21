@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createInventoryMovementSchema = z.object({
   medicineId: z.string().min(1, "Medicine ID is required"),
-  batchId: z.string().min(1, "Batch ID is required"),
+  batchId: z.string().min(1).optional(),
   quantity: z.number().min(1, "Quantity must be greater than 0"),
   movementType: z.enum([
     "PURCHASE",

@@ -3,18 +3,10 @@ import type { AppError } from "../../../shared/error.ts";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
+import type { IInventoryMovement } from "../model/inventoryMovement.model.ts";
 import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
 import type { CreateInventoryMovementDto } from "../schema/inventoryMovement.schema.ts";
-type ReferenceType =
-  | "PURCHASE_ORDER"
-  | "PURCHASE"
-  | "SALE"
-  | "RETURN"
-  | "SALES_RETURN"
-  | "ADJUSTMENT"
-  | "RESERVE"
-  | "RELEASE"
-  | "SYSTEM";
+import type { StockReferenceType } from "../types/stockMovement.type.ts";
 
 export class InventoryMovementService {
   constructor(
@@ -30,25 +22,22 @@ export class InventoryMovementService {
     session?: mongoose.ClientSession,
   ) {
     const medicineId = movementData.medicineId.toString();
-    const batchId = movementData.batchId.toString();
     const userId = movementData.performedBy.toString();
     const medicine = await this.medicineRepo.findById(medicineId);
-    const referenceType: ReferenceType =
-      (movementData.referenceType as ReferenceType) || "SYSTEM"; // Default to "SYSTEM" if not provided
+    const referenceType: StockReferenceType =
+      (movementData.referenceType as StockReferenceType) || "SYSTEM";
     if (!medicine) {
       throw this.appError.notFound("Medicine not found");
     }
 
-    if (!movementData.batchId) {
-      throw this.appError.badRequest("Batch ID is required");
-    }
+    const batch = movementData.batchId
+      ? await this.batchRepo.findById(movementData.batchId.toString(), session)
+      : null;
 
-    const batch = await this.batchRepo.findById(batchId, session);
-
-    if (!batch) {
+    if (movementData.batchId && !batch) {
       throw this.appError.notFound("Batch not found");
     }
-    if (batch.medicineId.toString() !== medicineId) {
+    if (batch && batch.medicineId.toString() !== medicineId) {
       throw this.appError.badRequest(
         "Batch does not belong to the specified medicine",
       );
@@ -58,20 +47,20 @@ export class InventoryMovementService {
     if (!user) {
       throw this.appError.notFound("User not found");
     }
-    console.log("Creating inventory movement:", movementData);
-    return await this.inventoryMovementRepo.create(
-      {
-        medicineId: medicine._id,
-        batchId: batch._id,
-        movementType: movementData.movementType,
-        quantity: movementData.quantity,
-        referenceId: new Types.ObjectId(movementData.referenceId),
-        referenceType: referenceType,
-        performedBy: user._id,
-        remarks: movementData.remarks,
-      },
-      session,
-    );
+    const movementRecord: Partial<IInventoryMovement> = {
+      medicineId: medicine._id,
+      movementType: movementData.movementType,
+      quantity: movementData.quantity,
+      referenceId: new Types.ObjectId(movementData.referenceId),
+      referenceType,
+      performedBy: user._id,
+      remarks: movementData.remarks,
+    };
+    if (batch) {
+      movementRecord.batchId = batch._id;
+    }
+
+    return await this.inventoryMovementRepo.create(movementRecord, session);
   }
 
   async getMovementById(id: string) {
