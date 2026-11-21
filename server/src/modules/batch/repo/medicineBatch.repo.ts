@@ -29,7 +29,10 @@ export class MedicineBatchRepo {
     const options = { new: true, session: session ?? null };
     const updatedBatch = await this.batchModel
       .findOneAndUpdate(
-        { _id: batchId, quantityRemaining: expectedQuantity },
+        {
+          _id: { $eq: batchId },
+          quantityRemaining: { $eq: expectedQuantity },
+        },
         { $inc: { quantityRemaining: quantity } },
         options,
       )
@@ -46,7 +49,10 @@ export class MedicineBatchRepo {
   ): Promise<IBatch | null> {
     return this.batchModel
       .findOneAndUpdate(
-        { _id: batchId, quantityRemaining: expectedQuantity },
+        {
+          _id: { $eq: batchId },
+          quantityRemaining: { $eq: expectedQuantity },
+        },
         { $set: { quantityRemaining: newQuantity } },
         { new: true, session: session ?? null },
       )
@@ -199,7 +205,7 @@ export class MedicineBatchRepo {
     session?: mongoose.ClientSession,
   ) {
     const filter = {
-      _id: batchId as mongoose.Types.ObjectId | string,
+      _id: { $eq: batchId },
       quantityRemaining: { $gte: quantity },
     };
     const options = { new: true, session: session ?? null };

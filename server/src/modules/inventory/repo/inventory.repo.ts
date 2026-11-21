@@ -150,10 +150,15 @@ export class InventoryRepo {
   ): Promise<IInventory | null> {
     const versionFilter =
       expectedVersion === 0
-        ? { $or: [{ version: 0 }, { version: { $exists: false } }] }
-        : { version: expectedVersion };
+        ? {
+            $or: [
+              { version: { $eq: 0 } },
+              { version: { $exists: false } },
+            ],
+          }
+        : { version: { $eq: expectedVersion } };
     const query = this.inventoryModel.findOneAndUpdate(
-      { _id: id, ...versionFilter },
+      { _id: { $eq: id }, ...versionFilter },
       { $set: updateData, $inc: { version: 1 } },
       { new: true },
     );

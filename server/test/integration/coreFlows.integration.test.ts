@@ -98,8 +98,12 @@ async function seedOwner(): Promise<void> {
   authCookie = `token=${token}`;
 }
 
+const CSRF_TOKEN = "integration-csrf-token";
+
 function authenticated(req: request.Test): request.Test {
-  return req.set("Cookie", authCookie);
+  return req
+    .set("Cookie", `${authCookie}; csrfToken=${CSRF_TOKEN}`)
+    .set("X-CSRF-Token", CSRF_TOKEN);
 }
 
 async function seedMedicine(name = "Paracetamol"): Promise<string> {

@@ -158,7 +158,7 @@ describe("MedicineBatchRepo", () => {
 
       expect(model.findOneAndUpdate).toHaveBeenCalledWith(
         {
-          _id: BATCH_ID,
+          _id: { $eq: BATCH_ID },
           quantityRemaining: { $gte: 3 },
         },
         {

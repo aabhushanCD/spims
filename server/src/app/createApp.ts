@@ -6,6 +6,7 @@ import appRoutes from "../modules/app.routes.ts";
 import redis from "../config/redis.config.ts";
 import { errorHandler } from "../shared/middleware/globalError.middleware.ts";
 import { requestLogger } from "../shared/middleware/requestLogger.ts";
+import { csrfProtection } from "../shared/middleware/csrf.middleware.ts";
 import { logger } from "../shared/logger.ts";
 
 export interface ReadinessProbes {
@@ -80,6 +81,7 @@ export function createApp(
     }),
   );
   app.use(cookieParser());
+  app.use(csrfProtection);
   app.use(express.json());
   app.use(requestLogger);
 
