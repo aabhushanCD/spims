@@ -140,11 +140,11 @@ Source: `server/src/modules/purchase/model/purchaseOrder.model.ts`
 | `expectedDeliveryDate` | Date | O | Used for supplier delay; missing value can break reorder math |
 | `invoiceNumber` | String | R | Supplier invoice identity |
 | `invoiceFile` | String | O | No upload mechanism |
-| `totalAmount` | Number | R | Sum of `quantity * purchasePrice`; VAT/discount not applied |
+| `totalAmount` | Number | R | `taxable + VAT`, where `taxable = subtotal − discount`; persisted on recalculation |
 | `receivedDate` | Date | O | Set when received |
-| `status` | String | R, D `pending`, enum | |
-| `VAT` | Number | D 13 | Stored as a percentage, never used in totals |
-| `discount` | Number | D 0 | Stored, never used in totals |
+| `status` | String | R, D `pending`, enum | Client cannot set it on create |
+| `VAT` | Number | D 13 | Percentage (0–100), applied to the taxable subtotal |
+| `discount` | Number | D 0 | Absolute amount, applied to the subtotal |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
 There is no PO number field; `CounterRepository.generatePurchaseOrderNumber` is unused.
@@ -264,6 +264,7 @@ Source: `server/src/modules/sales/model/sales.model.ts`
 | `quantity` | Number | R | Units taken from this batch |
 | `returnedQuantity` | Number | D 0 | Incremented by returns |
 | `unitPrice` | Number | R | Batch `sellingPrice` at sale time |
+| `purchasePrice` | Number | O | Cost snapshot at sale time; legacy items fall back to the batch price |
 | `discount` | Number | R | Absolute line discount, not a percentage |
 | `totalPrice` | Number | R | `unitPrice * quantity - discount` (VAT-exclusive) |
 | `createdAt`, `updatedAt` | Date | timestamps | |
@@ -277,12 +278,12 @@ Source: `server/src/modules/sales/model/return.model.ts`
 | Field | Type | Flags | Notes |
 |---|---|---|---|
 | `salesId` | ObjectId → `Sales` | R | |
-| `returnNumber` | String | R | `RET-000001`; not unique in DB |
-| `status` | String | D `PENDING`, enum | Service writes `COMPLETED` immediately |
+| `returnNumber` | String | R, unique | `RET-000001`; unique index |
+| `status` | String | D `PENDING`, enum | `PENDING → APPROVED → COMPLETED`, plus `REJECTED`/`CANCELLED` |
 | `returnReason` | String | R | |
 | `returnedBy` | ObjectId → `User` | R | |
 | `returnDate` | Date | R | Must not precede sale date |
-| `refundAmount` | Number | D 0 | Excludes VAT |
+| `refundAmount` | Number | D 0 | Includes VAT; creation stores a quote, completion the final amount |
 | `returnItems` | embedded array | | See below |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
@@ -294,7 +295,7 @@ Source: `server/src/modules/sales/model/return.model.ts`
 | `quantity` | Number | R |
 | `unitPrice` | Number | R |
 | `discount` | Number | R |
-| `VAT` | Number | **R** (never populated by the service) |
+| `VAT` | Number | **R** (line VAT amount) |
 | `medicineId` | ObjectId → `Medicine` | O |
 | `batchId` | ObjectId → `Batch` | O |
 | `refundAmount` | Number | R |
@@ -414,12 +415,12 @@ No timestamps.
 
 ## 9. Notable schema-level risks
 
-1. `Inventory` lacks a unique index on `medicineId`; concurrent `createInventory` calls can create duplicates.
+1. `Inventory.medicineId` is unique (Phase 2).
 2. `SalesItem.salesId` and `Return.salesId` are unindexed, making sale detail and return creation collection scans as data grows.
-3. `Return.returnNumber` is not unique despite being generated sequentially.
-4. `Return.returnItems.VAT` is required but never written; the update path bypasses validators.
+3. `Return.returnNumber` has a unique index.
+4. `Return.returnItems.VAT` is required and populated by the service.
 5. `Batch.isActive` now allows positive stock for active batches; inactive batches still require zero.
-6. `PurchaseOrder.VAT` and `PurchaseOrder.discount` are stored but never applied to `totalAmount`.
+6. `PurchaseOrder.VAT` and `discount` are applied to and persisted in `totalAmount`.
 7. `InventoryMovement.batchId` is optional in both the schema and the service; aggregate-only operations omit it.
 8. `Supplier.reliabilityScore` is never computed; smart reorder computes reliability on the fly instead.
 9. `Sales.status` includes `CANCELLED` and `PENDING`, but no code path sets either after creation.

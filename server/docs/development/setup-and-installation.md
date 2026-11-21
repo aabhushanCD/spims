@@ -41,6 +41,7 @@ CLIENT_URL=http://localhost:5173
 PORT=3000
 ALLOWED_ORIGINS=["http://localhost:5173","http://localhost:5174"]
 UPSTASH_REDIS_REST_URL=redis://127.0.0.1:6379
+REPORTING_TIMEZONE=Asia/Kathmandu
 ```
 
 See [Environment variables](environment-variables.md) for all variables and caveats.
@@ -153,7 +154,7 @@ Manual smoke tests:
 3. Create catalog + supplier + purchase order.
 4. Approve and receive; verify batch and inventory records.
 5. Create a sale; verify batch deduction, movement rows, and VAT totals.
-6. Create a return; verify the movement row uses `referenceType: SALES_RETURN` (condition semantics are still Phase 4).
+6. Create a return, approve it, complete it; verify the movement row uses `referenceType: SALES_RETURN`, the refund includes VAT, and the sale status updates.
 7. `GET /api/dashboard`.
 8. Open `/ws` with the cookie and trigger an InApp notification.
 

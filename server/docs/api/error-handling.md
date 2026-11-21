@@ -168,12 +168,12 @@ Express 5 would forward rejected async handlers automatically, but the code does
 | Notification per-recipient dispatch | Any error marks the recipient `Failed` and stores a truncated error; transient failures are retried |
 | `AuthService.registerUser` | Mongoose errors propagate |
 | Cron jobs | Catch and `console.error`; the `BackgroundJob` record is marked failed via `runJob` |
-| Return GOOD path | Movement enum mismatch fixed; returns still omit `returnItems.VAT` (Phase 4) |
-| Dashboard repository `getExpiringSoonCount` | Queries a non-existent path, returns 0 silently |
+| Return GOOD path | Fixed: approval workflow, VAT-inclusive refunds, one movement per line |
+| Dashboard expiry count | Fixed: sourced from the batch repository |
 
 ## 8. Return-flow movement reference
 
-`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine`. `InventoryMovement.referenceType` includes `SALES_RETURN`, so the GOOD path cannot fail enum validation. GOOD returns now restore the original batch; damaged/expired/opened returns write one movement and no stock. The remaining return defects are VAT refunds, persisted `returnItems.VAT`, and the approval/status flow (Phase 4).
+`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine` at completion. `InventoryMovement.referenceType` includes `SALES_RETURN`, so the GOOD path cannot fail enum validation. GOOD returns restore the original batch; damaged/expired/opened returns write one movement and no stock. VAT is included in the refund and persisted per line, and only `APPROVED` returns can be completed.
 
 Source: `server/src/modules/sales/services/return.service.ts`, `server/src/modules/inventory/services/inventory.service.ts`, `server/src/modules/inventory/model/inventoryMovement.model.ts`
 

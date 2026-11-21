@@ -143,18 +143,30 @@ sequenceDiagram
   API->>R: createReturn
   R->>DB: transaction start
   R->>DB: load sale + items
+  R->>DB: sum outstanding PENDING/APPROVED quantities
   R->>DB: counter -> RET number
-  R->>DB: insert Return PENDING
-  loop each line
-    R->>R: validate quantity
-    R->>I: returnMedicine(condition)
-    I->>DB: stock update / movements
-    R->>DB: increment returnedQuantity
-  end
-  R->>DB: update Return COMPLETED + refund
-  R->>DB: update Sale status
+  R->>DB: insert Return PENDING + VAT-inclusive quote
   R->>DB: commit
   API-->>Staff: 201 return
+
+  Manager->>API: PATCH /returns/:id/approve
+  API->>R: approveReturn
+  R->>DB: PENDING -> APPROVED
+
+  Staff->>API: PATCH /returns/:id/complete
+  API->>R: completeReturn
+  R->>DB: transaction start
+  R->>DB: load sale + items, revalidate quantities
+  loop each line
+    R->>I: returnMedicine(condition)
+    I->>DB: stock update / one movement
+    R->>DB: increment returnedQuantity
+  end
+  R->>DB: recompute refund + line VAT
+  R->>DB: update Return COMPLETED
+  R->>DB: update Sale status
+  R->>DB: commit
+  API-->>Staff: 200 return
 ```
 
 Behavior by condition:
@@ -166,7 +178,9 @@ Behavior by condition:
 | EXPIRED | Writes off; no stock restored |
 | OPENED | Writes off; no stock restored |
 
-Each line writes exactly one `RETURN` movement. The remaining Phase 4 work is VAT refunds, persisted `returnItems.VAT`, and the approval/status flow. See [Returns](../modules/returns.md).
+Creation moves no stock. Completion applies stock and writes exactly one
+`RETURN` movement per line. Refunds include 13% VAT. See
+[Returns](../modules/returns.md).
 
 ## 5. Expiry and disposal
 
@@ -264,7 +278,7 @@ Cron uses server-local time. There is no timezone configuration.
 | Receipt validation failure | PO still approved, no batches | Fix payload, retry |
 | Receipt DB failure | Transaction abort | Retry |
 | Disposal aggregate failure | Batch zeroed, aggregate not reduced | Manual reconciliation |
-| Return condition/VAT defects | Return saved with current (incorrect) semantics | Phase 4 remediation |
+| Return condition/VAT defects | Fixed in Phase 4 (approval workflow, VAT refund, one movement per line) | — |
 | SMTP failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |
 | Permanent SMTP 5xx | Recipient `Failed`, error stored | No retry |
 | SMS webhook failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |

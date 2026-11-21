@@ -117,20 +117,33 @@ flowchart TB
 
 1. Starts a transaction.
 2. Loads the sale and its items.
-3. For each item, computes `restorable = quantity - returnedQuantity`.
-4. If `restorable > 0`, calls `increaseStock` with the original `batchId`; this restores the batch, syncs the aggregate, and writes one `RETURN` movement.
-5. Deletes each sale item and the sale.
+3. Rejects with `409` if the sale has `PENDING`, `APPROVED`, or `COMPLETED`
+   returns (prevents orphaned return records).
+4. For each item, computes `restorable = quantity - returnedQuantity`.
+5. If `restorable > 0`, calls `increaseStock` with the original `batchId`; this restores the batch, syncs the aggregate, and writes one `RETURN` movement.
+6. Deletes each sale item and the sale.
 
 Fully returned items are deleted without a stock change. If a batch was deleted after it sold out, restoration fails with 404.
 
 ### SaleItemService
 
-`getById`, `getBySalesId`, `getAll`, and `update({unitPrice, discount})`. The update is intended for corrections only and does not recompute the parent sale totals.
+`getById`, `getBySalesId`, `getAll`, and `update({unitPrice, discount})`.
+
+The update is an admin correction and runs in a transaction:
+
+1. Rejects a line with `returnedQuantity > 0` (`409`).
+2. Recomputes `totalPrice = unitPrice × quantity − discount`.
+3. Derives the invoice-level discount as
+   `sale.discount − sum(existing line discounts)` so it is preserved.
+4. Recomputes the parent `subTotal`, `discount`, `VAT`, and `totalAmount`.
+5. Rejects a discount larger than the line total or a negative taxable amount
+   (`400`).
 
 ## 7. Models
 
 - `Sales`: invoice, customer, totals, payment method, cashier, sale date, status.
-- `SalesItem`: one row per batch allocation, with `returnedQuantity`.
+- `SalesItem`: one row per batch allocation, with `returnedQuantity` and a
+  `purchasePrice` cost snapshot for stable historical COGS.
 - `Counter`: sequence storage.
 - `Return`: see [Returns](returns.md).
 
@@ -145,7 +158,8 @@ See [Schema and relationships](../database/schema-and-relationships.md#6-sales-a
 - `saleDate`: coerced date.
 - `discount`: number ≥ 0.
 - `items`: min 1.
-- Per item: `medicineId`, `batchId` (both ObjectIds), `quantity` positive integer, `discountPercentage` ≥ 0.
+- Per item: `medicineId` ObjectId, optional `batchId` ObjectId, `quantity`
+  positive integer, `discountPercentage` 0–100.
 
 `updateSaleSchema` is wired to `PATCH /sales/:id` and accepts only `customerName` / `paymentMethod`, with at least one field required. `updateSaleItemSchema` accepts `unitPrice` / `discount`, also with at least one field required. ObjectId params are validated for sale, sale-item, and return routes.
 
@@ -180,7 +194,10 @@ Sales.discount = invoiceDiscount + lineDiscounts
 - Client-supplied prices are ignored; batch `sellingPrice` is used.
 - VAT is applied after all discounts.
 - `SalesItem` totals are VAT-exclusive.
-- There is no rounding until VAT; floating-point noise is possible in subtotal and line values.
+- Line totals, line discounts, and sale totals are rounded to two decimals.
+- `invoiceDiscount` cannot exceed `subtotal - lineDiscounts`; a larger value
+  returns `400` so taxable can never go negative.
+- `batchId` is accepted for older clients but is not used; FEFO chooses batches.
 
 ### Stock
 
@@ -220,7 +237,7 @@ Request:
   "saleDate": "2026-02-10T10:30:00.000Z",
   "discount": 25,
   "items": [
-    { "batchId": "ignored", "medicineId": "665f...", "quantity": 3, "discountPercentage": 5 }
+    { "medicineId": "665f...", "quantity": 3, "discountPercentage": 5 }
   ]
 }
 ```
@@ -243,12 +260,14 @@ Sales.discount= 40
 |---|---|---|
 | Sale creation session leak | Already fixed (`createSale` ends the session in `finally`) | — |
 | No payment ledger/gateway | Needs decision | Phase 6 |
+| Historical COGS depends on the batch still existing | Fixed (cost snapshot on `SalesItem`; batch deletion blocked when referenced) | — |
 | No customer entity | Needs decision | Phase 6 |
 | No invoice PDF/print endpoint | Needs decision | Phase 6 |
 | Delete restores aggregate but not batches | Fixed (restores `quantity - returnedQuantity` to the original batch) | — |
-| Sale item correction does not recompute line or sale totals | Still open | Phase 4 |
-| Invoice discount is checked against the pre-line-discount subtotal, so taxable can go negative; `discountPercentage` has no upper bound | Still open | Phase 4 |
-| `batchId` required in request but ignored | Still open | Phase 4 |
+| Sale item correction does not recompute line or sale totals | Fixed (line + parent totals, transaction) | — |
+| Invoice discount can exceed the post-line-discount subtotal; `discountPercentage` unbounded | Fixed (`400` beyond the discounted subtotal; 0–100 cap) | — |
+| `batchId` required in request but ignored | Fixed (optional; FEFO chooses) | — |
+| Sale deletion orphans return records | Fixed (`409` while active/completed returns exist) | — |
 | No validation on update/delete | Already fixed (body and ObjectId param schemas) | — |
 | No idempotency key | Needs decision | Phase 5 |
 | No pagination/date filters | Still open | Phase 5 |

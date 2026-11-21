@@ -38,7 +38,7 @@ Base: `/api/dashboard`, roles: all three.
 | `/profit` | Gross profit and margin |
 | `/sales-comparison` | This month vs last month |
 | `/suppliers` | Active/inactive counts |
-| `/sales?year=` | Sales totals and monthly series |
+| `/sales?year=` | Sales totals, VAT, and monthly series for the year |
 | `/purchases` | Purchase totals and status counts |
 | `/inventory` | Value, health, low/out/expiring counts |
 | `/top-selling?limit=` | Top medicines by units |
@@ -70,45 +70,68 @@ BackgroundJobService, NotificationRecipientRepo
 | `getRecentActivity` | Latest `InventoryMovement` documents |
 | `getSystemHealth` | `IN_PROGRESS` jobs older than 60 minutes |
 | `getNotificationSummary` | Counts of `Failed` and `Pending` recipients |
-| `getProfitSummary` | `grossProfit = totalSales - totalPurchases`; margin percent |
+| `getProfitSummary` | COGS-based: net revenue − COGS; margin percent |
 | `getSalesComparison` | This month vs last month totals and percent change |
 | `getSupplierAnalytics` | Active/inactive supplier counts |
-| `getSalesAnalytics` | Total sales + monthly series |
-| `getPurchaseAnalytics` | Total purchases + status counts |
-| `getInventoryAnalytics` | Value, health object, low/out/expiring counts |
+| `getSalesAnalytics` | Requested-year gross sales, VAT, and monthly series |
+| `getPurchaseAnalytics` | Current-month purchases + status counts |
+| `getInventoryAnalytics` | Value, health object, low/out/expiring counts (batches) |
 | `getTopSellingMedicines` | Aggregation over sale items |
 | `getFullDashboard` | Cache-aside bundle of eight calls |
 
 ## 7. Metric definitions and caveats
 
+### Reporting timezone
+
+All reporting periods and month grouping use `REPORTING_TIMEZONE`
+(default `Asia/Kathmandu`). Dates are stored as UTC instants; boundaries are
+calculated in the configured zone by `shared/utils/reportingPeriod.ts`.
+`REPORTING_TIMEZONE` is validated at boot.
+
 ### Total sales
 
-`SalesRepo.getTotalSales` sums `totalAmount` for sales with `createdAt` in the **current calendar month** (server-local boundaries).
-
-Caveats:
-
-- It uses `createdAt`, not `saleDate`, even though clients supply `saleDate`.
-- It ignores `status`; cancelled/pending sales would be included if they existed.
-- `/dashboard/sales` uses the same current-month total, not the requested year.
+`SalesRepo.getSalesTotalsInRange(start, endExclusive)` sums `totalAmount` and
+`VAT` for sales with `saleDate` in the half-open period. Cancelled sales are
+excluded. `getTotalSalesInRange` returns the gross component.
 
 ### Monthly sales series
 
-`SalesRepo.getSalesByMonth(monthBack, year)`:
+`SalesRepo.getSalesByMonth({ year, months, timeZone, now })`:
 
-- Ignores both parameters.
-- Matches `saleDate` from January 1 of the current year to January 1 of next year.
-- Groups by month and returns entries from January through the current month only.
-- Uses `$month` for grouping, which is UTC by default, while other date filters are built with server-local `new Date(year, month, ...)` boundaries. Month edges can therefore differ from the server timezone.
-
-Consequence: future months and previous years are not returned, and the `year` query parameter has no effect.
+- Matches `saleDate` inside the requested calendar year in `timeZone`.
+- Groups by `$month` using the same timezone.
+- Always starts in January. Past years return 12 entries; the current year
+  returns January..current month; future years return `[]`.
+- `months` caps the number of entries.
 
 ### Total purchases
 
-`PurchaseOrderRepo.getTotalPurchases` sums `totalAmount` for non-cancelled POs with `createdAt` in the current month. It includes `pending` and `approved` orders, not just received ones.
+`PurchaseOrderRepo.getTotalPurchasesInRange(start, endExclusive)` sums
+`totalAmount` for non-cancelled POs whose `orderDate` is in the period. It
+includes `pending` and `approved` commitments, not only received orders.
+Historical POs created before Phase 4 may have VAT-exclusive totals.
 
 ### Gross profit
 
-`totalSales - totalPurchases` for the current month. This is **not** COGS-based; it mixes sales revenue (VAT-inclusive) with purchase order commitments (VAT-exclusive, not yet received necessarily). Treat it as a rough indicator only.
+`DashboardService.getProfitSummary` is COGS-based:
+
+```text
+netRefunds  = refunds − refund VAT
+netRevenue  = (gross sales − sales VAT) − netRefunds
+grossProfit = netRevenue − COGS
+margin %    = grossProfit / netRevenue
+```
+
+- COGS = `Σ max(quantity − GOOD-returned quantity, 0) × cost` for sales in the
+  period.
+- Only `GOOD` returns reverse COGS because their stock re-enters sellable
+  inventory. `DAMAGED`/`EXPIRED`/`OPENED` units are write-offs, so their cost
+  stays in COGS.
+- Cost uses the `SalesItem.purchasePrice` snapshot taken at sale time; legacy
+  items without a snapshot fall back to `Batch.purchasePrice`.
+- Refunds count only `COMPLETED` returns whose `returnDate` is in the period.
+- Legacy completed returns without embedded VAT are treated as VAT-exclusive
+  refunds.
 
 ### Inventory value
 
@@ -124,13 +147,14 @@ Consequence: future months and previous years are not returned, and the `year` q
 
 ### Expiring soon
 
-The summary and expiry endpoints use `MedicineBatchRepo.getExpiringSoonCount(30)`:
+All expiry metrics use `MedicineBatchRepo.getExpiringSoonCount(30)`:
 
 ```text
 expiryDate between now and now+30d AND quantityRemaining > 0
 ```
 
-`InventoryRepo.getExpiringSoonCount` (a different method that queries a non-existent `batches` array path) always returns 0 and is only reached through `getInventoryHealth`.
+The broken `InventoryRepo.getExpiringSoonCount`/`getInventoryHealth` pair was
+removed; `/dashboard/inventory` now sources the count from the batch repository.
 
 ### Batch count
 
@@ -142,17 +166,17 @@ Only `PENDING` recommendations; high confidence is `confidenceScore >= 80` (note
 
 ### Top selling
 
-Aggregation over all `SalesItem` rows, all time:
+Aggregation over all `SalesItem` rows, all time, excluding cancelled sales:
 
 ```text
-group by medicineId:
-  totalQuantitySold = sum(quantity)
-  totalRevenue      = sum(totalPrice)
+netQuantity       = quantity − returnedQuantity
+totalQuantitySold = sum(netQuantity)            // fully returned rows dropped
+totalRevenue      = sum(totalPrice × netQuantity / quantity)
 sort by totalQuantitySold desc
 limit N
 ```
 
-Returned quantities include returned items; `returnedQuantity` is not subtracted. Revenue is VAT-exclusive line revenue.
+Revenue is VAT-exclusive line revenue, prorated for returned units.
 
 ### Recent activity
 
@@ -180,9 +204,9 @@ The source comment says "2 min", but the constant is `60`. There is no invalidat
 
 ## 9. Validation
 
-- `limit`: positive number, else 400.
-- `year`: numeric, else 400; negative or fractional years are accepted.
-- No date-range parameters exist.
+- `limit`: positive whole number, else 400.
+- `year`: whole number 2000–2100, else 400.
+- No arbitrary date-range parameters exist (only a calendar year).
 
 ## 10. Middleware
 
@@ -230,17 +254,19 @@ sequenceDiagram
 
 | Issue | Status | Phase |
 |---|---|---|
-| `year`/`monthBack` parameters ignored | Still open | Phase 4 |
-| Revenue trend limited to current year | Needs decision | Phase 6 |
-| Sales total uses `createdAt` instead of `saleDate` | Still open | Phase 4 |
-| Profit not COGS-based | Still open | Phase 4 |
-| Returned units not excluded from top selling | Still open | Phase 4 |
-| `getInventoryHealth.expiringSoonCount` always 0 | Still open | Phase 4 |
-| No date-range analytics | Needs decision | Phase 6 |
+| `year` parameters ignored | Fixed (`year` selects the calendar year) | — |
+| Revenue trend limited to the current year | Fixed (any year 2000–2100) | — |
+| Sales total uses `createdAt` instead of `saleDate` | Fixed | — |
+| Profit not COGS-based | Fixed (net revenue − COGS) | — |
+| Returned units not excluded from top selling | Fixed | — |
+| `getInventoryHealth.expiringSoonCount` always 0 | Fixed (batch repository) | — |
+| No timezone strategy | Fixed (`REPORTING_TIMEZONE`, default `Asia/Kathmandu`) | — |
+| Refunds recognised by `returnDate`, not completion date | Accepted limitation | Phase 6 |
+| Legacy sale items (pre-snapshot) still use the current batch price for COGS | Accepted limitation | Phase 6 |
+| No arbitrary date-range analytics | Needs decision | Phase 6 |
 | No export (CSV/PDF) | Needs decision | Phase 6 |
 | Dashboard cache not invalidated | Still open | Phase 5 |
 | No per-cashier or per-category breakdown | Needs decision | Phase 6 |
-| No timezone strategy | Needs decision | Phase 4 |
 
 ## Related documents
 

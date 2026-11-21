@@ -41,11 +41,11 @@ Base: `/api/purchases`, roles: all three. The router re-applies `verifyToken`.
 | POST | `/` | Create PO + items |
 | GET | `/` | List POs |
 | GET | `/:id` | PO detail |
-| DELETE | `/:id` | Hard delete |
+| DELETE | `/:id` | Delete PO + items (guarded) |
 | PATCH | `/:id/cancel` | Cancel |
 | PATCH | `/:id/approve` | Approve |
 | POST | `/:id/receive` | Receive goods |
-| PATCH | `/:id/recalculate` | Compute total (no write) |
+| PATCH | `/:id/recalculate` | Recompute and persist total |
 | GET | `/:id/items` | List items |
 | POST | `/:id/items` | Add item |
 | PATCH | `/:id/items/:itemId` | Update item |
@@ -68,17 +68,17 @@ Full contracts: [endpoints.md](../api/endpoints.md#purchases).
 
 | Method | Behavior |
 |---|---|
-| `createPurchaseOrder` | Validates supplier; computes `totalAmount`; creates PO and items in a transaction |
+| `createPurchaseOrder` | Validates supplier; forces `pending`; computes VAT/discount-aware `totalAmount`; creates PO and items in a transaction. A client `status` is stripped by the schema. |
 | `getPurchaseOrders` | List with supplier company name |
 | `getPurchaseOrderById` | Loads supplier, items, computes per-item subtotal, shapes response |
-| `deletePurchaseOrder` | Hard delete; no status check; items remain |
+| `deletePurchaseOrder` | Transactional; blocks received orders and orders with batches; cascades items |
 | `cancelPurchaseOrder` | Rejects if already received; sets `cancelled` |
 | `approvePurchaseOrder` | Requires `pending` and at least one item; sets `approved` |
 | `receivePurchaseOrder` | Full validation + batch creation + sync + `received` |
-| `addPurchaseOrderItem` | Pending-only, duplicate medicine check, then recalculates |
-| `updatePurchaseOrderItem` | Pending-only, ownership check; **does not recalculate** |
-| `removePurchaseOrderItem` | Pending-only, ownership check, recalculates |
-| `recalculateTotals` | Computes and **returns** the total without persisting |
+| `addPurchaseOrderItem` | Pending-only, duplicate medicine check, then recalculates and persists |
+| `updatePurchaseOrderItem` | Pending-only, ownership check, then recalculates and persists |
+| `removePurchaseOrderItem` | Pending-only, ownership check, then recalculates and persists |
+| `recalculateTotals` | Computes and **persists** `totalAmount`; returns `{ subtotal, discount, taxable, vatAmount, totalAmount }` |
 | `getAllPurchaseOrderItems` | List for a PO |
 | `getPurchaseOrdersBySupplierId` | Supplier existence then list |
 
@@ -93,7 +93,7 @@ See [Schema and relationships](../database/schema-and-relationships.md#4-supply)
 
 | Schema | Applied to | Notes |
 |---|---|---|
-| `createPurchaseOrderSchema` | `POST /purchases` | Dates are optional; allows client `status`; requires at least one item |
+| `createPurchaseOrderSchema` | `POST /purchases` | Dates are optional; rejects/strips client `status`; VAT 0–100; requires at least one item |
 | `createPurchaseOrderItemSchema` | `POST /:id/items` | No `purchaseOrderId` in body; the path supplies it |
 | `updatePurchaseOrderItemSchema` | `PATCH /:id/items/:itemId` | Optional quantity/price; requires at least one field |
 | `receivePurchaseOrderSchema` | `POST /:id/receive` | Validates items, dates, quantities, and duplicate medicines at runtime |
@@ -108,10 +108,12 @@ See [Schema and relationships](../database/schema-and-relationships.md#4-supply)
 ### Creation
 
 1. Supplier must exist.
-2. `totalAmount = sum(quantity * purchasePrice)`.
-3. VAT and discount are stored but ignored in the total.
-4. Items are created with the PO in one transaction.
-5. The status supplied by the client is stored; the schema defaults to `pending`. A client can therefore create a PO directly as `received` or `cancelled`, bypassing the approve/receive workflow.
+2. `subtotal = sum(quantity * purchasePrice)`.
+3. `taxable = subtotal - discount`; `VAT` is a percentage applied to `taxable`.
+4. `totalAmount = taxable + VAT amount`, rounded to two decimals.
+5. A discount larger than the subtotal returns `400`.
+6. Items are created with the PO in one transaction.
+7. Every PO starts `pending`; a client-supplied `status` is ignored.
 
 ### Status transitions
 
@@ -126,8 +128,9 @@ stateDiagram-v2
   cancelled --> [*]
 ```
 
-- `received` cannot be cancelled.
-- `pending` POs can be deleted outright.
+- `received` cannot be cancelled or deleted.
+- `pending`, `approved`, and `cancelled` POs can be deleted only when no batch
+  references them; their items are deleted in the same transaction.
 - There is no reopen or edit-after-approval.
 
 ### Item rules
@@ -135,7 +138,8 @@ stateDiagram-v2
 - Add/update/remove only while `pending`.
 - Duplicate medicine in a PO is rejected on add.
 - Item must belong to the PO.
-- Add/remove recalculates the stored `totalAmount`; update does not, so editing quantity/price leaves the total stale.
+- Add/update/remove recalculate and persist `totalAmount` in the same
+  transaction as the item change.
 
 ### Receiving
 
@@ -195,19 +199,19 @@ sequenceDiagram
 
 | Issue | Status | Phase |
 |---|---|---|
-| Client-supplied status can bypass the workflow | Still open | Phase 4 |
+| Client-supplied status can bypass the workflow | Fixed (always starts `pending`) | — |
 | Batch creation was blocked by `isActive` validator | Already fixed (receiving can complete) | — |
-| VAT/discount not applied | Still open | Phase 4 |
-| `recalculate` does not persist | Still open | Phase 4 |
-| Update item leaves total stale | Still open | Phase 4 |
+| VAT/discount not applied | Fixed (VAT % + absolute discount) | — |
+| `recalculate` does not persist | Fixed (persists `totalAmount`) | — |
+| Update item leaves total stale | Fixed (recalculates on add/update/remove) | — |
 | `receive` body unvalidated at runtime | Already fixed (runtime receive schema) | — |
-| Hard delete orphans items and batches | Still open | Phase 4 |
+| Hard delete orphans items and batches | Fixed (blocks received/batched orders, cascades items) | — |
 | No partial receiving | Needs decision | Phase 6 |
 | No PO numbering (counter unused) | Still open | Phase 6 |
 | No invoice file upload | Needs decision | Phase 6 |
 | No purchase returns | Needs decision | Phase 6 |
 | No approval audit (who/when) | Needs decision | Phase 6 |
-| `PurchaseOrderItemRepo.create` saves twice with a session | Still open | Phase 4 |
+| `PurchaseOrderItemRepo.create` saves twice with a session | Fixed (single save) | — |
 | No index on status/supplier/date | Still open | Phase 5 |
 
 ## Related documents

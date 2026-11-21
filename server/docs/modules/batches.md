@@ -36,7 +36,7 @@ Base: `/api/batches`, roles: all three. Body, param, and query schemas are appli
 | GET | `/:id` | Get batch |
 | POST | `/` | Create batch |
 | PATCH | `/:id` | Update batch |
-| DELETE | `/:id` | Delete a zero-stock batch |
+| DELETE | `/:id` | Delete a zero-stock batch with no sales history |
 | GET | `/medicine/:medicineId` | First batch for medicine |
 | GET | `/medicine/:medicineId/available` | Sellable batches |
 | GET | `/expired` | Batches past expiry date |
@@ -69,7 +69,7 @@ Full contracts: [endpoints.md](../api/endpoints.md#batches).
 | `getBatchById` / `getAllBatches` | Reads. Missing batch throws `AppError.notFound` → 404 |
 | `getAvailableBatches` | `quantityRemaining > 0`, `expiryDate > now`, and `!isExpired` |
 | `updateBatch` | Field whitelist; validates dates and quantity; quantity changes go through `setBatchStock`; expiry edits resync the aggregate |
-| `deleteBatch` | Rejects batches with `quantityRemaining > 0` |
+| `deleteBatch` | Rejects batches with `quantityRemaining > 0` and batches referenced by sale items |
 | `deductQuantity` | Delegates to `StockMutationService.decreaseBatchStock` |
 | `increaseQuantity` | Delegates to `StockMutationService.increaseBatchStock`; rejects above `quantityReceived` |
 | `adjustStock` | Delegates to `StockMutationService.setBatchStock`; absolute set within `quantityReceived` |
@@ -212,7 +212,7 @@ sequenceDiagram
 | No transaction around disposal | Fixed | — |
 | No request validation | Already fixed (body/params/query schemas) | — |
 | Deletion allowed with stock | Fixed (409 when stock remains) | — |
-| Zero-stock batch can be deleted while sale items/movements reference it | Still open | Phase 5/6 |
+| Zero-stock batch can be deleted while sale items/movements reference it | Fixed for sale items (deletion blocked); movement-only history can still be deleted | — / Phase 5 |
 | `markExpiredBatches` does not sync aggregates | Known limitation; next mutation/sync corrects it | Phase 5 |
 
 ## Related documents

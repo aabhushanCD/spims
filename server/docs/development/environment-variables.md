@@ -30,6 +30,7 @@ All variables are read via `process.env`. No values are reproduced here.
 | `SMTP_FROM` | No | `email.provider.ts` | From address | Defaults to `SMTP_USER` or `no-reply@spims.local` |
 | `SMS_WEBHOOK_URL` | For SMS | `sms.provider.ts` | SMS provider endpoint | Missing value makes SMS delivery fail non-retryably |
 | `SMS_API_KEY` | No | `sms.provider.ts` | Bearer token for the SMS webhook | Sent only when set |
+| `REPORTING_TIMEZONE` | No | `config/reporting.config.ts` | IANA timezone for reporting month/year boundaries and grouping | Default `Asia/Kathmandu`; invalid values fail fast at boot |
 
 ## 2. Example template (names only)
 
@@ -58,6 +59,7 @@ SMTP_SECURE=
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
+REPORTING_TIMEZONE=Asia/Kathmandu
 SMS_WEBHOOK_URL=
 SMS_API_KEY=
 ```
@@ -80,6 +82,7 @@ SMS_API_KEY=
 | `UPSTASH_REDIS_REST_URL` | Redis URL for ioredis | `redis://host:6379` or `rediss://...` |
 | `SMS_WEBHOOK_URL` | HTTPS URL | `https://sms.example.com/send` |
 | `SMS_API_KEY` | Random string | Sent as `Authorization: Bearer <key>` |
+| `REPORTING_TIMEZONE` | IANA timezone name | `Asia/Kathmandu`, `UTC` |
 | `NODE_ENV` | `development` / `production` | unset in development |
 
 ## 4. Loading order and an order-dependent side effect
@@ -122,6 +125,7 @@ Status: **Implemented by import-order side effect**, not by a deliberate bootstr
 | Redis URL | Only by `ioredis`/`ping`; failure exits |
 | SMTP | `assertEmailConfig()` requires `SMTP_HOST` in production; development falls back to the JSON transport |
 | SMS | Not validated at startup; missing `SMS_WEBHOOK_URL` fails each SMS recipient non-retryably |
+| `REPORTING_TIMEZONE` | `assertReportingConfig()` validates the IANA name at startup; defaults to `Asia/Kathmandu` |
 | `NODE_ENV` | Not validated; any value other than `production` behaves as development |
 
 ## 7. Recommended additions (not implemented)

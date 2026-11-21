@@ -2,18 +2,20 @@
 
 ## 1. Purpose
 
-Record customer returns against completed sales, restore or write off stock depending on condition, and compute a refund.
+Record customer returns against completed sales, approve them, restore or write
+off stock depending on condition, and compute a VAT-inclusive refund.
 
 Purchase returns and supplier returns are **not implemented**.
 
 ## 2. Responsibilities
 
-- Validate the sale and returned quantities.
+- Validate the sale and returned quantities, including other open requests.
 - Generate `RET-nnnnnn` numbers.
-- Adjust stock and write movements.
-- Increment `SalesItem.returnedQuantity`.
-- Update sale status.
-- Store embedded return line details and refund amount.
+- Hold a `PENDING` refund quote without moving stock.
+- Approve, reject, cancel, or complete a return.
+- On completion: adjust stock, write movements, increment
+  `SalesItem.returnedQuantity`, and update sale status.
+- Store embedded return line details, VAT, remarks, and refund amount.
 
 ## 3. Structure
 
@@ -30,14 +32,18 @@ modules/sales/
 
 ## 4. Routes
 
-Base: `/api/returns`, roles: all three.
+Base: `/api/returns`, mount roles: all three.
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/` | Create return |
-| GET | `/` | List |
-| GET | `/:id` | Detail |
-| PATCH | `/:id` | Update reason only |
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| POST | `/` | all three | Create a `PENDING` return + quote |
+| GET | `/?status=` | all three | List, optional status filter |
+| GET | `/:id` | all three | Detail |
+| PATCH | `/:id` | all three | Update reason while `PENDING` |
+| PATCH | `/:id/approve` | owner, inventory_manager | `PENDING → APPROVED` |
+| PATCH | `/:id/reject` | owner, inventory_manager | `PENDING → REJECTED` |
+| PATCH | `/:id/cancel` | all three | `PENDING → CANCELLED` |
+| PATCH | `/:id/complete` | all three | `APPROVED → COMPLETED`; applies stock + refund |
 
 No DELETE. Full contracts: [endpoints.md](../api/endpoints.md#returns).
 
@@ -45,43 +51,57 @@ No DELETE. Full contracts: [endpoints.md](../api/endpoints.md#returns).
 
 `ReturnController`:
 
-- Requires an authenticated user (`performedBy`) from the JWT.
-- Checks that `items` is a non-empty array.
+- Requires an authenticated user for create and complete.
 - Forwards `salesId`, `returnReason`, `returnedBy`, `returnDate`, and `items`.
 - Ignores a `performedBy` field in the body.
-- PATCH requires `returnReason` and rejects an empty update with 400.
-
-The controller does **not** invoke `CreateReturnSchema`; the schema file is unused.
+- PATCH reason rejects an empty update with `400`.
+- Status actions require only the validated return id.
 
 ## 6. Service
 
-`ReturnService.createReturn` (`modules/sales/services/return.service.ts`):
+### Lifecycle
 
 ```mermaid
-flowchart TB
-  A["createReturn(dto)"] --> B{"items empty?"}
-  B -->|yes| C["400"]
-  B -->|no| D["merge duplicate saleItemId lines"]
-  D --> E["transaction"]
-  E --> F["load sale; 404 if absent"]
-  F --> G["load sale items; build map"]
-  G --> H["generate RET number"]
-  H --> I["returnDate >= saleDate?"]
-  I -->|no| J["400"]
-  I -->|yes| K["create Return PENDING, empty items"]
-  K --> L["for each line"]
-  L --> M["validate saleItemId belongs to sale"]
-  M --> N["validate qty <= sold - returned"]
-  N --> O["returnMedicine(...condition...)"]
-  O --> P["increment returnedQuantity"]
-  P --> Q["compute refund line"]
-  Q --> L
-  L --> R["update Return: refund, COMPLETED, items"]
-  R --> S["update Sale: RETURNED or PARTIALLY_RETURNED"]
-  S --> T["commit"]
+stateDiagram-v2
+  [*] --> PENDING: create (quote only)
+  PENDING --> APPROVED: approve
+  PENDING --> REJECTED: reject
+  PENDING --> CANCELLED: cancel
+  APPROVED --> COMPLETED: complete (stock + refund)
+  REJECTED --> [*]
+  CANCELLED --> [*]
+  COMPLETED --> [*]
 ```
 
-Read methods are simple repository calls. `updateReturn` only updates `returnReason`.
+Invalid transitions return `409`. Missing returns return `404`.
+
+### `createReturn`
+
+1. Reject an empty item list.
+2. Start a transaction.
+3. Load the sale (`404` if absent) and its sale items.
+4. Validate `returnDate >= saleDate`.
+5. Sum `PENDING`/`APPROVED` quantities for the same sale items.
+6. Merge duplicate request lines by `saleItemId + condition`.
+7. For each line, validate
+   `quantity <= sold - returnedQuantity - outstanding`.
+8. Compute a refund quote, including VAT.
+9. Insert the return as `PENDING` with embedded lines.
+10. **No stock or `returnedQuantity` changes occur here.**
+
+### `completeReturn`
+
+1. Require `APPROVED`.
+2. Re-load sale items inside the transaction.
+3. Re-validate each line against current `returnedQuantity`.
+4. Call `InventoryService.returnMedicine` once per line.
+5. Increment `SalesItem.returnedQuantity`.
+6. Recompute the final refund from current sale-item values.
+7. Set the return to `COMPLETED` with final lines/VAT/refund.
+8. Set the sale to `RETURNED` or `PARTIALLY_RETURNED`.
+
+Read methods are simple repository calls. `updateReturn` only updates
+`returnReason` and only while `PENDING`.
 
 ## 7. Model
 
@@ -89,45 +109,67 @@ Read methods are simple repository calls. `updateReturn` only updates `returnRea
 
 Key points:
 
-- `returnNumber` is required but not unique in MongoDB.
-- `returnItems.VAT` is required in the schema but never written.
-- `returnItems.remarks` is accepted by the Zod schema but not persisted by the service.
+- `returnNumber` is **unique** (unique index).
+- `returnItems.VAT` is required and contains the VAT **amount** for the line.
+- `returnItems.remarks` is persisted.
+- `returnItems.discount` is the total discount attributed to the returned
+  quantity: the line-discount share plus the apportioned invoice-discount
+  share.
 - `returnItems.condition` default is `GOOD`.
+- Legacy completed returns may lack `VAT`; they remain readable and are treated
+  as having no refund VAT in reports.
 
 ## 8. Validation
 
-`CreateReturnSchema` defines:
+`CreateReturnSchema`:
 
 - `salesId` ObjectId
 - `returnReason` 3–500
 - `returnedBy` ObjectId
 - `returnDate` coerced date
-- `items` min 1, each with ObjectId `saleItemId`, positive integer `quantity`, `condition` enum, optional `remarks` ≤ 500
+- `items` min 1, each with ObjectId `saleItemId`, positive integer `quantity`,
+  `condition` enum, optional `remarks` ≤ 500
 - `performedBy` is intentionally absent; the controller supplies the JWT user
 
-`UpdateReturnSchema` requires a 3–500 character `returnReason`, and `returnIdParamSchema` validates the route id. All are wired to the routes.
+`ReturnListQuerySchema` accepts an optional status enum.
+`UpdateReturnSchema` requires a 3–500 character `returnReason`, and
+`returnIdParamSchema` validates the route id. All are wired to the routes.
 
 ## 9. Middleware
 
-`verifyToken` + `authorize` at `/api/returns`.
+`verifyToken` + `authorize(["owner","inventory_manager","pharmacist"])` at
+`/api/returns`. Approve/reject additionally require `owner` or
+`inventory_manager` at the route level.
 
 ## 10. Business rules
 
-1. Return quantity cannot exceed `quantity - returnedQuantity` for that sale item.
-2. Multiple return requests are allowed until fully returned.
-3. A sale becomes `RETURNED` only when every sale item is fully returned in this transaction's view; otherwise it becomes `PARTIALLY_RETURNED`.
+1. A request cannot exceed
+   `quantity - returnedQuantity - outstanding PENDING/APPROVED quantity`.
+2. Multiple completed returns are allowed until the line is fully returned.
+3. A sale becomes `RETURNED` only when every sale item is fully returned;
+   otherwise it becomes `PARTIALLY_RETURNED`.
 4. `returnDate` must not precede `saleDate`.
 5. Refund per line:
 
 ```text
-lineTotal          = unitPrice * quantity
-discountPerUnit    = saleItem.discount / saleItem.quantity
-refund             = lineTotal - discountPerUnit * quantity
+gross               = unitPrice × quantity
+lineDiscountShare   = saleItem.discount / saleItem.quantity × quantity
+netBeforeInvoice    = gross − lineDiscountShare
+invoiceDiscount     = sale.discount − Σ(all sale-item discounts)
+invoiceShare        = invoiceDiscount × netBeforeInvoice / Σ(all line net values)
+totalDiscountShare  = lineDiscountShare + invoiceShare
+net                 = gross − totalDiscountShare
+VAT                 = net × 13%
+refundAmount        = net + VAT
 ```
 
-6. VAT is **not** included in the refund, even though the original sale charged VAT.
-7. Stock handling depends on condition (table below).
-8. No return approval workflow is reachable: the record is created as `PENDING` but updated to `COMPLETED` in the same transaction.
+6. The refund includes VAT; `returnItems.VAT` stores the amount.
+7. A `PENDING` refund is a quote. Completion recomputes it from current
+   sale-item values.
+8. Invoice-level discounts are apportioned by returned net value, so total
+   refunds cannot exceed the net amount the customer paid.
+9. `DELETE /sales/:id` is blocked while a sale has `PENDING`, `APPROVED`, or
+   `COMPLETED` returns.
 
 ### Condition behavior
 
@@ -138,9 +180,9 @@ refund             = lineTotal - discountPerUnit * quantity
 | `EXPIRED` | Unchanged (write-off) | Unchanged | One `RETURN` |
 | `OPENED` | Unchanged (write-off) | Unchanged | One `RETURN` |
 
-Damaged, expired, and opened items are not returned to sellable stock. Each return line produces exactly one movement.
-
-The movement is attributed to the authenticated `performedBy` value, not the body-supplied `returnedBy` field. The remaining Phase 4 work is VAT refunds, persisted `returnItems.VAT`, a unique `returnNumber` index, and the approval/status flow.
+Damaged, expired, and opened items are not returned to sellable stock. Each
+return line produces exactly one movement at completion. Movement attribution
+uses the authenticated performer, not the body-supplied `returnedBy`.
 
 ## 11. Dependencies
 
@@ -160,38 +202,53 @@ Request:
   "returnedBy": "665f...",
   "returnDate": "2026-02-11T09:00:00.000Z",
   "items": [
-    { "saleItemId": "665f...", "quantity": 1, "condition": "GOOD" }
+    {
+      "saleItemId": "665f...",
+      "quantity": 3,
+      "condition": "GOOD",
+      "remarks": "Seal intact"
+    }
   ]
 }
 ```
 
-For a sale item with `quantity: 2`, `unitPrice: 100`, `discount: 10`:
+For a sale item with `quantity: 10`, `unitPrice: 100`, `discount: 50`:
 
 ```text
-discountPerUnit = 5
-refund          = 100 - 5 = 95
+gross         = 300
+discountShare = (50 / 10) × 3 = 15
+net           = 285
+VAT           = 37.05
+refund        = 322.05
 ```
 
-No VAT is added. The return is stored as `COMPLETED` with `refundAmount: 95`.
+The return is stored as `PENDING` with `refundAmount: 322.05`. After
+`approve` and `complete`, the batch/aggregate are restored (GOOD), the sale
+item's `returnedQuantity` increases by 3, and the return becomes `COMPLETED`.
+
+If the original sale also had an invoice-level discount, the line's
+proportional share of that discount is added to `discountShare`, reducing the
+refund accordingly.
 
 ## 13. Limitations and risks
 
 | Issue | Status | Phase |
 |---|---|---|
 | Purchase/supplier returns | Needs decision | Phase 6 |
-| Return approval/rejection flow (statuses exist but are unreachable) | Needs decision (implement or remove) | Phase 4 |
-| VAT refund | Still open | Phase 4 |
-| DAMAGED/EXPIRED/OPENED still restock sellable stock | Fixed (write-off only) | — |
-| GOOD return restores the aggregate but not the original batch | Fixed (restores the original batch and syncs) | — |
-| Damaged/expired/opened returns write duplicate movement rows | Fixed (one movement per return line) | — |
-| `returnItems.VAT` is required by the schema but never written | Still open | Phase 4 |
-| `SALES_RETURN` enum mismatch | Already fixed (enum widened) | — |
-| Return schema not wired | Already fixed (create/update/param validation) | — |
-| `remarks` discarded | Still open | Phase 4 |
+| Return approval/rejection flow | Implemented (`PENDING → APPROVED/REJECTED → COMPLETED`, plus `CANCELLED`) | — |
+| VAT refund | Implemented (line VAT persisted) | — |
+| DAMAGED/EXPIRED/OPENED restock sellable stock | Fixed (write-off only) | — |
+| GOOD return restores the original batch | Fixed | — |
+| Duplicate movement rows | Fixed (one movement per line) | — |
+| `returnItems.VAT` required but never written | Fixed | — |
+| `remarks` discarded | Fixed | — |
+| `returnNumber` not unique | Fixed (unique index) | — |
+| Invoice-level discount not apportioned to refunds | Fixed (apportioned by returned net value) | — |
+| Pending quotes can go stale if prices are corrected before completion | Final refund is recomputed at completion | — |
 | No return deletion/reversal | Needs decision | Phase 6 |
-| `returnNumber` not unique | Still open | Phase 4 |
 | No refund payment record | Needs decision | Phase 6 |
 | No restocking fee/partial refund policy | Needs decision | Phase 6 |
+| No pagination on the list | Still open | Phase 5 |
 
 ## Related documents
 

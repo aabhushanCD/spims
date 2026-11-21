@@ -42,7 +42,7 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the Phase 3 baseline: **46 server test files, 335 tests** plus **2 client
+As of the Phase 4 baseline: **58 server test files, 422 tests** plus **2 client
 test files, 17 tests**, all passing. Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -52,7 +52,10 @@ logic is:
 |---|---|---|
 | FEFO / stock allocation | `server/src/modules/inventory/services/inventory.service.ts` | ~62% |
 | Sales totals and VAT | `server/src/modules/sales/services/sales.service.ts` | ~78% |
+| Sale-item corrections | `server/src/modules/sales/services/saleItem.service.ts` | covered by unit tests |
 | Returns and refunds | `server/src/modules/sales/services/return.service.ts` | ~87% |
+| Purchase totals | `server/src/modules/purchase/utils/purchaseTotals.ts` | 100% |
+| Reporting periods | `server/src/shared/utils/reportingPeriod.ts` | covered by unit tests |
 | Reorder algorithm | `server/src/modules/smartReorder/utils/smartReorder.Calculatro.ts` | 100% |
 | Authentication | `server/src/modules/auth/services/auth.service.ts` | ~72% |
 | Role authorization | `server/src/shared/middleware/authorize.ts` | 100% |
@@ -79,23 +82,34 @@ covered by automated tests.
 | `batch.schema.test.ts` | Batch create/update, dates, ObjectIds, quantities, movement metadata, thresholds |
 | `inventory.schema.test.ts` | Phase 2 create contract, derived-field rejection, operation movement types |
 | `inventoryMovement.schema.test.ts` | All nine reference types, defaults, malformed ids |
-| `sales.schema.test.ts` | Item ObjectIds, editable sale fields, sale-item correction rules |
-| `return.schema.test.ts` | No body `performedBy`, id/condition validation, reason updates |
-| `purchase.schema.test.ts` | Optional dates, item body without `purchaseOrderId`, receive schema + duplicate medicines |
+| `sales.schema.test.ts` | Item ObjectIds, optional `batchId`, 0–100 line discount, editable sale fields, sale-item correction rules |
+| `return.schema.test.ts` | No body `performedBy`, id/condition validation, remarks, status filter, reason updates |
+| `return.model.test.ts` | Unique `returnNumber` index, required line VAT, status enum |
+| `return.repo.test.ts` | Status filtering, atomic transitions, outstanding quantities, refund range, active-sale guard |
+| `return.routes.test.ts` | Full lifecycle route table, no DELETE |
+| `return.service.test.ts` | Quote-only creation, outstanding accounting, invoice-discount apportionment, transitions, completion stock/refund/sale status, cumulative condition lines, revalidation, session lifecycle |
+| `saleItem.service.test.ts` | Line + parent total recomputation, preserved invoice discount, returned-line and negative-total guards, session lifecycle |
+| `purchase.schema.test.ts` | Optional dates, status stripping, VAT bound, item body without `purchaseOrderId`, receive schema + duplicate medicines |
+| `purchaseTotals.test.ts` | VAT/discount purchase math and rounding |
+| `purchaseOrderItem.repo.test.ts` | Single document save with and without a session |
+| `sales.repo.test.ts` | `saleDate` totals, cancelled exclusion, timezone-aware year series |
+| `saleItem.repo.test.ts` | Net-of-returns top selling, GOOD-only COGS reversal, cost-snapshot fallback, batch reference guard |
+| `purchaseOrder.repo.test.ts` | `orderDate` purchase range |
+| `money.test.ts` / `reportingPeriod.test.ts` / `reporting.config.test.ts` | Currency rounding/VAT, timezone boundaries, timezone configuration |
 | `supplier.schema.test.ts` / `supplier.service.test.ts` | Contact normalization, open-PO delete guard |
 | `medicine.repo.test.ts` / `inventory.repo.test.ts` | Active filtering, escaped regex search |
 | `medicine.service.test.ts` | Unit existence on create/update |
 | `brand/category/genericName/unit.service.test.ts` | Referenced-lookup delete guards |
 | `escapeRegex.test.ts` | Metacharacter escaping and literal matching |
 | `inventory.service.test.ts` | FEFO allocation across batches, stock limits, non-positive quantities, concurrent deduction conflict, return conditions, reserve/release |
-| `sales.service.test.ts` | Empty cart, duplicate line merging, line and invoice discounts, 13% VAT rounding, discount validation |
-| `return.service.test.ts` | Refund net of line discount, full vs partial status, over-return, invalid item, date validation, condition handling |
-| `purchaseOrder.service.test.ts` | Approval guards, cancellation guards, duplicate item guard, pending-only edits, total recalculation |
+| `sales.service.test.ts` | Empty cart, duplicate line merging, line and invoice discounts, discounted-subtotal bound, 13% VAT rounding, delete guard |
+| `purchaseOrder.service.test.ts` | Approval/cancel guards, forced pending status, VAT/discount totals, persisted recalculation, item update recalculation, guarded cascade delete, receive flow |
 | `smartReorder.Calculatro.test.ts` | WADS, sample standard deviation, delay factor, lead time, safety stock, reorder point, ROQ, confidence |
 | `medicineBatch.repo.test.ts` | FEFO sort/filter construction, transaction scoping, conditional stock decrement, sellable-filter sum |
 | `medicineBatch.model.test.ts` | Positive/zero/negative quantities, inactive-with-stock rejection, expiry ordering |
 | `batch.routes.test.ts` | Route table no longer exposes the removed allocation endpoint |
 | `inventoryMovement.model.test.ts` | Every `referenceType` enum value validates; unknown values are rejected |
+| `batch.service.test.ts` | Delete guards (stock, sale-item references), quantity mutation delegation |
 | `authorize.test.ts` | Allowed role, denied role, unauthenticated request, empty permission list |
 | `notification.service.test.ts` | Create/dedupe, InApp/email/SMS dispatch, retries, preferences, read state, pagination, hierarchy authorization, owner-only error detail, atomic claim contention, stale-claim recovery, attempt cap, missing-parent 404 |
 | `notificationRecipient.repo.test.ts` | Retry sweep filter, claim compare-and-swap lock, parent-aware unread aggregation, idempotent mark-read, bulk delete |
@@ -103,7 +117,7 @@ covered by automated tests.
 | `websocker.provider.test.ts` | No-socket false, open-socket send, closed-socket eviction, send-failure isolation |
 | `email.provider.test.ts` | Production fail-fast without `SMTP_HOST`, allowed with host, development fallback |
 | `sms.provider.test.ts` | Missing webhook, bearer header, 2xx, non-2xx body, network failure |
-| `dashboard.service.test.ts` | Notification summary counts `Skipped` separately from `Failed` |
+| `dashboard.service.test.ts` | Notification summary counts `Skipped` separately from `Failed`; COGS profit fixture, month comparison, year analytics, expiring count |
 | `mongoError.test.ts` | Mapping and pass-through of MongoDB duplicate/cast/validation errors |
 | `notificationSocketUrl.test.ts` (client) | Explicit WS URL, http(s)→ws(s), absolute API origin, relative `/api` via proxy origin, query/hash stripping, unparseable-origin fallback |
 | `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
