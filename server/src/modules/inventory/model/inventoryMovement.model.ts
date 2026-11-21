@@ -14,7 +14,16 @@ export interface IInventoryMovement extends Document {
 
   quantity: number;
   referenceId: Types.ObjectId; // Could be a purchase order ID, sales order ID, etc.
-  referenceType: "PURCHASE_ORDER" | "SALE" | "RETURN" | "ADJUSTMENT" | "SYSTEM";
+  referenceType:
+    | "PURCHASE_ORDER"
+    | "PURCHASE"
+    | "SALE"
+    | "RETURN"
+    | "SALES_RETURN"
+    | "ADJUSTMENT"
+    | "RESERVE"
+    | "RELEASE"
+    | "SYSTEM";
   performedBy: Types.ObjectId; // User ID who performed the movement
   remarks: string;
   createdAt: Date;
@@ -46,7 +55,17 @@ const inventoryMovementSchema = new Schema<IInventoryMovement>(
     referenceId: { type: Schema.Types.ObjectId, required: true },
     referenceType: {
       type: String,
-      enum: ["PURCHASE_ORDER", "SALE", "RETURN", "ADJUSTMENT", "SYSTEM"],
+      enum: [
+        "PURCHASE_ORDER",
+        "PURCHASE",
+        "SALE",
+        "RETURN",
+        "SALES_RETURN",
+        "ADJUSTMENT",
+        "RESERVE",
+        "RELEASE",
+        "SYSTEM",
+      ],
       required: true,
     },
 

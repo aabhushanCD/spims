@@ -243,7 +243,7 @@ export class InventoryService {
       {
         medicineId: medicineId,
         batchId: movementCtx.batchId,
-        movementType: "SALE",
+        movementType: movementCtx.movementType ?? "SALE",
         quantity: quantity,
         referenceId: movementCtx.referenceId ?? "",
         referenceType: movementCtx.referenceType ?? "SALE",
