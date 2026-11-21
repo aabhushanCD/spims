@@ -10,6 +10,8 @@ Complete reference for every route registered in the backend.
 - **Validation:** `validate`, `validateParams`, and `validateQuery` run before controllers on the routes listed below. Malformed ObjectIds are rejected with `400` instead of reaching Mongoose; a global `CastError` mapper is the safety net.
 - **Errors:** all endpoints can return `401`, `403`, `500`, and (for unknown paths) `404`. Only endpoint-specific errors are listed.
 - **Source paths** are relative to the repository root.
+- **Pagination:** paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and return `data: { items, nextCursor }`. Pass `nextCursor` as the next `cursor`; `null` means the end.
+- **CSRF:** every response sets a non-HttpOnly `csrfToken` cookie. Unsafe requests (`POST`, `PUT`, `PATCH`, `DELETE`) must echo it in `X-CSRF-Token`; only the login/register/refresh/recovery endpoints are exempt (they are origin-checked).
 - Route handlers that `throw new Error(...)` from a service (batch module) become **500**, not 404/400.
 
 ## Auth
@@ -36,7 +38,7 @@ Router-level roles: **`owner`, `pharmacist` only**. Every write route also requi
 | Method | Path | Purpose | Body / params / query | Success | Notes |
 |---|---|---|---|---|---|
 | POST | `/users` | Create user | `name`, `email`, `password`, `role` | `201` public user | Owner only; `createUserSchema`; bcrypt hash applied |
-| GET | `/users` | List users | — | `200` array | |
+| GET | `/users` | List users | `cursor?`, `limit?`, `search?`, `role?`, `isActive?` | `200` `{ success, data: { items, nextCursor } }` | Paginated |
 | GET | `/users/:id` | Get user | ObjectId `id` | `200` public user / `404` | |
 | PUT | `/users/:id` | Update user | partial user fields | `200` public user / `404` | Owner only; `updateUserSchema`; password is bcrypt-hashed |
 | DELETE | `/users/:id` | Delete user | no body | `200` `{ message }` | Owner only; JWT role is authoritative; a body `{ role }` is rejected |
@@ -59,7 +61,7 @@ Source: `server/src/modules/medicine/routes/medicine.route.ts`
 | Method | Path | Purpose | Body / query | Validation | Success |
 |---|---|---|---|---|---|
 | POST | `/medicines` | Create medicine | catalog fields | `createMedicineSchema` | `201` raw medicine |
-| GET | `/medicines` | List with inventory | — | — | `200` active medicines only |
+| GET | `/medicines` | List with inventory | `cursor?`, `limit?`, `search?`, `isActive?`, category/brand/generic/unit ids | `medicineListQuerySchema` | `200` `{ success, data: { items, nextCursor } }` |
 | GET | `/medicines/search` | Literal substring search | `?query=` | `medicineSearchQuerySchema` | `200` active matches |
 | GET | `/medicines/:id` | Get one | ObjectId `id` | param schema | `200` raw / `404` |
 | PUT | `/medicines/:id` | Update | partial catalog fields | param + `updateMedicineSchema` | `200` raw / `404` |
@@ -151,7 +153,7 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 | Method | Path | Purpose | Body / query | Validation | Success |
 |---|---|---|---|---|---|
 | POST | `/purchases` | Create PO with items | see below | `createPurchaseOrderSchema` | `201` `{ message, data: PO }` |
-| GET | `/purchases` | List POs | — | — | `200` `{ message, data: array }` (supplier companyName populated) |
+| GET | `/purchases` | List POs | `cursor?`, `limit?`, `search?`, `status?`, `supplierId?`, `from?`, `to?` | query schema | `200` `{ message, data: { items, nextCursor } }` |
 | GET | `/purchases/:id` | PO detail with items | — | — | `200` `{ message, data: { supplier, items[], ... } }`; `404` |
 | DELETE | `/purchases/:id` | Hard delete PO + items | — | — | `200` `{ message }`; `404`; `409` if received or batches exist |
 | PATCH | `/purchases/:id/cancel` | Cancel | — | — | `200` `{ message }`; `400` if received; `404` |
@@ -248,7 +250,9 @@ Body, ObjectId-param, and search-query schemas are wired. All responses are `{ s
 | Method | Path | Purpose | Body / query | Success | Notes |
 |---|---|---|---|---|---|
 | POST | `/inventory` | Create aggregate row from batch truth | `medicineId`, `reservedStock?`, optional movement context | `201` `{ success, data }` | Strict schema; `currentStock`/`availableStock` are rejected; duplicate medicine → `409` |
-| GET | `/inventory` | List | — | `200` | Medicine populated |
+| GET | `/inventory` | List | `cursor?`, `limit?`, `search?`, `stockStatus?`, `medicineId?` | `200` `{ success, data: { items, nextCursor } }` | Medicine populated |
+| GET | `/inventory/movements` | Movement history | `cursor?`, `limit?`, medicine/batch/reference ids, type, date range | `200` `{ success, data: { items, nextCursor } }` | Populates medicine, batch, performer |
+| GET | `/inventory/movements/:id` | Movement detail | ObjectId `id` | `200` / `404` | |
 | GET | `/inventory/:id` | Get | ObjectId `id` | `200` / `404` | |
 | GET | `/inventory/medicine/:medicineId` | Get by medicine | ObjectId `medicineId` | `200` / `404` | |
 | GET | `/inventory/medicines/search` | Sellable medicine search | `?query=` | `200` | Requires `availableStock > 0`; active medicines only; escaped regex |
@@ -327,7 +331,7 @@ Behavior:
 
 | Method | Path | Purpose | Body | Success |
 |---|---|---|---|---|
-| GET | `/sales` | List sales | — | `200` `{ success, data: array }` (cashier populated) |
+| GET | `/sales` | List sales | `cursor?`, `limit?`, `search?`, `status?`, `cashierId?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Cashier populated |
 | GET | `/sales/:id` | Sale + items | — | `200` `{ success, data: { ...sale, items } }` / `404` |
 | PATCH | `/sales/:id` | Edit customer/payment | `customerName?`, `paymentMethod?` | `200` `{ success, data }` / `404` |
 | DELETE | `/sales/:id` | Delete and restore stock | — | `200` `{ success, message }` / `404` / `409` if returns exist |
@@ -401,7 +405,7 @@ PENDING ──approve──> APPROVED ──complete──> COMPLETED
 
 | Method | Path | Roles | Behaviour |
 |---|---|---|---|
-| GET | `/returns?status=` | all three | List, optional `PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`/`COMPLETED` filter |
+| GET | `/returns` | all three | Cursor list with `status`, `salesId`, `search`, `from`, `to` filters |
 | GET | `/returns/:id` | all three | Detail |
 | PATCH | `/returns/:id` | all three | Update `returnReason`; only while `PENDING` |
 | PATCH | `/returns/:id/approve` | owner, inventory_manager | `PENDING → APPROVED` |
@@ -447,12 +451,12 @@ Body, ObjectId-param, and low-stock-query schemas are wired. Responses are `{ su
 
 | Method | Path | Purpose | Input | Success | Notes |
 |---|---|---|---|---|---|
-| GET | `/batches` | List all | — | `200` | Medicine name populated |
+| GET | `/batches` | Paginated list | `cursor?`, `limit?`, `search?`, `medicineId?`, `isExpired?`, `isActive?`, `expiringInDays?` | `200` `{ success, data: { items, nextCursor } }` | Medicine name populated |
 | GET | `/batches/:id` | Get batch | ObjectId `id` | `200` / `404` | Missing → `404` |
 | POST | `/batches` | Create batch | validated batch body + optional movement context | `201` | Requires authenticated user; PO must exist; syncs aggregate and writes `PURCHASE` |
 | PATCH | `/batches/:id` | Update allowed fields | `batchNumber`, dates, prices, `quantityRemaining`, `isActive` | `200` / `400` / `404` | Immutable fields rejected; quantity changes sync + movement |
-| DELETE | `/batches/:id` | Delete a zero-stock batch with no sales history | ObjectId `id` | `200` / `404` / `409` | `409` while `quantityRemaining > 0` or sale items reference it |
-| GET | `/batches/medicine/:medicineId` | **First** batch for medicine | ObjectId `medicineId` | `200` / `404` | Uses `findOne`, not a list |
+| DELETE | `/batches/:id` | Delete a zero-stock batch with no sales or movement history | ObjectId `id` | `200` / `404` / `409` | `409` while `quantityRemaining > 0`, or sale items/movement records reference it |
+| GET | `/batches/medicine/:medicineId` | All batches for medicine | ObjectId `medicineId` | `200` / `404` | Returns a list, newest first |
 | GET | `/batches/medicine/:medicineId/available` | Sellable batches | ObjectId `medicineId` | `200` | Filters quantity > 0, expiry > now, and `!isExpired` |
 | GET | `/batches/expired` | Batches past expiry date | — | `200` | Date-based, ignores `isExpired` |
 | GET | `/batches/expired/awaiting-disposal` | Flagged with stock | — | `200` | `isExpired && quantityRemaining > 0` |
@@ -461,7 +465,7 @@ Body, ObjectId-param, and low-stock-query schemas are wired. Responses are `{ su
 | POST | `/batches/:id/deduct` | Decrement | positive whole `quantity` + `remarks?` | `200` / `409` | Atomic batch + aggregate + movement |
 | POST | `/batches/:id/increase` | Increment | positive whole `quantity` + `remarks?` | `200` / `409` | Rejects above `quantityReceived` |
 | POST | `/batches/:id/adjust` | Set absolute quantity | non-negative whole `quantity` + `remarks?` | `200` / `400` | Must be within `quantityReceived`; syncs + movement |
-| GET | `/batches/:id/history` | Batch metadata | ObjectId `id` | `200` / `404` | **Not** movement history |
+| GET | `/batches/:id/history` | Batch metadata + movements | ObjectId `id` | `200` / `404` | Movements newest first |
 | POST | `/batches/:id/confirm-disposal` | Dispose expired stock | `remarks?` | `200` / `400` / `404` | Requires `isExpired` and quantity > 0; batch + aggregate + movement are atomic |
 
 Important: the destructive `GET /batches/medicine/:medicineId/allocate` endpoint and its client stub were removed. Sales allocate FEFO stock through `InventoryService.sellMedicine`.

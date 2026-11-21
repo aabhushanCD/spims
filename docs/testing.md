@@ -21,6 +21,7 @@ From the repository root:
 npm test                 # single CI run (server + client)
 npm run test:watch       # server watch mode
 npm run test:coverage    # server coverage report in server/coverage
+npm run test:integration # HTTP flows against an in-memory MongoDB replica set
 ```
 
 From `server/`:
@@ -42,8 +43,9 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the Phase 4 baseline: **58 server test files, 425 tests** plus **2 client
-test files, 17 tests**, all passing. Overall statement coverage
+As of the Phase 5 baseline: **66 server unit test files, 458 tests** plus
+**6 HTTP integration tests** and **2 client test files, 17 tests**, all passing.
+Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
 logic is:
@@ -118,6 +120,13 @@ covered by automated tests.
 | `email.provider.test.ts` | Production fail-fast without `SMTP_HOST`, allowed with host, development fallback |
 | `sms.provider.test.ts` | Missing webhook, bearer header, 2xx, non-2xx body, network failure |
 | `dashboard.service.test.ts` | Notification summary counts `Skipped` separately from `Failed`; COGS profit fixture, month comparison, year analytics, expiring count |
+| `cursor.test.ts` | Cursor round-trip, malformed cursor rejection, filter shape, `nextCursor` trimming |
+| `lock.provider.test.ts` | Redis `SET NX` acquisition, compare-and-delete release, skip/run helper |
+| `redis.config.test.ts` | Explicit `REDIS_URL`, Upstash REST conversion, host/port fallback, unsupported scheme |
+| `logger.test.ts` | JSON line output, secret redaction, `LOG_LEVEL` filtering |
+| `smartReorder.service.test.ts` | Cached negative result stays 400, pending recommendation upsert, missing delivery dates, expiry lower bound |
+| `indexes.test.ts` | Phase 5 indexes and smart-reorder partial unique index |
+| `coreFlows.integration.test.ts` | Purchase receipt, sale + idempotency, return completion, disposal, reorder |
 | `mongoError.test.ts` | Mapping and pass-through of MongoDB duplicate/cast/validation errors |
 | `notificationSocketUrl.test.ts` (client) | Explicit WS URL, http(s)→ws(s), absolute API origin, relative `/api` via proxy origin, query/hash stripping, unparseable-origin fallback |
 | `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
@@ -169,23 +178,21 @@ describe("SomeService", () => {
 
 ## Integration testing
 
-There is no automated integration suite. The backend has known testability
-blockers:
+`npm run test:integration` runs six HTTP tests against `app/createApp.ts`,
+using `supertest`, a `mongodb-memory-server` replica set for transaction
+support, and an in-memory fake Redis. Each test gets a clean database, while
+indexes are preserved so unique constraints are exercised.
 
-- `server/src/app/container.ts` constructs every service at import time.
-- `server.ts` starts HTTP, WebSocket, cron jobs, MongoDB, and Redis at import.
-- `email.provider.ts` lazily creates its transport; tests still inject a fake.
-- `redis.config.ts` creates a client at import time.
+Covered flows:
 
-To add database integration tests locally:
+1. Purchase create → approve → receive, including duplicate-receive rejection.
+2. Sale with FEFO, idempotency-key replay, multiple sales without keys,
+   movement ledger, and aggregate update.
+3. Return create → approve → complete with GOOD stock restoration and refund.
+4. Expiry marking → disposal, zero stock, aggregate sync, and `EXPIRED` movement.
+5. Smart reorder generation, single pending recommendation, and negative-cache
+   `400` semantics.
 
-1. Start a MongoDB replica set (transactions require one).
-2. Start Redis.
-3. Point the tests at disposable services through environment variables.
-4. Create an app factory that mounts routes without starting listeners or cron
-   jobs, and inject a test container.
-5. Use `supertest` for HTTP tests.
-6. Drop the test database and flush the Redis test database between runs.
-
-Until those refactors exist, do not claim integration coverage. Document any
-manual verification separately.
+The app factory mounts routes and middleware without starting HTTP listeners,
+WebSocket, cron jobs, MongoDB, or Redis. The production `server.ts` still owns
+those startup concerns.

@@ -5,6 +5,7 @@ import type {
   Response,
 } from "express";
 import { AppError } from "../error.ts";
+import { logger } from "../logger.ts";
 
 function isCastError(
   error: unknown,
@@ -39,7 +40,12 @@ export const errorHandler: ErrorRequestHandler = (
     });
   }
 
-  console.error(err);
+  logger.error("unhandled_error", {
+    method: req.method,
+    path: req.originalUrl,
+    error: err.message,
+    stack: err.stack,
+  });
 
   return res.status(500).json({
     success: false,

@@ -1,4 +1,5 @@
 import type { MedicineService } from "../services/medicine.sercive.js";
+import type { MedicineListQuery } from "../schema/medicine.schema.js";
 import type { NextFunction, Request, Response } from "express";
 export class MedicineController {
   constructor(private readonly medicineService: MedicineService) {}
@@ -37,10 +38,10 @@ export class MedicineController {
 
   async getAllMedicines(req: Request, res: Response,next:NextFunction) {
     try {
-    
-      const medicines = await this.medicineService.getMedicines();
-     
-      res.status(200).json(medicines);
+      const page = await this.medicineService.getMedicinesPage(
+        req.query as unknown as MedicineListQuery,
+      );
+      res.status(200).json({ success: true, data: page });
     } catch (error) {
       next(error);
     }

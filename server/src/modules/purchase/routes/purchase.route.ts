@@ -12,6 +12,7 @@ import {
   createPurchaseOrderSchema,
   purchaseIdParamSchema,
   purchaseItemParamSchema,
+  purchaseOrderListQuerySchema,
   purchaseSupplierParamSchema,
 } from "../schema/purchaseOrder.schema.ts";
 import { receivePurchaseOrderSchema } from "../schema/receivePurchaseOrder.schema.ts";
@@ -19,6 +20,7 @@ import { receivePurchaseOrderSchema } from "../schema/receivePurchaseOrder.schem
 import {
   validate,
   validateParams,
+  validateQuery,
 } from "../../../shared/middleware/validate.middleware.ts";
 import { verifyToken } from "../../../shared/middleware/verifyToken.ts";
 import { purchaseOrderController } from "../../../app/container.ts";
@@ -41,8 +43,11 @@ router.post(
 );
 
 // Get All Purchase Orders
-router.get("/", (req: Request, res: Response, next: NextFunction) =>
-  purchaseOrderController.getPurchaseOrders(req, res, next),
+router.get(
+  "/",
+  validateQuery(purchaseOrderListQuerySchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.getPurchaseOrders(req, res, next),
 );
 
 // Get Purchase Order By Id

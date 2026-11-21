@@ -179,12 +179,12 @@ Source: `server/src/modules/sales/services/return.service.ts`, `server/src/modul
 
 ## 9. What is missing
 
-- No error codes (only messages).
-- No request IDs or correlation IDs.
-- No centralized logging of request context.
+- No structured error codes (only messages).
+- Request IDs are returned in `X-Request-Id` and included in structured logs, so callers can correlate a response with its log line.
+- Request context is logged centrally by `requestLogger`; the global error handler logs method, path, message, and stack.
 - No distinction between operational and programmer errors in the response.
-- No retry or idempotency semantics.
-- No 429 rate limiting, despite the factory existing.
+- Sale creation is idempotent with `Idempotency-Key`; other write endpoints do not offer idempotent replay.
+- 429 rate limiting covers the authentication routes; it is not applied to every route.
 - No 405 responses; unmatched methods fall through to 404.
 
 ## Related documents

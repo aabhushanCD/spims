@@ -5,6 +5,10 @@ import {
   stockMovementTypeSchema,
   stockReferenceTypeSchema,
 } from "./stockMovement.schema.ts";
+import {
+  cursorPaginationQuerySchema,
+  dateRangeQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 export const createInventoryMovementSchema = z.object({
   medicineId: objectIdSchema,
@@ -20,6 +24,19 @@ export const createInventoryMovementSchema = z.object({
   remarks: z.string().trim().max(500).optional().default(""),
 });
 
+export const inventoryMovementListQuerySchema = cursorPaginationQuerySchema
+  .merge(dateRangeQuerySchema)
+  .extend({
+    medicineId: objectIdSchema.optional(),
+    batchId: objectIdSchema.optional(),
+    referenceId: objectIdSchema.optional(),
+    movementType: stockMovementTypeSchema.optional(),
+    referenceType: stockReferenceTypeSchema.optional(),
+  });
+
 export type CreateInventoryMovementDto = z.infer<
   typeof createInventoryMovementSchema
+>;
+export type InventoryMovementListQuery = z.infer<
+  typeof inventoryMovementListQuerySchema
 >;

@@ -79,6 +79,7 @@ import { SalesService } from "../modules/sales/services/sales.service.ts";
 import { DashboardService } from "../modules/dashboard/service/dashboard.service.ts";
 import { DashboardController } from "../modules/dashboard/controller/dashboard.controller.ts";
 import { CounterRepository } from "../modules/sales/repo/counter.repo.ts";
+import { redisCacheInvalidator } from "../shared/provider/redis.provider.ts";
 
 // This file serves as a centralized container for all repository instances used throughout the application. It imports the necessary models and repository classes, then creates instances of each repository, which can be exported and used in other parts of the application. This approach promotes modularity and makes it easier to manage dependencies.
 const userRepo = new UserRepository(User);
@@ -133,6 +134,7 @@ const stockMutationService = new StockMutationService(
   inventoryMovementService,
   AppError,
   mongoose.connection,
+  redisCacheInvalidator,
 );
 const inventoryService = new InventoryService(
   inventoryRepo,
@@ -168,6 +170,7 @@ const medicineBatchService = new BatchService(
   stockMutationService,
   AppError,
   mongoose.connection,
+  inventoryMovementRepo,
 );
 
 const notificationService = new NotificationService(
@@ -176,6 +179,7 @@ const notificationService = new NotificationService(
   userRepo,
   AppError,
   mongoose.connection,
+  redisCacheInvalidator,
 );
 
 const purchaseOrderService = new PurchaseOrderService(
@@ -186,6 +190,7 @@ const purchaseOrderService = new PurchaseOrderService(
   userRepo,
   AppError,
   mongoose.connection,
+  redisCacheInvalidator,
 );
 
 const returnService = new ReturnService(
@@ -196,6 +201,7 @@ const returnService = new ReturnService(
   AppError,
   counterRepo,
   mongoose.connection,
+  redisCacheInvalidator,
 );
 const saleItemService = new SaleItemService(
   saleItemRepo,
@@ -213,6 +219,7 @@ const saleService = new SalesService(
   returnRepo,
   AppError,
   mongoose.connection,
+  redisCacheInvalidator,
 );
 
 const smartReorderService = new SmartReorderService(
@@ -224,6 +231,7 @@ const smartReorderService = new SmartReorderService(
   purchaseOrderRepo,
   supplierRepo,
   AppError,
+  redisCacheInvalidator,
 );
 
 const supplierService = new SupplierService(
@@ -248,7 +256,10 @@ const dashboardService = new DashboardService(
 // controllers
 const authController = new AuthController(authService);
 const userController = new UserController(userService);
-const inventoryController = new InventoryController(inventoryService);
+const inventoryController = new InventoryController(
+  inventoryService,
+  inventoryMovementService,
+);
 const medicineBatchController = new BatchController(medicineBatchService);
 const notificationController = new NotificationController(notificationService);
 const purchaseOrderController = new PurchaseController(purchaseOrderService);

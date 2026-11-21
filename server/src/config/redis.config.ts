@@ -1,28 +1,24 @@
+import "./env.ts";
 import { Redis } from "ioredis";
-import type { RedisOptions } from "ioredis";
-import dotenv from "dotenv";
-dotenv.config();
-const options = {
-  host:
-    process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
-      ?.split("@")[1]
-      ?.split(":")[0] || "localhost",
-  port: parseInt(
-    process.env.UPSTASH_REDIS_REST_URL?.split("://")[1]
-      ?.split("@")[1]
-      ?.split(":")[1] || "6379",
-    10,
-  ),
-  password: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
-  maxRetriesPerRequest: null,
-  // ioredis 6 types require a concrete reply mapping under exactOptionalPropertyTypes.
-  replyMapping: "legacy",
-} satisfies RedisOptions;
+import { logger } from "../shared/logger.ts";
+import { resolveRedisTarget } from "./redis.target.ts";
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redis = redisUrl ? new Redis(redisUrl) : new Redis(options);
+export { resolveRedisTarget } from "./redis.target.ts";
+export type { RedisTarget } from "./redis.target.ts";
 
-redis.on("error", (err) => console.error("[Redis] Connection error:", err));
-redis.on("connect", () => console.log("[Redis] Connected"));
+const target = resolveRedisTarget();
+
+const redis = target.url
+  ? new Redis(target.url, { replyMapping: "legacy" })
+  : new Redis({ ...target.options, replyMapping: "legacy" });
+
+redis.on("error", (err) => {
+  logger.error("redis_connection_error", {
+    error: err instanceof Error ? err.message : String(err),
+  });
+});
+redis.on("connect", () => {
+  logger.info("redis_connected");
+});
 
 export default redis;

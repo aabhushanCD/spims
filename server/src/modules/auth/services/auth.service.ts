@@ -30,6 +30,7 @@ import {
   type PublicUser,
 } from "../../user/utils/publicUser.ts";
 import type { AuthMailer } from "./auth.mailer.ts";
+import { logger } from "../../../shared/logger.ts";
 
 const GENERIC_RESET_MESSAGE =
   "If an account exists for that email, a password reset link has been sent.";
@@ -396,10 +397,9 @@ export class AuthService {
           url: resetUrl,
         });
       } catch (error) {
-        console.error(
-          "[Auth] Failed to send password reset email",
-          error,
-        );
+        logger.error("password_reset_email_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         await this.userRepository.updateAuthFields(String(user._id), {
           passwordResetTokenHash: null,
           passwordResetExpiresAt: null,
@@ -500,7 +500,9 @@ export class AuthService {
         getMaxSessionsPerUser(),
       );
     } catch (error) {
-      console.error("[Auth] Failed to prune old sessions", error);
+      logger.warn("session_prune_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return { accessToken, refreshToken, sessionId };
@@ -521,10 +523,9 @@ export class AuthService {
     } catch (error) {
       // Registration must still succeed if the mail provider is down. The
       // user can request another verification email.
-      console.error(
-        "[Auth] Failed to send verification email",
-        error,
-      );
+      logger.error("verification_email_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 }

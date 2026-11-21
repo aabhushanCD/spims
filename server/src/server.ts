@@ -1,67 +1,20 @@
-import express, { type Request, type Response } from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import { connectDB } from "./config/db.config.js";
-import appRoutes from "./modules/app.routes.js";
+import "./config/env.ts";
 import http from "http";
-import dotenv from "dotenv";
 import WebSocket, { WebSocketServer } from "ws";
+import { connectDB } from "./config/db.config.js";
+import { createApp } from "./app/createApp.ts";
 import { verifyJwt } from "./shared/middleware/verifyJwt.ts";
 import { register } from "./shared/provider/websocker.provider.ts";
 import { scheduleExpiryCheckJob } from "./modules/backgroundJobs/jobs/expiryCheck.job.ts";
 import { scheduleReorderCalculationJob } from "./modules/backgroundJobs/jobs/reorderCalculation.job.ts";
 import { scheduleNotificationRetryJob } from "./modules/backgroundJobs/jobs/notificationRetry.job.ts";
 import redis from "./config/redis.config.ts";
-import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
 import { assertAuthConfig } from "./modules/auth/utils/authConfig.ts";
 import { assertEmailConfig } from "./shared/provider/email.provider.ts";
 import { assertReportingConfig } from "./config/reporting.config.ts";
+import { logger } from "./shared/logger.ts";
 
-dotenv.config();
-const app = express();
-
-const trustProxy = process.env.TRUST_PROXY;
-if (trustProxy === "true") {
-  app.set("trust proxy", 1);
-} else if (trustProxy && /^\d+$/.test(trustProxy)) {
-  app.set("trust proxy", Number(trustProxy));
-}
-
-let allowedOrigins: string[];
-try {
-  allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? JSON.parse(process.env.ALLOWED_ORIGINS)
-    : ["http://localhost:5173", "http://localhost:5174"];
-} catch (err) {
-  console.error("Invalid ALLOWED_ORIGINS JSON, falling back to defaults");
-  allowedOrigins = ["http://localhost:5173", "http://localhost:5174"];
-}
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
-    },
-    credentials: true,
-  }),
-);
-app.use(cookieParser());
-app.use(express.json());
-
-app.get("/health", (req: Request, res: Response) => {
-  res.send("Server is healthy");
-});
-
-app.use("/api", appRoutes);
-
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ message: "Route not found" });
-});
-
-app.use(errorHandler);
+const app = createApp();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
@@ -82,7 +35,7 @@ server.on("upgrade", (request, socket, head) => {
   try {
     const payload = verifyJwt(token);
     userId = payload.userId;
-  } catch (error) {
+  } catch {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;
@@ -121,10 +74,12 @@ async function startServer() {
     scheduleReorderCalculationJob();
     scheduleNotificationRetryJob();
     server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      logger.info("server_started", { port: PORT });
     });
   } catch (error) {
-    console.error("Failed to start server:", error);
+    logger.error("server_start_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     process.exit(1);
   }
 }

@@ -231,7 +231,7 @@ sequenceDiagram
 | Email enumeration on login | Generic `401`; status checks after password compare |
 | Email enumeration on reset | Generic `200` |
 | Rate limiting | Redis fixed window on register/login/refresh/reset/verification |
-| CSRF/Origin hardening | `verifyOrigin` on auth routes |
+| CSRF/Origin hardening | Global double-submit CSRF middleware plus `verifyOrigin` on auth routes |
 | Token revocation | Refresh sessions revocable; access tokens expire in 15m |
 | Email verification | Implemented |
 

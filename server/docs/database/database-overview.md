@@ -71,18 +71,21 @@ Inventory increase/decrease, reservations, batch adjustments, batch creation, an
 | Collection | Field(s) | Source |
 |---|---|---|
 | `users` | `email` | `user.model.ts` |
-| `medicines` | `barcode` (sparse by MongoDB semantics for missing values) | `medicine.model.ts` |
+| `medicines` | `barcode` (partial unique on string values) | `medicine.model.ts` |
 | `brands` | `name` | `brand.model.ts` |
 | `categories` | `name` | `category.model.ts` |
 | `genericnames` | `name` | `genericName.model.ts` |
 | `units` | `name`, `description` | `unit.model.ts` |
 | `suppliers` | `email` | `supplier.model.ts` |
+| `suppliers` | `phone` | `supplier.model.ts` |
 | `batches` | compound `{ medicineId, batchNumber }` | `medicineBatch.model.ts` |
 | `inventories` | `medicineId` | `inventory.model.ts` |
 | `sales` | `invoiceNumber` | `sales.model.ts` |
+| `sales` | `idempotencyKey` (partial unique on string values) | `sales.model.ts` |
+| `smartreorders` | partial `{ medicineId }` where `status = "PENDING"` | `smartReorder.model.ts` |
 | `counters` | `name` | `counter.model.ts` |
 
-`suppliers.phone` is checked for uniqueness in `SupplierService` but has **no database unique index**, so concurrent requests can create duplicates.
+`suppliers.phone` is now a unique index. Run `npm run index:check` before deploying to catch pre-existing duplicates.
 
 ### 5.2 Explicit non-unique indexes
 
@@ -92,28 +95,25 @@ Inventory increase/decrease, reservations, batch adjustments, batch creation, an
 | `batches` | `{ medicineId: 1, expiryDate: 1 }` | FEFO batch lookup |
 | `batches` | `{ isExpired: 1 }` | expiry filters |
 | `batches` | `{ isActive: 1 }` | active filters |
+| `batches` | `{ medicineId: 1, createdAt: -1 }` | batch list pagination |
+| `batches` | `{ isExpired: 1, quantityRemaining: 1 }` | disposal queue |
 | `inventorymovements` | `{ medicineId: 1, createdAt: -1 }` | medicine ledger |
 | `inventorymovements` | `{ batchId: 1 }` | batch ledger |
 | `inventorymovements` | `{ movementType: 1 }` | type filters |
 | `inventorymovements` | `{ referenceId: 1 }` | reference lookup |
-
-### 5.3 Missing indexes (verified gaps)
-
-These fields are queried frequently but have no declared index:
-
-| Collection | Field(s) | Query source |
-|---|---|---|
-| `salesitems` | `salesId` | sale detail, return creation, top-selling |
-| `sales` | `saleDate`, `status` | analytics, comparisons |
-| `purchaseorders` | `status`, `orderDate`, `receivedDate`, `supplierId` | dashboard, smart reorder |
-| `returns` | `salesId` | sale-side lookup |
-| `notificationrecipients` | `userId`, `notificationId`, `status`; unique `{ notificationId, userId }`, `{ userId, createdAt, _id }`, `{ status, nextAttemptAt }` | inbox, retry sweep, counts |
+| `salesitems` | `{ salesId: 1 }`, `{ batchId: 1 }`, `{ medicineId: 1, createdAt: -1 }` | sale detail, return creation, COGS/top-selling |
+| `sales` | `{ status: 1, saleDate: -1 }`, `{ saleDate: -1 }`, `{ cashierId: 1, saleDate: -1 }` | analytics, list filters |
+| `returns` | `{ salesId: 1 }`, `{ status: 1, returnDate: -1 }`, `{ returnDate: -1 }` | sale-side lookup, list filters |
+| `purchaseorders` | `{ supplierId: 1, orderDate: -1 }`, `{ status: 1, orderDate: -1 }`, `{ orderDate: -1 }` | dashboard, smart reorder, list filters |
+| `smartreorders` | `{ medicineId: 1, status: 1, generatedAt: -1 }`, `{ status: 1, generatedAt: -1 }` | pending list, per-medicine |
+| `medicines` | `{ isActive: 1, createdAt: -1 }` | catalog pagination |
+| `suppliers` | `{ status: 1, companyName: 1 }` | supplier list |
+| `notificationrecipients` | `{ notificationId, userId }` unique, `{ userId, createdAt, _id }`, `{ status, nextAttemptAt }` | inbox, retry sweep, counts |
 | `notifications` | `{ createdAt: -1, _id: -1 }` | cursor pagination |
-| `smartreorders` | `medicineId`, `status` | pending list, per-medicine |
-| `users` | `lastLogin`, `role` | admin filters |
-| `stockadjustments` | `medicineId` | adjustments lookup |
 
-`inventories.medicineId` (Phase 2) and `returns.returnNumber` (Phase 4) now have unique indexes and are no longer gaps.
+### 5.3 Remaining index notes
+
+`stockadjustments.medicineId` is still unindexed because the adjustment service is unreachable. `users.lastLogin` and `users.role` remain unindexed admin filters. Deploy the new unique indexes only after `npm run index:check` reports no duplicates.
 
 ## 6. Enumerations
 

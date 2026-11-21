@@ -11,6 +11,7 @@ import {
   deleteInventorySchema,
   increaseStockSchema,
   inventoryIdParamSchema,
+  inventoryListQuerySchema,
   inventoryMedicineParamSchema,
   inventorySearchQuerySchema,
   releaseStockSchema,
@@ -18,6 +19,7 @@ import {
   syncInventorySchema,
   updateInventorySchema,
 } from "../schema/inventory.schema.ts";
+import { inventoryMovementListQuerySchema } from "../schema/inventoryMovement.schema.ts";
 
 const router = Router();
 
@@ -36,6 +38,17 @@ router.get(
   "/medicine/:medicineId",
   validateParams(inventoryMedicineParamSchema),
   inventoryController.getInventoryByMedicineId,
+);
+
+router.get(
+  "/movements",
+  validateQuery(inventoryMovementListQuerySchema),
+  inventoryController.getMovements,
+);
+router.get(
+  "/movements/:id",
+  validateParams(inventoryIdParamSchema),
+  inventoryController.getMovementById,
 );
 
 router.get(
@@ -87,5 +100,9 @@ router.delete(
   validate(deleteInventorySchema),
   inventoryController.deleteInventory,
 );
-router.get("/", inventoryController.getAllInventories);
+router.get(
+  "/",
+  validateQuery(inventoryListQuerySchema),
+  inventoryController.getAllInventories,
+);
 export default router;

@@ -2,34 +2,29 @@
 
 ## 1. Role of Redis
 
-Redis is used only for **cache-aside reads**:
+Redis is used for cache-aside reads plus short-lived distributed locks for the cron jobs:
 
 | Feature | Key pattern | TTL |
 |---|---|---|
 | Combined dashboard | `dashboard:full-summary` | 60 seconds |
 | Smart reorder per medicine | `reorder:{medicineId}` | 12 hours |
+| Auth rate limiting | `rate-limit:*` | window-scoped |
+| Cron locks | `lock:expiry-check`, `lock:reorder-calculation`, `lock:notification-retry` | job-scoped |
 
-It is not used for sessions, rate limiting, queues, locks, or pub/sub. Authentication is stateless JWT.
+It is not used for sessions, queues, or pub/sub. Authentication is stateless JWT.
 
 ## 2. Configuration
 
 Source: `server/src/config/redis.config.ts`
 
-```ts
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redis = redisUrl ? new Redis(redisUrl) : new Redis(options);
-```
+`config/redis.target.ts` resolves the target before any client is created:
 
-If `UPSTASH_REDIS_REST_URL` is set, it is passed **directly** to `ioredis`. Otherwise, host/port/password are derived by parsing that URL (host from after `@`, port from after `:`, password from `UPSTASH_REDIS_REST_TOKEN`).
+- `REDIS_URL` is preferred and may be `redis://` or `rediss://`.
+- An Upstash REST `https://` URL is converted to `rediss://<host>:6379` with `UPSTASH_REDIS_REST_TOKEN` as the password.
+- Without a URL, `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD` are used, defaulting to `localhost:6379`.
+- Unsupported URL schemes fail fast with a clear error.
 
-Consequences:
-
-- `ioredis` expects a `redis://` or `rediss://` URL. An Upstash **REST** URL (`https://...`) is not a valid ioredis target and may fail at startup. The environment variable name suggests the REST endpoint, not the TCP endpoint.
-- The parsing fallback branch is dead whenever the variable is set, because the direct URL branch wins.
-- `UPSTASH_REDIS_REST_TOKEN` is used as the password in the fallback branch but is **not** listed in `.env.example`.
-- `maxRetriesPerRequest: null` is set in the options object, which only applies when the fallback branch is used.
-
-Status: **Unverified** against a live Upstash instance. Treat the connection configuration as fragile until tested with the actual deployment values.
+`config/env.ts` loads `.env` before any config module reads `process.env`, removing the previous import-order dependency. `LOG_LEVEL` controls structured log output.
 
 ## 3. Startup dependency
 
@@ -54,7 +49,7 @@ Source: `server/src/shared/provider/redis.provider.ts`
 | `setCache(key, value, ttl)` | `SET key JSON EX ttl` |
 | `deleteCache(key)` | `DEL` |
 
-`deleteCache` is exported but unused.
+`deleteCache` powers the shared cache invalidator used by stock, purchase, sales, returns, batch, notification, and reorder writes.
 
 No key prefixing by environment or tenant is applied. Two deployments sharing a Redis database would collide.
 
@@ -68,10 +63,10 @@ No key prefixing by environment or tenant is applied. Two deployments sharing a 
 
 Notes:
 
-- The source comment says "2 min", but the constant is `60` seconds.
+- TTL is `60` seconds.
 - Individual dashboard endpoints (`/summary`, `/profit`, etc.) are not cached.
-- Writes do not invalidate the key; a sale can take up to 60 seconds to appear.
-- A Redis error propagates through the controller as a 500 (no fallback to computing without cache).
+- Writes invalidate the key through `CacheInvalidator`; the TTL remains a fallback.
+- A Redis error still propagates through the controller as a 500; cache invalidation failures are logged and do not fail the write.
 
 ## 7. Smart reorder cache
 
@@ -84,14 +79,13 @@ Flow:
 3. If stock is above ROP, cache `{ reorderNeeded: false, ... }` and **throw 400**.
 4. Otherwise persist a `PENDING` record and cache it.
 
-Consequences:
+Behavior:
 
-- A negative result (`reorderNeeded: false`) is cached, then the same request throws 400. **On subsequent requests within the TTL, the cached negative object is returned with HTTP 200/201** because the cache lookup returns before the reorder-point check. This means a second `generate` call for the same medicine can report success and even be counted as `created` by `generateForAllMedicines`.
-- A cached positive recommendation is returned instead of a fresh database read. Its shape is the JSON serialized at cache time.
-- No invalidation after sales, receipts, returns, or stock adjustments. A recommendation can be 12 hours stale.
-- `deleteCache` is not called anywhere.
-- Repeated `generate` calls within the TTL return the same cached recommendation and do not create duplicates.
-- After 12 hours, a new generation can create another pending recommendation for the same medicine; there is no uniqueness constraint or deduplication.
+- A cached negative result still throws `400`; the endpoint contract does not change on a cache hit.
+- A cached positive recommendation is returned instead of a fresh database read.
+- Stock-changing writes invalidate `reorder:{medicineId}`; purchase and expiry writes also invalidate the dashboard.
+- Repeated generation updates the single PENDING recommendation instead of creating duplicates.
+- A partial unique index on `{ medicineId }` for `status: "PENDING"` enforces the invariant in MongoDB.
 
 ## 8. Cache data shape
 

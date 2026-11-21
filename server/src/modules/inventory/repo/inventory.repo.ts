@@ -1,5 +1,10 @@
 import type mongoose from "mongoose";
+import type { PipelineStage } from "mongoose";
 import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 import type { IInventory } from "../model/inventory.model.js";
 import type Inventory from "../model/inventory.model.js";
 
@@ -26,6 +31,75 @@ export class InventoryRepo {
       .populate("medicineId")
       .lean()
       .exec();
+  }
+
+  async findPage(
+    filters: {
+      search?: string;
+      stockStatus?: "in" | "low" | "out";
+      medicineId?: string;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<Record<string, unknown>[]> {
+    const conditions: Record<string, unknown>[] = [];
+    if (filters.medicineId) {
+      conditions.push({ medicineId: filters.medicineId });
+    }
+    if (filters.stockStatus === "in") {
+      conditions.push({ availableStock: { $gt: 0 } });
+    }
+    if (filters.stockStatus === "out") {
+      conditions.push({ availableStock: { $lte: 0 } });
+    }
+    const cursorClause = cursorFilter("lastUpdated", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+
+    const pipeline: PipelineStage[] = [
+      ...(conditions.length > 0 ? [{ $match: { $and: conditions } }] : []),
+      {
+        $lookup: {
+          from: "medicines",
+          localField: "medicineId",
+          foreignField: "_id",
+          as: "medicine",
+        },
+      },
+      { $unwind: "$medicine" },
+      { $match: { "medicine.isActive": true } },
+    ];
+
+    if (filters.search) {
+      const pattern = escapeRegex(filters.search);
+      pipeline.push({
+        $match: {
+          $or: [
+            { "medicine.medicineName": { $regex: pattern, $options: "i" } },
+            { "medicine.strength": { $regex: pattern, $options: "i" } },
+            { "medicine.barcode": { $regex: pattern, $options: "i" } },
+          ],
+        },
+      });
+    }
+    if (filters.stockStatus === "low") {
+      pipeline.push({
+        $match: {
+          availableStock: { $gt: 0 },
+          $expr: { $lte: ["$availableStock", "$medicine.reorderLevel"] },
+        },
+      });
+    }
+
+    pipeline.push(
+      { $sort: { lastUpdated: -1, _id: -1 } },
+      { $limit: limit },
+      { $addFields: { medicineId: "$medicine" } },
+      { $project: { medicine: 0 } },
+    );
+
+    return this.inventoryModel.aggregate(pipeline).exec();
   }
 
   async findById(
@@ -66,6 +140,32 @@ export class InventoryRepo {
     return await this.inventoryModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
+  }
+
+  async updateWithVersion(
+    id: string,
+    expectedVersion: number,
+    updateData: Partial<IInventory>,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory | null> {
+    const versionFilter =
+      expectedVersion === 0
+        ? {
+            $or: [
+              { version: { $eq: 0 } },
+              { version: { $exists: false } },
+            ],
+          }
+        : { version: { $eq: expectedVersion } };
+    const query = this.inventoryModel.findOneAndUpdate(
+      { _id: { $eq: id }, ...versionFilter },
+      { $set: updateData, $inc: { version: 1 } },
+      { new: true },
+    );
+    if (session) {
+      query.session(session);
+    }
+    return query.exec();
   }
 
   async delete(

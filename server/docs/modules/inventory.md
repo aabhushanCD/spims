@@ -198,9 +198,10 @@ flowchart TB
 | Duplicate inventory rows possible | Fixed (unique index; dedupe before deploy) | — |
 | No validation middleware | Already fixed (body/params/query and movement DTO schemas) | — |
 | `StockAdjustment` unreachable | Needs decision | Phase 6 |
-| Movement read endpoints absent | Still open | Phase 5 |
+| Movement read endpoints absent | Fixed: `GET /inventory/movements` and `/:id`, with filters/cursor | — |
 | No stocktake/bulk adjustment workflow | Needs decision | Phase 6 |
-| No optimistic concurrency on aggregate updates | Still open | Phase 5 |
+| No optimistic concurrency on aggregate updates | Fixed: version compare-and-swap with conflict detection | — |
+| Inventory list is unpaginated | Fixed: cursor pagination, search, stock-status filter | — |
 
 ## Related documents
 

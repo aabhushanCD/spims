@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  cursorPaginationQuerySchema,
+  dateRangeQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 export const ReturnConditionSchema = z.enum([
   "GOOD",
@@ -53,9 +57,13 @@ export const UpdateReturnSchema = z.object({
     .max(500, "Return reason cannot exceed 500 characters"),
 });
 
-export const ReturnListQuerySchema = z.object({
-  status: ReturnStatusSchema.optional(),
-});
+export const ReturnListQuerySchema = cursorPaginationQuerySchema
+  .merge(dateRangeQuerySchema)
+  .extend({
+    status: ReturnStatusSchema.optional(),
+    salesId: objectIdSchema.optional(),
+    search: z.string().trim().min(1).max(100).optional(),
+  });
 
 export const returnIdParamSchema = z.object({ id: objectIdSchema });
 

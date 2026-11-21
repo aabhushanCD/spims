@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../../../shared/error.ts";
 import type { PurchaseOrderService } from "../services/purchaseOrder.service.ts";
+import type { PurchaseOrderListQuery } from "../schema/purchaseOrder.schema.ts";
 
 export class PurchaseController {
   constructor(private readonly purchaseService: PurchaseOrderService) {}
@@ -21,10 +22,12 @@ export class PurchaseController {
 
   async getPurchaseOrders(req: Request, res: Response, next: NextFunction) {
     try {
-      const purchaseOrders = await this.purchaseService.getPurchaseOrders();
+      const page = await this.purchaseService.getPurchaseOrdersPage(
+        req.query as unknown as PurchaseOrderListQuery,
+      );
       return res.status(200).json({
         message: "Purchase orders retrieved successfully",
-        data: purchaseOrders,
+        data: page,
       });
     } catch (error) {
       next(error);

@@ -1,10 +1,14 @@
 // features/batch/services/batch.service.ts
 
 import { api } from "@/api/fetch.api";
+import type { Batch } from "../types/batch.types";
 
 const getAllBatches = async () => {
-  const response = await api.get("/batches");
-  return response.data;
+  const response = await api.get<{
+    success: boolean;
+    data: { items: Batch[]; nextCursor: string | null };
+  }>("/batches?limit=100");
+  return { success: response.data.success, data: response.data.data.items };
 };
 
 const getBatchById = async (id: string) => {

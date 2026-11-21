@@ -13,8 +13,8 @@
 | Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 46 files covering auth, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, movement schemas, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
-| Test count | 335 tests |
+| Test files | 66 unit files plus 1 HTTP integration suite covering auth, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, pagination, caching, locking, CSRF, observability, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
+| Test count | 458 unit tests + 6 HTTP integration tests |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 
@@ -42,7 +42,8 @@ Observations:
 - The fourth test calls `expect(promise).rejects.toThrow(...)` without `await` or `return`, so Vitest may not wait for the assertion to settle. It can produce a false positive.
 - `import { mock } from "node:test"` is unused.
 - No test covers token generation, cookie behavior, role validation, `isActive`, or login success.
-- No integration tests, database tests, or HTTP tests exist.
+- The original auth suite had no integration coverage; see section 7 for the
+  current HTTP suite.
 
 ## 3. Running tests
 
@@ -108,31 +109,28 @@ Guidelines:
 - For transaction-based services, pass a fake connection with `startSession` returning an object whose `withTransaction` invokes the callback.
 - Keep tests next to the service with `.test.ts`.
 
-## 7. Integration testing (not present)
+## 7. Integration testing
 
-If integration tests are added, the minimum infrastructure is:
+The Phase 5 suite lives in `test/integration/coreFlows.integration.test.ts` and runs with `npm run test:integration`.
 
-| Dependency | Requirement |
+| Dependency | Implementation |
 |---|---|
-| MongoDB | `mongodb-memory-server` or a disposable replica set (transactions require a replica set) |
-| Redis | A disposable instance or an injected fake |
-| HTTP | `supertest` against the Express app |
-| Auth | A helper that registers/logs in and stores the cookie |
-| Email | Inject a fake `AuthMailer` / mock `sendEmail` |
-| WebSocket | `ws` client with the cookie header |
+| MongoDB | `mongodb-memory-server` replica set (transactions supported) |
+| Redis | In-memory fake covering cache, rate-limit, and lock calls |
+| HTTP | `supertest` against `createApp()` |
+| Auth | Seeded owner plus a generated access-token cookie |
+| Cleanup | Database dropped and fake Redis flushed before each test |
 
-Critical flows to cover:
+Covered flows:
 
-1. Register → verify email → login → `/me` → refresh → logout.
-2. Catalog → supplier → purchase order → approve → receive.
-3. Sale with FEFO across multiple batches and VAT totals.
-4. Insufficient stock and concurrent deduction.
-5. Return by condition (including the expected GOOD-path enum failure).
-6. Expiry flagging and disposal.
-7. Smart reorder generation and caching.
-8. Notification creation and dispatch (InApp/Email).
-9. Role restrictions (notably `/users` and smart reorder).
-10. Inventory/batch reconciliation after each flow.
+1. Purchase create → approve → receive, duplicate receive rejected.
+2. Sale with FEFO, idempotency replay, multiple keyless sales, movement, and
+   aggregate update.
+3. Return create → approve → complete with GOOD restoration and refund.
+4. Expiry marking → disposal, aggregate sync, and `EXPIRED` movement.
+5. Smart reorder generation, single pending recommendation, negative cache.
+
+Still worth adding later: auth register/login/refresh, notification dispatch over WebSocket, and concurrent-sale HTTP tests.
 
 ## 8. Static checks
 

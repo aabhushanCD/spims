@@ -1,6 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../../../shared/error.ts";
 import type { InventoryService } from "../services/inventory.service.ts";
+import type { InventoryListQuery } from "../schema/inventory.schema.ts";
+import type { InventoryMovementService } from "../services/inventoryMovement.service.ts";
+import type { InventoryMovementListQuery } from "../schema/inventoryMovement.schema.ts";
 
 const asyncHandler =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
@@ -8,7 +11,31 @@ const asyncHandler =
     Promise.resolve(fn(req, res, next)).catch(next);
 
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly inventoryMovementService?: InventoryMovementService,
+  ) {}
+
+  private requireMovementService(): InventoryMovementService {
+    if (!this.inventoryMovementService) {
+      throw AppError.notFound("Inventory movements are unavailable");
+    }
+    return this.inventoryMovementService;
+  }
+
+  getMovements = asyncHandler(async (req: Request, res: Response) => {
+    const page = await this.requireMovementService().getMovementsPage(
+      req.query as unknown as InventoryMovementListQuery,
+    );
+    res.status(200).json({ success: true, data: page });
+  });
+
+  getMovementById = asyncHandler(async (req: Request, res: Response) => {
+    const movement = await this.requireMovementService().getMovementById(
+      req.params.id as string,
+    );
+    res.status(200).json({ success: true, data: movement });
+  });
 
   // POST /inventory
   createInventory = asyncHandler(async (req: Request, res: Response) => {
@@ -56,8 +83,10 @@ export class InventoryController {
 
   // GET /inventory
   getAllInventories = asyncHandler(async (req: Request, res: Response) => {
-    const inventories = await this.inventoryService.getAllInventories();
-    res.status(200).json({ success: true, data: inventories });
+    const page = await this.inventoryService.getInventoriesPage(
+      req.query as unknown as InventoryListQuery,
+    );
+    res.status(200).json({ success: true, data: page });
   });
 
   // GET /inventory/:id

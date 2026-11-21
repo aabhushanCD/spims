@@ -116,6 +116,39 @@ describe("MedicineBatchRepo", () => {
     });
   });
 
+  describe("getExpiringUnits", () => {
+    it("excludes already-expired stock with a lower date bound", async () => {
+      const { repo, model } = buildRepo();
+      const lower = new Date("2026-01-01T00:00:00Z");
+      const upper = new Date("2026-02-01T00:00:00Z");
+
+      await repo.getExpiringUnits(MEDICINE_ID, lower, upper);
+
+      expect(model.find).toHaveBeenCalledWith({
+        medicineId: MEDICINE_ID,
+        expiryDate: { $gt: lower, $lte: upper },
+        quantityRemaining: { $gt: 0 },
+        isExpired: false,
+      });
+    });
+  });
+
+  describe("getUsableStock", () => {
+    it("only counts positive, unexpired, non-flagged batches", async () => {
+      const { repo, model } = buildRepo();
+      const cutoff = new Date("2026-06-01T00:00:00Z");
+
+      await repo.getUsableStock(MEDICINE_ID, cutoff);
+
+      expect(model.find).toHaveBeenCalledWith({
+        medicineId: MEDICINE_ID,
+        expiryDate: { $gt: cutoff },
+        quantityRemaining: { $gt: 0 },
+        isExpired: false,
+      });
+    });
+  });
+
   describe("deductBatchStock", () => {
 
     it("guards the decrement with a remaining-stock condition", async () => {
@@ -125,7 +158,7 @@ describe("MedicineBatchRepo", () => {
 
       expect(model.findOneAndUpdate).toHaveBeenCalledWith(
         {
-          _id: BATCH_ID,
+          _id: { $eq: BATCH_ID },
           quantityRemaining: { $gte: 3 },
         },
         {

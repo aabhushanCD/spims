@@ -113,11 +113,11 @@ sequenceDiagram
 
 | Issue | Status | Phase |
 |---|---|---|
-| Phone unique index | Still open | Phase 5 |
+| Phone unique index | Fixed: unique index added; run `npm run index:check` before deploy | — |
 | Prevent delete with open POs | Already fixed (409 for pending/approved POs) | — |
 | Supplier performance history endpoint | Needs decision | Phase 6 |
-| `reliabilityScore` maintenance | Still open | Phase 5 |
-| Pagination/filtering by status | Still open | Phase 5 |
+| `reliabilityScore` maintenance | Fixed: computed from valid delivery history and persisted | — |
+| Pagination/filtering by status | Fixed: cursor pagination with role/status/search | — |
 | Contact/address validation beyond non-empty | Already fixed (trim, length, email, phone) | — |
 
 ## Related documents

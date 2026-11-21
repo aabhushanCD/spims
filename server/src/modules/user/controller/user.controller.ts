@@ -1,7 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../../../shared/error.ts";
 import type { UserRole } from "../model/user.model.js";
-import type { ChangeUserRoleDto } from "../schema/user.schema.ts";
+import type {
+  ChangeUserRoleDto,
+  UserListQuery,
+} from "../schema/user.schema.ts";
 import type { UserService } from "../service/user.service.js";
 import { toPublicUser } from "../utils/publicUser.ts";
 
@@ -99,8 +102,16 @@ export class UserController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const users = await this.userService.getAllUsers();
-      res.status(200).json(users.map((user) => toPublicUser(user)));
+      const page = await this.userService.getUsersPage(
+        req.query as unknown as UserListQuery,
+      );
+      res.status(200).json({
+        success: true,
+        data: {
+          items: page.items.map((user) => toPublicUser(user)),
+          nextCursor: page.nextCursor,
+        },
+      });
     } catch (error) {
       next(error);
     }

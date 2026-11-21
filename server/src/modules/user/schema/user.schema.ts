@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  booleanQuerySchema,
+  cursorPaginationQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 export const userRoleSchema = z.enum([
   "inventory_manager",
@@ -54,6 +58,12 @@ export const changeUserRoleSchema = z.object({ role: userRoleSchema });
  */
 export const deleteUserBodySchema = z.object({}).strict().optional();
 
+export const userListQuerySchema = cursorPaginationQuerySchema.extend({
+  search: z.string().trim().min(1).max(100).optional(),
+  role: userRoleSchema.optional(),
+  isActive: booleanQuerySchema.optional(),
+});
+
 export const userIdParamSchema = z.object({ id: objectIdSchema });
 export const userRoleParamSchema = z.object({ role: userRoleSchema });
 export const userRoleStatusParamSchema = z.object({
@@ -73,3 +83,4 @@ export const userDateParamSchema = z.object({ date: dateStringSchema });
 export type CreateUserDto = z.infer<typeof createUserSchema>;
 export type UpdateUserDto = z.infer<typeof updateUserSchema>;
 export type ChangeUserRoleDto = z.infer<typeof changeUserRoleSchema>;
+export type UserListQuery = z.infer<typeof userListQuerySchema>;

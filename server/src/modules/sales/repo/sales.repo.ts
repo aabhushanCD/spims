@@ -5,6 +5,11 @@ import {
   getElapsedMonthsInYear,
   getYearRange,
 } from "../../../shared/utils/reportingPeriod.ts";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export interface SalesTotals {
   gross: number;
@@ -42,6 +47,63 @@ export class SalesRepo {
       return this.salesModel.findById(salesId).session(session).lean().exec();
     }
     return this.salesModel.findById(salesId).lean().exec();
+  }
+
+  async findPage(
+    filters: {
+      search?: string;
+      status?: ISales["status"];
+      cashierId?: string;
+      from?: Date;
+      to?: Date;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<ISales[]> {
+    const conditions: Record<string, unknown>[] = [];
+    if (filters.status) {
+      conditions.push({ status: filters.status });
+    }
+    if (filters.cashierId) {
+      conditions.push({ cashierId: filters.cashierId });
+    }
+    if (filters.from || filters.to) {
+      conditions.push({
+        saleDate: {
+          ...(filters.from ? { $gte: filters.from } : {}),
+          ...(filters.to ? { $lte: filters.to } : {}),
+        },
+      });
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      conditions.push({
+        $or: [{ invoiceNumber: regex }, { customerName: regex }],
+      });
+    }
+    const cursorClause = cursorFilter("saleDate", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    return this.salesModel
+      .find(query)
+      .populate("cashierId", "name email role")
+      .sort({ saleDate: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
+  async findByIdempotencyKey(
+    idempotencyKey: string,
+    cashierId: string,
+  ): Promise<ISales | null> {
+    return this.salesModel
+      .findOne({ idempotencyKey, cashierId })
+      .lean()
+      .exec();
   }
 
   async findAll(session?: mongoose.ClientSession): Promise<ISales[]> {

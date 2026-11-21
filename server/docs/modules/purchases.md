@@ -212,7 +212,8 @@ sequenceDiagram
 | No purchase returns | Needs decision | Phase 6 |
 | No approval audit (who/when) | Needs decision | Phase 6 |
 | `PurchaseOrderItemRepo.create` saves twice with a session | Fixed (single save) | — |
-| No index on status/supplier/date | Still open | Phase 5 |
+| No index on status/supplier/date | Fixed: supplier/date, status/date, and order-date indexes | — |
+| No list pagination/filtering | Fixed: cursor pagination, status, supplier, date range, search | — |
 
 ## Related documents
 

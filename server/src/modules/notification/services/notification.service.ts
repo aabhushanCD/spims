@@ -1,6 +1,11 @@
 // notification.service.ts
 import mongoose, { Types } from "mongoose";
 import type { AppError } from "../../../shared/error.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import { logger } from "../../../shared/logger.ts";
 import type { NotificationRepo } from "../repo/notification.repo.ts";
 import type { NotificationRecipientRepo } from "../repo/notificationRecipient.repo.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
@@ -165,7 +170,18 @@ export class NotificationService {
     private readonly userRepo: UserRepository,
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
+
+  private async invalidateDashboard(): Promise<void> {
+    try {
+      await this.cacheInvalidator.invalidateDashboard();
+    } catch (error) {
+      logger.warn("cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   // Creates the notification + one recipient row per unique user, all Pending.
   // Delivery happens asynchronously after the transaction commits.
@@ -227,10 +243,10 @@ export class NotificationService {
       });
 
       this.dispatch(notification._id.toString()).catch((err) => {
-        console.error(
-          `Failed to dispatch notification ${notification._id.toString()}:`,
-          err,
-        );
+        logger.error("notification_dispatch_failed", {
+          notificationId: notification._id.toString(),
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
       return publicNotification(notification);
     } finally {
@@ -325,6 +341,7 @@ export class NotificationService {
     const status = anySent ? "Sent" : allTerminal ? "Failed" : "Pending";
 
     await this.notificationRepo.update(notificationId, { status });
+    await this.invalidateDashboard();
 
     const fresh = await this.notificationRepo.findById(notificationId);
     if (!fresh) {
@@ -346,10 +363,10 @@ export class NotificationService {
       try {
         await this.dispatch(notificationId);
       } catch (error) {
-        console.error(
-          `Failed to retry notification ${notificationId}:`,
-          error,
-        );
+        logger.error("notification_retry_failed", {
+          notificationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 

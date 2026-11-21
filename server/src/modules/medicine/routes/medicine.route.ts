@@ -5,6 +5,7 @@ import express, {
 } from "express";
 import {
   createMedicineSchema,
+  medicineListQuerySchema,
   medicineSearchQuerySchema,
   updateMedicineSchema,
 } from "../schema/medicine.schema.js";
@@ -25,9 +26,13 @@ router.post(
     medicineController.createMedicine(req, res, next);
   },
 );
-router.get("/", (req: Request, res: Response, next: NextFunction) => {
-  medicineController.getAllMedicines(req, res, next);
-});
+router.get(
+  "/",
+  validateQuery(medicineListQuerySchema),
+  (req: Request, res: Response, next: NextFunction) => {
+    medicineController.getAllMedicines(req, res, next);
+  },
+);
 
 router.get(
   "/search",

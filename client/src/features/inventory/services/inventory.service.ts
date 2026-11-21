@@ -2,18 +2,30 @@ import { api } from "@/api/fetch.api";
 import type { ApiResponse } from "@/types/api";
 import type { InventoryItem } from "../types/inventory.types";
 
+const toInventoryPage = (
+  response: ApiResponse<{
+    items: InventoryItem[];
+    nextCursor: string | null;
+  }>,
+): ApiResponse<InventoryItem[]> => ({
+  success: response.success,
+  data: response.data.items,
+});
+
 const getInventory = async (
   search: string,
 ): Promise<ApiResponse<InventoryItem[]>> => {
-  const response = await api.get<ApiResponse<InventoryItem[]>>(
-    `/inventory?search=${search}`,
-  );
-  return response.data;
+  const response = await api.get<
+    ApiResponse<{ items: InventoryItem[]; nextCursor: string | null }>
+  >(`/inventory?search=${search}&limit=100`);
+  return toInventoryPage(response.data);
 };
 
 const getAllInventories = async (): Promise<ApiResponse<InventoryItem[]>> => {
-  const response = await api.get<ApiResponse<InventoryItem[]>>(`/inventory`);
-  return response.data;
+  const response = await api.get<
+    ApiResponse<{ items: InventoryItem[]; nextCursor: string | null }>
+  >(`/inventory?limit=100`);
+  return toInventoryPage(response.data);
 };
 const getInventoryById = async (id: string) => {
   const response = await api.get(`/inventory/${id}`);

@@ -174,7 +174,7 @@ The only meaningful distinctions are: user writes are owner-only, and reorder ge
 | `isActive` ignored at login | Already fixed | — |
 | `lastLogin` never updated | Already fixed | — |
 | Admin password reset | Needs decision | Phase 6 |
-| Pagination/search | Still open | Phase 5 |
+| Pagination/search | Fixed: cursor pagination with role/status/search | — |
 | Audit trail for user changes | Needs decision | Phase 6 |
 
 ## Related documents

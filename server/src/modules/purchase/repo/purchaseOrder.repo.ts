@@ -1,6 +1,11 @@
 import type mongoose from "mongoose";
 import type { IPurchaseOrder } from "../model/purchaseOrder.model.js";
 import type PurchaseOrder from "../model/purchaseOrder.model.js";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export class PurchaseOrderRepo {
   constructor(private readonly purchaseOrderModel: typeof PurchaseOrder) {}
@@ -25,6 +30,53 @@ export class PurchaseOrderRepo {
     }
     return await this.purchaseOrderModel.findById(id).exec();
   }
+  async findPage(
+    filters: {
+      search?: string;
+      status?: IPurchaseOrder["status"];
+      supplierId?: string;
+      from?: Date;
+      to?: Date;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<IPurchaseOrder[]> {
+    const conditions: Record<string, unknown>[] = [];
+    if (filters.status) {
+      conditions.push({ status: filters.status });
+    }
+    if (filters.supplierId) {
+      conditions.push({ supplierId: filters.supplierId });
+    }
+    if (filters.from || filters.to) {
+      conditions.push({
+        orderDate: {
+          ...(filters.from ? { $gte: filters.from } : {}),
+          ...(filters.to ? { $lte: filters.to } : {}),
+        },
+      });
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      conditions.push({
+        $or: [{ invoiceNumber: regex }, { invoiceFile: regex }],
+      });
+    }
+    const cursorClause = cursorFilter("orderDate", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    return this.purchaseOrderModel
+      .find(query)
+      .populate("supplierId", "companyName")
+      .sort({ orderDate: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
   async findAll(session?: mongoose.ClientSession): Promise<IPurchaseOrder[]> {
     if (session) {
       return await this.purchaseOrderModel.find().session(session).exec();
@@ -126,7 +178,12 @@ export class PurchaseOrderRepo {
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrder[]> {
     return this.purchaseOrderModel
-      .find({ supplierId, status: "received", receivedDate: { $exists: true } })
+      .find({
+        supplierId,
+        status: "received",
+        receivedDate: { $exists: true, $ne: null },
+        expectedDeliveryDate: { $exists: true, $ne: null },
+      })
       .sort({ receivedDate: -1 })
       .limit(limit)
       .session(session ?? null)

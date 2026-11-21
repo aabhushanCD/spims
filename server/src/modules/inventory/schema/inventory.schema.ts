@@ -5,6 +5,7 @@ import {
   stockMovementTypeSchema,
   stockReferenceTypeSchema,
 } from "./stockMovement.schema.ts";
+import { cursorPaginationQuerySchema } from "../../../shared/schema/pagination.schema.ts";
 
 const remarksSchema = z
   .string()
@@ -99,9 +100,16 @@ export const inventorySearchQuerySchema = z.object({
     .max(100, "Search query must be at most 100 characters"),
 });
 
+export const inventoryListQuerySchema = cursorPaginationQuerySchema.extend({
+  search: z.string().trim().min(1).max(100).optional(),
+  stockStatus: z.enum(["in", "low", "out"]).optional(),
+  medicineId: objectIdSchema.optional(),
+});
+
 export const inventoryIdParamSchema = z.object({ id: objectIdSchema });
 export const inventoryMedicineParamSchema = z.object({
   medicineId: objectIdSchema,
 });
 
 export type CreateInventoryDto = z.infer<typeof createInventorySchema>;
+export type InventoryListQuery = z.infer<typeof inventoryListQuerySchema>;

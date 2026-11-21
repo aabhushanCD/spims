@@ -40,6 +40,10 @@ const purchaseSchema = new Schema<IPurchaseOrder>(
   { timestamps: true },
 );
 
+purchaseSchema.index({ supplierId: 1, orderDate: -1 });
+purchaseSchema.index({ status: 1, orderDate: -1 });
+purchaseSchema.index({ orderDate: -1 });
+
 const PurchaseOrder = model<IPurchaseOrder>("PurchaseOrder", purchaseSchema);
 
 export default PurchaseOrder;

@@ -204,16 +204,17 @@ sequenceDiagram
 | No movement on deduct/increase/adjust | Fixed (all route through `StockMutationService`) | — |
 | `allocateStock` returned an empty array and mutated on GET | Already fixed (endpoint and client stub removed) | — |
 | Update paths skip validators | Fixed via explicit service guards | — |
-| `getBatchByMedicineId` returns one batch | Still open | Phase 5 |
-| `getBatchHistory` lacks movement history | Still open | Phase 5 |
+| `getBatchByMedicineId` returns one batch | Fixed: returns all batches for the medicine | — |
+| `getBatchHistory` lacks movement history | Fixed: includes newest-first movements | — |
 | Available endpoint ignores `isExpired` | Fixed | — |
 | No partial receiving/batch split | Needs decision | Phase 6 |
 | No batch merge/transfer | Needs decision | Phase 6 |
 | No transaction around disposal | Fixed | — |
 | No request validation | Already fixed (body/params/query schemas) | — |
 | Deletion allowed with stock | Fixed (409 when stock remains) | — |
-| Zero-stock batch can be deleted while sale items/movements reference it | Fixed for sale items (deletion blocked); movement-only history can still be deleted | — / Phase 5 |
-| `markExpiredBatches` does not sync aggregates | Known limitation; next mutation/sync corrects it | Phase 5 |
+| Zero-stock batch can be deleted while sale items/movements reference it | Fixed: deletion is blocked when sale items or movements reference the batch | — |
+| `markExpiredBatches` does not sync aggregates | Fixed: affected medicines are reconciled immediately | — |
+| Batch list is unpaginated | Fixed: cursor pagination/filtering added | — |
 
 ## Related documents
 

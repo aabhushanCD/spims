@@ -12,7 +12,7 @@ export class BackgroundJobRepo {
   ): Promise<IBackgroundJob> {
     const job = new this.backgroundJobModel(data);
     if (session) {
-      await job.save({ session });
+      return await job.save({ session });
     }
     return await job.save();
   }

@@ -65,6 +65,7 @@ describe("return schemas", () => {
   it("validates the status list filter", () => {
     expect(ReturnListQuerySchema.parse({ status: "PENDING" })).toEqual({
       status: "PENDING",
+      limit: 20,
     });
     expect(() =>
       ReturnListQuerySchema.parse({ status: "UNKNOWN" }),

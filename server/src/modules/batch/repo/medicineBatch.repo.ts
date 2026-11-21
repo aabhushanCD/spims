@@ -1,6 +1,11 @@
 import type { IBatch } from "../model/medicineBatch.model.js";
 import type Batch from "../model/medicineBatch.model.js";
 import mongoose from "mongoose";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 export class MedicineBatchRepo {
   constructor(private readonly batchModel: typeof Batch) {}
 
@@ -18,18 +23,41 @@ export class MedicineBatchRepo {
   async increaseBatchStock(
     batchId: string,
     quantity: number,
+    expectedQuantity: number,
     session?: mongoose.ClientSession,
   ): Promise<IBatch | null> {
     const options = { new: true, session: session ?? null };
     const updatedBatch = await this.batchModel
-      .findByIdAndUpdate(
-        batchId,
+      .findOneAndUpdate(
+        {
+          _id: { $eq: batchId },
+          quantityRemaining: { $eq: expectedQuantity },
+        },
         { $inc: { quantityRemaining: quantity } },
         options,
       )
       .lean()
       .exec();
     return updatedBatch;
+  }
+
+  async setBatchStock(
+    batchId: string,
+    expectedQuantity: number,
+    newQuantity: number,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch | null> {
+    return this.batchModel
+      .findOneAndUpdate(
+        {
+          _id: { $eq: batchId },
+          quantityRemaining: { $eq: expectedQuantity },
+        },
+        { $set: { quantityRemaining: newQuantity } },
+        { new: true, session: session ?? null },
+      )
+      .lean()
+      .exec();
   }
 
   async findById(
@@ -57,6 +85,53 @@ export class MedicineBatchRepo {
       .lean()
       .exec();
   }
+  async findPage(
+    filters: {
+      search?: string;
+      medicineId?: string;
+      isExpired?: boolean;
+      isActive?: boolean;
+      expiringInDays?: number;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<IBatch[]> {
+    const conditions: Record<string, unknown>[] = [];
+    if (filters.medicineId) {
+      conditions.push({ medicineId: filters.medicineId });
+    }
+    if (filters.isExpired !== undefined) {
+      conditions.push({ isExpired: filters.isExpired });
+    }
+    if (filters.isActive !== undefined) {
+      conditions.push({ isActive: filters.isActive });
+    }
+    if (filters.expiringInDays !== undefined) {
+      const now = new Date();
+      const cutoff = new Date(
+        now.getTime() + filters.expiringInDays * 24 * 60 * 60 * 1000,
+      );
+      conditions.push({ expiryDate: { $gte: now, $lte: cutoff } });
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      conditions.push({ batchNumber: regex });
+    }
+    const cursorClause = cursorFilter("createdAt", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    return this.batchModel
+      .find(query)
+      .populate("medicineId", "medicineName")
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
   async findByMedicineId(
     medicineId: string,
     session?: mongoose.ClientSession,
@@ -74,14 +149,13 @@ export class MedicineBatchRepo {
     medicineId: string,
     session?: mongoose.ClientSession,
   ): Promise<IBatch[]> {
+    const query = this.batchModel
+      .find({ medicineId })
+      .sort({ createdAt: -1, _id: -1 });
     if (session) {
-      return await this.batchModel
-        .find({ medicineId })
-        .session(session)
-        .lean()
-        .exec();
+      return await query.session(session).lean().exec();
     }
-    return await this.batchModel.find({ medicineId }).lean().exec();
+    return await query.lean().exec();
   }
 
   async getTotalStock(
@@ -131,7 +205,7 @@ export class MedicineBatchRepo {
     session?: mongoose.ClientSession,
   ) {
     const filter = {
-      _id: batchId as mongoose.Types.ObjectId | string,
+      _id: { $eq: batchId },
       quantityRemaining: { $gte: quantity },
     };
     const options = { new: true, session: session ?? null };
@@ -209,6 +283,46 @@ export class MedicineBatchRepo {
       .exec();
   }
 
+  async findExpiredCandidates(
+    now: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const query = this.batchModel.find({
+      expiryDate: { $lt: now },
+      quantityRemaining: { $gt: 0 },
+      isExpired: false,
+    });
+    return session ? query.session(session).lean().exec() : query.lean().exec();
+  }
+
+  async findExpired(
+    now: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const query = this.batchModel.find({ expiryDate: { $lt: now } });
+    return session ? query.session(session).lean().exec() : query.lean().exec();
+  }
+
+  async findExpiredAwaitingDisposal(
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const query = this.batchModel.find({
+      isExpired: true,
+      quantityRemaining: { $gt: 0 },
+    });
+    return session ? query.session(session).lean().exec() : query.lean().exec();
+  }
+
+  async findLowStock(
+    threshold: number,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const query = this.batchModel.find({
+      quantityRemaining: { $gt: 0, $lte: threshold },
+    });
+    return session ? query.session(session).lean().exec() : query.lean().exec();
+  }
+
   async existsByPurchaseOrderId(
     purchaseOrderId: string,
     session?: mongoose.ClientSession,
@@ -238,7 +352,12 @@ export class MedicineBatchRepo {
     expiryCutoff: Date,
     session?: mongoose.ClientSession,
   ): Promise<number> {
-    const filter = { medicineId, expiryDate: { $gt: expiryCutoff } };
+    const filter = {
+      medicineId,
+      expiryDate: { $gt: expiryCutoff },
+      quantityRemaining: { $gt: 0 },
+      isExpired: false,
+    };
     const batches = session
       ? await this.batchModel.find(filter).session(session).lean().exec()
       : await this.batchModel.find(filter).lean().exec();
@@ -249,13 +368,15 @@ export class MedicineBatchRepo {
 
   async getExpiringUnits(
     medicineId: string,
+    from: Date,
     expiryCutoff: Date,
     session?: mongoose.ClientSession,
   ): Promise<number> {
     const filter = {
       medicineId,
-      expiryDate: { $lte: expiryCutoff },
+      expiryDate: { $gt: from, $lte: expiryCutoff },
       quantityRemaining: { $gt: 0 },
+      isExpired: false,
     };
     const batches = session
       ? await this.batchModel.find(filter).session(session).lean().exec()

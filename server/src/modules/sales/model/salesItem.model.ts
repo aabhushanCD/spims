@@ -37,6 +37,10 @@ const salesItemSchema = new Schema<ISalesItem>(
   { timestamps: true },
 );
 
+salesItemSchema.index({ salesId: 1 });
+salesItemSchema.index({ batchId: 1 });
+salesItemSchema.index({ medicineId: 1, createdAt: -1 });
+
 const SalesItem = model<ISalesItem>("SalesItem", salesItemSchema);
 
 export default SalesItem;

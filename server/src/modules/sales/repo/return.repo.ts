@@ -4,6 +4,11 @@ import { AppError } from "../../../shared/error.ts";
 import type { ISalesReturn } from "../model/return.model.ts";
 import type Return from "../model/return.model.ts";
 import type { ReturnStatus } from "../types/return.type.ts";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 /** Whitelist of literal filters so request data never becomes a query object. */
 function statusFilter(status?: ReturnStatus): { status: ReturnStatus } | Record<string, never> {
@@ -116,6 +121,51 @@ export class ReturnRepo {
         .exec();
     }
     return this.returnModel.find(filter).lean().exec();
+  }
+
+  async findPage(
+    filters: {
+      status?: ReturnStatus;
+      salesId?: string;
+      search?: string;
+      from?: Date;
+      to?: Date;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<ISalesReturn[]> {
+    const conditions: Record<string, unknown>[] = [];
+    const status = statusFilter(filters.status);
+    if (Object.keys(status).length > 0) {
+      conditions.push(status);
+    }
+    if (filters.salesId) {
+      conditions.push({ salesId: filters.salesId });
+    }
+    if (filters.from || filters.to) {
+      conditions.push({
+        returnDate: {
+          ...(filters.from ? { $gte: filters.from } : {}),
+          ...(filters.to ? { $lte: filters.to } : {}),
+        },
+      });
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      conditions.push({ returnNumber: regex });
+    }
+    const cursorClause = cursorFilter("returnDate", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    return this.returnModel
+      .find(query)
+      .sort({ returnDate: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async findByReturnNumber(

@@ -8,7 +8,20 @@ import type { ReturnRepo } from "../repo/return.repo.ts";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { InventoryService } from "../../inventory/services/inventory.service.ts";
 import type { CounterRepository } from "../repo/counter.repo.ts";
-import type { CreateSaleDto } from "../schema/sales.schema.ts";
+import type {
+  CreateSaleDto,
+  SalesListQuery,
+} from "../schema/sales.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import { isDuplicateKeyError } from "../../../shared/utils/mongoError.ts";
+import { logger } from "../../../shared/logger.ts";
 
 export class SalesService {
   constructor(
@@ -21,7 +34,18 @@ export class SalesService {
     private readonly appError: typeof AppError,
 
     private readonly connection: mongoose.Connection,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
+
+  private async invalidateDashboard(): Promise<void> {
+    try {
+      await this.cacheInvalidator.invalidateDashboard();
+    } catch (error) {
+      logger.warn("cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   private mergeDuplicateItems(items: CreateSaleDto["items"]) {
     const map = new Map<string, (typeof items)[number]>();
 
@@ -48,13 +72,44 @@ export class SalesService {
       throw this.appError.badRequest("Cart is empty");
     }
 
+    if (dto.idempotencyKey) {
+      const existing = await this.salesRepo.findByIdempotencyKey(
+        dto.idempotencyKey,
+        dto.cashierId,
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
     dto.items = this.mergeDuplicateItems(dto.items);
 
     const session = await this.connection.startSession();
 
     try {
-      const sale = await this.runCreateSaleTransaction(dto, session);
-      return await this.salesRepo.findById(sale._id.toString(), session);
+      try {
+        const sale = await this.runCreateSaleTransaction(dto, session);
+        const saved = await this.salesRepo.findById(
+          sale._id.toString(),
+          session,
+        );
+        await this.invalidateDashboard();
+        return saved;
+      } catch (error) {
+        // A concurrent request with the same key may have won the unique
+        // index race. Its transaction committed a complete sale, so return it
+        // instead of failing the client with a 500.
+        if (dto.idempotencyKey && isDuplicateKeyError(error)) {
+          const existing = await this.salesRepo.findByIdempotencyKey(
+            dto.idempotencyKey,
+            dto.cashierId,
+          );
+          if (existing) {
+            return existing;
+          }
+        }
+        throw error;
+      }
     } finally {
       await session.endSession();
     }
@@ -82,6 +137,10 @@ export class SalesService {
           saleDate: dto.saleDate,
 
           status: "COMPLETED",
+
+          ...(dto.idempotencyKey
+            ? { idempotencyKey: dto.idempotencyKey }
+            : {}),
 
           subTotal: 0,
 
@@ -210,6 +269,27 @@ export class SalesService {
     return await this.salesRepo.findAll();
   }
 
+  async getSalesPage(query: SalesListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.salesRepo.findPage(
+      {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.cashierId ? { cashierId: query.cashierId } : {}),
+        ...(query.from ? { from: query.from } : {}),
+        ...(query.to ? { to: query.to } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.saleDate,
+      (row) => String(row._id),
+    );
+  }
+
   // Deliberately narrow: only non-financial, non-stock fields should be
   // editable post-creation. Changing quantities/prices after the fact
   // should go through a return + new sale, not a silent edit.
@@ -268,6 +348,7 @@ export class SalesService {
 
         deleted = await this.salesRepo.delete(id, session);
       });
+      await this.invalidateDashboard();
       return deleted;
     } finally {
       await session.endSession();

@@ -11,8 +11,8 @@ It is not production-hardened. The main risks are:
 - Aggregate stock still depends on operational sync after expiry flagging and on deduping existing inventory rows before the unique index deploys.
 - Authorization remains broad outside user management.
 - Historical financial data (VAT-exclusive purchase totals, pre-Phase-4 returns without line VAT) is not backfilled.
-- Automated coverage remains modest; there are no HTTP integration tests.
-- Several list endpoints still lack pagination and filtering.
+- Automated coverage remains modest, but five core HTTP flows now run against an in-memory MongoDB replica set.
+- List endpoints have cursor pagination and filters; the client currently requests the first 100 rows.
 
 ## 2. Endpoint and model inventory
 
@@ -21,40 +21,40 @@ It is not production-hardened. The main risks are:
 | Mongoose models | 22 |
 | Router files | 18 (including `app.routes.ts`) |
 | Mounted route prefixes | 17 |
-| Route registrations (actual calls) | 152 (one additional line is commented out) |
-| Distinct live handlers | 152 |
-| Endpoint rows documented | 142 (128 with a method column + 14 dashboard `GET` rows; 152 live registrations) |
+| Route registrations (actual calls) | 154 (one additional line is commented out) |
+| Distinct live handlers | 154 |
+| Endpoint rows documented | 144 (130 with a method column + 14 dashboard `GET` rows; 154 live registrations) |
 | Transactions | 7 flows |
-| Cron jobs | 3 active, 1 dead duplicate |
-| Tests | 58 files, 425 cases |
+| Cron jobs | 3 active |
+| Tests | 66 unit files / 458 cases + 6 HTTP integration cases |
 
 ## 3. Module status matrix
 
 | Module | Status | Evidence | Main gaps |
 |---|---|---|---|
 | Authentication | Implemented | Register/login/refresh/logout, email verification, password reset, multi-session management, rate limiting, 15m access + 7d refresh | No MFA, no account lockout, no immediate access-token revocation |
-| Users & roles | Implemented | CRUD, activation toggle, owner-only writes, JWT-authoritative delete, role-change route, hashed password updates, public responses sanitized | Pagination/search, audit trail, admin password reset |
-| Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks, unit validation, reference-safe lookup deletes, escaped search, active filtering | No pagination; name+strength+brand uniqueness is service-only |
-| Suppliers | Implemented | CRUD, email/phone uniqueness, input validation, open-PO delete guard | No phone index, unused reliability field |
-| Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, unique medicine index, runtime request/movement validation | Expiry flagging still needs a follow-up sync |
-| Batches & expiry | Implemented | CRUD, FEFO query, expiry flagging, atomic disposal, movements on every stock change, request validation | No movement history endpoint; zero-stock batch deletion can leave dangling references |
+| Users & roles | Implemented | CRUD, activation toggle, owner-only writes, JWT-authoritative delete, role-change route, hashed password updates, public responses sanitized, cursor pagination/search | Audit trail, admin password reset |
+| Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks, unit validation, reference-safe lookup deletes, escaped search, active filtering, cursor pagination | Name+strength+brand uniqueness is service-only |
+| Suppliers | Implemented | CRUD, email/phone uniqueness, phone index, reliability score persistence, input validation, open-PO delete guard | No supplier audit trail |
+| Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, versioned compare-and-swap, unique medicine index, runtime request/movement validation | No stocktake/bulk adjustment workflow |
+| Batches & expiry | Implemented | CRUD, FEFO query, expiry flagging with aggregate sync, atomic disposal, movements on every stock change, request validation, movement history, delete guard | No batch split/merge |
 | Purchases | Implemented | Create/approve/receive, VAT/discount-aware persisted totals, recalc on item edits, guarded cascade delete, runtime receive schema | No partial receipt, no PO numbering |
 | Sales | Implemented | FEFO allocation, VAT, invoice counter, transaction, session cleanup, validated params, sale-item corrections recompute totals, delete guarded by returns | No payment ledger |
 | Returns | Implemented | PENDING → APPROVED/REJECTED/CANCELLED → COMPLETED workflow, outstanding-quantity accounting, VAT-inclusive refunds, correct GOOD/write-off semantics, unique return number | No return reversal or refund payment record |
 | Notifications | Implemented | Create/dispatch with atomic claim, inbox, WS/email/SMS, retries, preferences, read state, cursor pagination, hierarchy authz | Templates out of scope; multi-instance retry sweep; legacy backfill/dedupe is a deployment step |
-| Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cron, cache, approve/reject | No PO creation, stale cache, no dedupe, missing date handling |
-| Dashboard/reporting | Implemented | 14 endpoints, 8-part cached payload, COGS profit, saleDate-based periods, timezone-aware year series, returns excluded from top selling | Dashboard cache not invalidated; no arbitrary date ranges |
-| Redis caching | Partially Implemented | Dashboard + reorder cache | No invalidation, fragile connection config, hard startup dependency |
-| Background jobs | Implemented | 3 cron jobs (incl. notification retry) + job audit records | In-process, no lock; retry sweep intentionally unrecorded |
+| Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cron, cache, approve/reject, invalidated caches, pending dedupe, safe date handling, reliability persistence | No PO creation |
+| Dashboard/reporting | Implemented | 14 endpoints, 8-part cached payload with invalidation, COGS profit, saleDate-based periods, timezone-aware year series, returns excluded from top selling | No arbitrary date ranges |
+| Redis caching | Implemented | Dashboard + reorder cache with invalidation; explicit `REDIS_URL`/Upstash target resolution | Redis still required at startup |
+| Background jobs | Implemented | 3 cron jobs + job audit records + Redis distributed locks | Single-process scheduler; retry sweep intentionally unrecorded |
 | WebSocket | Implemented | Cookie-auth upgrade, per-user push | No heartbeat/acks/rooms, offline marked Sent |
 | Email | Implemented | Lazy Nodemailer transport, HTML auth emails, console fallback | No retry/bounce tracking; real SMTP must be configured |
 | Swagger/OpenAPI | Not Implemented | Stubs exist | Not mounted, most files empty, `swagger-jsdoc` not a dependency |
-| Pagination/search | Not Implemented (notifications only) | — | Other list endpoints return everything |
+| Pagination/search | Implemented | Cursor pagination on medicines, sales, purchases, inventory, returns, users, batches | Client currently requests the first 100 rows |
 | Payments | Not Implemented | Payment method string only | No gateway/ledger/refund transaction |
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Partially Implemented | 58 suites / 425 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
+| Automated tests | Implemented | 66 unit suites / 458 tests + 6 HTTP integration tests | Controllers, Redis, Mongo, and SMTP are covered by unit fakes and the integration suite; live provider behavior still unverified |
 
 ## 4. Implemented features
 
@@ -90,17 +90,17 @@ It is not production-hardened. The main risks are:
 | Purchase totals | VAT/discount-aware totals persisted on recalculation | Historical pre-Phase-4 totals are not backfilled |
 | Email notifications | Sending works if SMTP is reachable; auth emails have HTML templates | No retry/bounce tracking; console fallback when SMTP is unconfigured |
 | SMS notifications | Implemented via `SMS_WEBHOOK_URL` | Requires `SMS_WEBHOOK_URL` and a recipient phone |
-| Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls | Expiry flagging needs a follow-up sync |
-| Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed | No arbitrary date-range analytics; cache still uninvalidated |
+| Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls; expiry flagging reconciles affected medicines immediately | Optimistic conflicts surface as `409` and must be retried by the caller |
+| Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed, cache invalidated on writes | No arbitrary date-range analytics |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 58 suites / 425 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
+| Tests | 66 unit suites / 458 tests + 6 HTTP integration tests | Live SMTP/SMS/Upstash behavior remains unverified |
 
 ## 6. Not implemented
 
 - Purchase returns / supplier returns.
 - Payment gateways, payment records, refunds, credit tracking.
 - MFA, account lockout.
-- CSRF protection tokens and security headers.
+- Security headers (helmet or equivalent).
 - Pagination, sorting, date-range filters on non-notification lists.
 - File uploads (invoice file is a string).
 - Google OAuth.
@@ -132,7 +132,7 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 4 suite is 58 files, 425 tests) |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 5 suite is 66 unit files / 458 tests + 6 HTTP integration tests) |
 | Client tests | 2 files, 17 tests passed |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
@@ -163,12 +163,12 @@ It is not production-hardened. The main risks are:
 
 ## 8. Highest-risk defects (ranked)
 
-1. **Missing indexes** on `salesitems.salesId` and `returns.salesId`.
-2. **Expiry flagging** changes the sellable set without syncing aggregates; the next mutation or sync call corrects it.
-3. **List scalability** — pagination and filtering are still absent outside notifications.
-4. **No HTTP integration suite** — route ordering, middleware, and transaction behavior are covered by unit tests but not end-to-end against MongoDB/Redis.
-5. **Historical data** — pre-Phase-4 purchase totals are VAT-exclusive, old returns have no line VAT, and legacy sale items have no cost snapshot; no backfill exists.
-6. **Dashboard cache** is not invalidated on writes (Phase 5).
+1. **Historical data** — pre-Phase-4 purchase totals are VAT-exclusive, old returns have no line VAT, and legacy sale items have no cost snapshot; no backfill exists.
+2. **Index deployment** — unique indexes on supplier phone, inventory medicine, pending reorders, and sale idempotency keys require the duplicate-readiness check to pass first.
+3. **Client list truncation** — the client requests up to 100 rows and does not yet expose a "load more" control.
+4. **Redis remains a hard startup dependency** even though invalidation failures are tolerated.
+5. **Background scheduler** is still in-process; the lock prevents duplicate work but does not provide leader election.
+6. **Live provider behavior** — SMTP, SMS, and Upstash connectivity remain unverified against production services.
 
 ## 9. Security posture
 
@@ -179,7 +179,7 @@ It is not production-hardened. The main risks are:
 | Token expiry | 15m access + 7d rotating refresh sessions |
 | HttpOnly cookie | Yes (`token` + scoped `refreshToken`) |
 | Secure/SameSite | Production: secure + `None`; dev: `Strict` |
-| CSRF protection | Partial: Origin allow-list on auth routes; no CSRF token |
+| CSRF protection | Global double-submit cookie (`csrfToken` + `X-CSRF-Token`) for unsafe methods; Origin allow-list on auth routes |
 | Rate limiting | Implemented for auth endpoints (Redis, fail-open) |
 | Input validation | Implemented for bodies, ObjectId params, and search/query schemas on module routes |
 | Output sanitization | Auth and user responses strip password/refresh/reset hashes |

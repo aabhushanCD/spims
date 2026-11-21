@@ -2,6 +2,11 @@ import type { Model } from "mongoose";
 import type { IUser } from "../model/user.model.js";
 import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
 import type mongoose from "mongoose";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export type AuthUserUpdate = Partial<
   Pick<
@@ -113,6 +118,40 @@ export class UserRepository {
 
   async findAll(): Promise<IUser[]> {
     return await this.userModel.find().lean();
+  }
+
+  async findPage(
+    filters: {
+      search?: string;
+      role?: "owner" | "pharmacist" | "inventory_manager";
+      isActive?: boolean;
+    },
+    cursor: PageCursor | null,
+    limit: number,
+  ): Promise<IUser[]> {
+    const conditions: Record<string, unknown>[] = [];
+    if (filters.role) {
+      conditions.push({ role: filters.role });
+    }
+    if (filters.isActive !== undefined) {
+      conditions.push({ isActive: filters.isActive });
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      conditions.push({ $or: [{ name: regex }, { email: regex }] });
+    }
+    const cursorClause = cursorFilter("createdAt", cursor);
+    if (Object.keys(cursorClause).length > 0) {
+      conditions.push(cursorClause);
+    }
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    return this.userModel
+      .find(query)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async findByRole(

@@ -20,8 +20,11 @@ const toggleUserActivation = async (userId: string): Promise<void> => {
 };
 
 const getAllUsers = async (): Promise<User[]> => {
-  const response = await api.get(`/users`);
-  return response.data;
+  const response = await api.get<{
+    success: boolean;
+    data: { items: User[]; nextCursor: string | null };
+  }>(`/users?limit=100`);
+  return response.data.data.items;
 };
 
 const createUser = async (userData: SignupFormData): Promise<User> => {

@@ -9,6 +9,7 @@ import {
 import {
   batchAdjustSchema,
   batchIdParamSchema,
+  batchListQuerySchema,
   batchMedicineParamSchema,
   batchQuantitySchema,
   confirmDisposalSchema,
@@ -48,7 +49,11 @@ router.post(
   validate(createBatchSchema),
   medicineBatchController.createBatch,
 );
-router.get("/", medicineBatchController.getAllBatches);
+router.get(
+  "/",
+  validateQuery(batchListQuerySchema),
+  medicineBatchController.getAllBatches,
+);
 
 router.get(
   "/:id",

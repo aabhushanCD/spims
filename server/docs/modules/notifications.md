@@ -361,14 +361,14 @@ sequenceDiagram
 | WebSocket delivery outside HTTP response | Implemented | — |
 | Notification templates | Needs decision | Phase 6 |
 | Atomic dispatch claim | Implemented (compare-and-swap; at-least-once delivery) | — |
-| Multi-instance retry cron | Still open (no distributed lock; stale-claim window bounds duplicates) | Phase 5 |
+| Multi-instance retry cron | Fixed: Redis lock; stale-claim window still bounds duplicates | — |
 | Retry sweep overlap (single instance) | Implemented (in-process guard) | — |
 | Abandoned in-flight rows | Implemented (15-minute sweep) | — |
 | Permanent SMTP failures | Implemented (SMTP 5xx terminal; other errors retry) | — |
 | SMTP hangs | Implemented (10s connect/greeting, 20s socket) | — |
 | Legacy recipient rows | Implemented (`notification:backfill` / `notification:dedupe`) | — |
 | GET /:id visibility | Implemented (`owner`/`pharmacist`; delivery details owner-only) | — |
-| Unique recipient index | Still open (declared; duplicates must be cleaned before deploy) | Phase 5 |
+| Unique recipient index | Declared; run the notification dedupe script before deploying the index | Deployment step |
 | Same-role inbox visibility | Accepted limitation (peers may read each other's inboxes) | — |
 
 ## Related documents

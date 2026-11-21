@@ -1,6 +1,7 @@
 // batch.controller.ts
 import type { NextFunction, Request, Response } from "express";
 import type { BatchService } from "../service/batch.service.ts";
+import type { BatchListQuery } from "../schema/batch.schema.ts";
 import { AppError } from "../../../shared/error.ts";
 
 const asyncHandler =
@@ -40,15 +41,17 @@ export class BatchController {
     res.status(200).json({ success: true, data: batch });
   }); 
   getBatchByMedicineId = asyncHandler(async (req: Request, res: Response) => {
-    const batch = await this.batchService.getBatchByMedicineId(
+    const batches = await this.batchService.getBatchesByMedicineId(
       req.params.medicineId as string,
     );
-    res.status(200).json({ success: true, data: batch });
+    res.status(200).json({ success: true, data: batches });
   });
   // GET /batches
-  getAllBatches = asyncHandler(async (_req: Request, res: Response) => {
-    const batches = await this.batchService.getAllBatches();
-    res.status(200).json({ success: true, data: batches });
+  getAllBatches = asyncHandler(async (req: Request, res: Response) => {
+    const page = await this.batchService.getBatchesPage(
+      req.query as unknown as BatchListQuery,
+    );
+    res.status(200).json({ success: true, data: page });
   });
   // GET /batches/expired/awaiting-disposal
   getExpiredAwaitingDisposal = asyncHandler(

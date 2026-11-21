@@ -2,7 +2,7 @@
 
 ## 1. Scheduling mechanism
 
-Jobs use `node-cron` inside the API process. There is no external queue, worker deployment, or distributed lock.
+Jobs use `node-cron` inside the API process. There is no external queue or worker deployment. Each job takes a Redis `SET NX PX` lock, so multiple instances do not run the same schedule concurrently; if Redis is unavailable the job skips rather than running unlocked.
 
 Three jobs are scheduled from `server.ts`:
 
@@ -14,9 +14,9 @@ Three jobs are scheduled from `server.ts`:
 
 Cron expressions use server-local time.
 
-A third scheduler exists in `modules/worker/smartReorder.cron.ts` with the same 02:00 schedule, but it is **never imported** and never runs. It is duplicate dead code.
+The old duplicate scheduler in `modules/worker/smartReorder.cron.ts` has been removed.
 
-Sources: `server/src/modules/backgroundJobs/jobs/expiryCheck.job.ts`, `reorderCalculation.job.ts`, `server/src/modules/worker/smartReorder.cron.ts`, `server/src/server.ts`
+Sources: `server/src/modules/backgroundJobs/jobs/expiryCheck.job.ts`, `reorderCalculation.job.ts`, `notificationRetry.job.ts`, `server/src/server.ts`
 
 ## 2. Job tracking
 
@@ -138,29 +138,19 @@ Source: `server/src/modules/backgroundJobs/jobs/notificationRetry.job.ts`
 
 This only detects jobs that crashed hard enough to skip `markCompleted`/`markFailed` (for example a process kill). It does not detect missed schedules.
 
-## 7. Repository defect
+## 7. Repository behavior
 
-`BackgroundJobRepo.create`:
-
-```ts
-if (session) {
-  await job.save({ session });
-}
-return await job.save();
-```
-
-With a session, the document is saved twice. The second `save()` runs outside the supplied session. No current job passes a session, so this is latent, but any future transactional use should fix it.
+`BackgroundJobRepo.create` saves once: with the supplied transaction session when present, otherwise without one. This closes the previous double-save defect.
 
 ## 8. Multi-instance behavior
 
-There is no leader election or lock. If the API runs on multiple instances:
+Every instance schedules the cron, but `runWithLock` gates each run with a Redis lock:
 
-- Each instance schedules its own cron and runs the same jobs.
-- Expiry flagging is mostly idempotent (checks `!isExpired`), but races can produce duplicate notifications.
-- Reorder generation can create duplicate recommendations (no unique constraint).
-- Every instance runs the notification retry sweep; the in-process overlap guard is per instance, and combined with the lack of an atomic dispatch claim, duplicate sends are possible.
+- `lock:expiry-check` for 30 minutes.
+- `lock:reorder-calculation` for 2 hours.
+- `lock:notification-retry` for 55 seconds.
 
-Deployment guidance: run a single API instance, or move cron to a dedicated process.
+The in-process overlap guard remains as a secondary check for the retry sweep. If Redis is unreachable, the job logs and skips; it does not run unlocked. Deployment guidance is still to run a dedicated worker if cron load grows.
 
 ## 9. Time zones and daylight saving
 
@@ -197,16 +187,16 @@ Manual triggers call the services directly and do not create `BackgroundJob` rec
 | Issue | Status |
 |---|---|
 | External queue/worker | Not Implemented |
-| Distributed lock | Not Implemented |
+| Distributed lock | Implemented with Redis `SET NX PX` + compare-and-delete release |
 | Retry with backoff | Not Implemented |
 | Job history API | Not Implemented (only dashboard stale count) |
 | Archive/cleanup of job records | Not Implemented |
 | Catch-up for missed runs | Not Implemented |
 | Timezone configuration | Not Implemented |
-| Duplicate scheduler file | Dead code |
+| Duplicate scheduler file | Removed |
 | Notification failure isolation | Implemented (per-recipient, with scheduled retries) |
 | Notification retry audit record | Intentionally not recorded; recipient rows are the audit trail |
-| Retry overlap across instances | In-process guard only; the stale-claim window bounds duplicate sends |
+| Retry overlap across instances | Redis lock plus in-process guard; stale-claim window still bounds duplicate sends |
 | Atomic dispatch claim | Implemented (`_id` + `status` + `attempts` + `lastAttemptAt` compare-and-swap); delivery is at-least-once |
 | Pagination of jobs | Not Implemented |
 

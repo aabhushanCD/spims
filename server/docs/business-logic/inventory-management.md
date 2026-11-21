@@ -82,10 +82,10 @@ Reservations are advisory and not linked to orders yet. `reserveStock` and `rele
 
 Remaining gaps:
 
-- No idempotency: retrying a sale or receipt can duplicate effects unless the transaction failed outright.
-- No optimistic locking on aggregate read-modify-write; MongoDB transaction conflicts abort writes, but there is no retry policy (Phase 5).
-- `markExpiredBatches` changes the sellable set without syncing aggregates. The next mutation or `POST /inventory/:medicineId/sync` corrects it.
-- A zero-stock batch can still be deleted while sale items or movements reference it. Sale deletion and GOOD returns for that batch then fail with 404.
+- Sale creation is idempotent when an `Idempotency-Key` is supplied; receipts still rely on transaction state and the approved/received guard.
+- Aggregate and batch writes use version/quantity compare-and-swap; a lost race returns `409` instead of silently overwriting another write.
+- `markExpiredBatches` reconciles affected inventory aggregates immediately after flagging expiry.
+- A zero-stock batch cannot be deleted while sale items or movement records reference it.
 
 ## 6. Concurrency
 

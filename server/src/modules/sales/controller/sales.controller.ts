@@ -3,7 +3,10 @@ import type { Request, Response, NextFunction } from "express";
 
 import { AppError } from "../../../shared/error.ts";
 import type { SalesService } from "../services/sales.service.ts";
-import type { CreateSaleDto } from "../schema/sales.schema.ts";
+import type {
+  CreateSaleDto,
+  SalesListQuery,
+} from "../schema/sales.schema.ts";
 
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
@@ -26,12 +29,27 @@ export class SalesController {
         throw AppError.badRequest("Sale must include at least one item");
       }
 
+      const headerKey = req.headers["idempotency-key"];
+      const idempotencyKey =
+        typeof headerKey === "string" ? headerKey : req.body.idempotencyKey;
+      if (
+        idempotencyKey !== undefined &&
+        (typeof idempotencyKey !== "string" ||
+          idempotencyKey.length < 8 ||
+          idempotencyKey.length > 200)
+      ) {
+        throw AppError.badRequest(
+          "Idempotency-Key must be between 8 and 200 characters",
+        );
+      }
+
       const sale = await this.salesService.createSale({
         customerName,
         paymentMethod,
         saleDate,
         cashierId: req.user!.userId,
         discount: req.body.discount,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         items,
       });
 
@@ -53,10 +71,11 @@ export class SalesController {
   // GET /sales
   async getAllSales(req: Request, res: Response, next: NextFunction) {
     try {
-      const sales = await this.salesService.getAllSales();
-      res.status(200).json({ success: true, data: sales });
+      const page = await this.salesService.getSalesPage(
+        req.query as unknown as SalesListQuery,
+      );
+      res.status(200).json({ success: true, data: page });
     } catch (error) {
-      console.error("Unexpected error in getAllSales:", error);
       next(error);
     }
   }

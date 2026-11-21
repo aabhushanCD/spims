@@ -11,10 +11,10 @@ import type {
 const getSales = async (
   params: SalesQueryParams,
 ): Promise<ApiResponse<SalesListItem[]>> => {
-  const response = await api.get<ApiResponse<SalesListItem[]>>("/sales", {
-    params,
-  });
-  return response.data;
+  const response = await api.get<
+    ApiResponse<{ items: SalesListItem[]; nextCursor: string | null }>
+  >("/sales", { params: { ...params, limit: 100 } });
+  return { success: response.data.success, data: response.data.data.items };
 };
 
 const getSaleById = async (saleId: string): Promise<SaleDetails> => {

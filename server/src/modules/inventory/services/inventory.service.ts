@@ -11,6 +11,11 @@ import type {
   StockReferenceType,
 } from "../types/stockMovement.type.ts";
 import type { StockMutationService } from "./stockMutation.service.ts";
+import type { InventoryListQuery } from "../schema/inventory.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export type InventoryMovementCtx = Omit<StockMovementCtx, "medicineId">;
 
@@ -63,6 +68,25 @@ export class InventoryService {
     session?: mongoose.ClientSession,
   ): Promise<IInventory[]> {
     return await this.inventoryRepo.findAll(session);
+  }
+
+  async getInventoriesPage(query: InventoryListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.inventoryRepo.findPage(
+      {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.stockStatus ? { stockStatus: query.stockStatus } : {}),
+        ...(query.medicineId ? { medicineId: query.medicineId } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.lastUpdated as Date | undefined,
+      (row) => String(row._id),
+    );
   }
 
   async searchMedicines(query: string) {
@@ -245,8 +269,9 @@ export class InventoryService {
       );
     }
 
-    return await this.inventoryRepo.update(
-      id,
+    const updated = await this.inventoryRepo.updateWithVersion(
+      inventory._id.toString(),
+      inventory.version ?? 0,
       {
         reservedStock,
         currentStock: totalStock,
@@ -255,6 +280,10 @@ export class InventoryService {
       },
       session,
     );
+    if (!updated) {
+      throw this.appError.conflict("Inventory changed while being updated");
+    }
+    return updated;
   }
 
   async sellMedicine(
