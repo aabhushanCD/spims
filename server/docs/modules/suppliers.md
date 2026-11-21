@@ -112,14 +112,14 @@ sequenceDiagram
 
 ## 13. Limitations
 
-| Issue | Status |
-|---|---|
-| Phone unique index | Not Implemented |
-| Prevent delete with open POs | Not Implemented |
-| Supplier performance history endpoint | Not Implemented |
-| `reliabilityScore` maintenance | Not Implemented |
-| Pagination/filtering by status | Not Implemented |
-| Contact/address validation beyond non-empty | Not Implemented |
+| Issue | Status | Phase |
+|---|---|---|
+| Phone unique index | Still open | Phase 5 |
+| Prevent delete with open POs | Still open | Phase 3 |
+| Supplier performance history endpoint | Needs decision | Phase 6 |
+| `reliabilityScore` maintenance | Still open | Phase 5 |
+| Pagination/filtering by status | Still open | Phase 5 |
+| Contact/address validation beyond non-empty | Still open | Phase 3 |
 
 ## Related documents
 

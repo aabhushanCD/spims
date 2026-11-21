@@ -34,7 +34,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
 | Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
-| Tests | Vitest | 19 test files, 201 tests |
+| Tests | Vitest | 22 test files, 223 tests |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -76,7 +76,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | [modules/products.md](modules/products.md) | Medicine catalog and lookup data |
 | [modules/suppliers.md](modules/suppliers.md) | Supplier module |
 | [modules/inventory.md](modules/inventory.md) | Aggregate inventory operations |
-| [modules/batches.md](modules/batches.md) | Batches, expiry, disposal, allocation |
+| [modules/batches.md](modules/batches.md) | Batches, expiry, disposal, FEFO deduction |
 | [modules/purchases.md](modules/purchases.md) | Purchase orders and receiving |
 | [modules/sales.md](modules/sales.md) | Sales creation, pricing, deletion |
 | [modules/returns.md](modules/returns.md) | Sales returns |
@@ -108,9 +108,9 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | User administration | Implemented |
 | Medicine catalog | Implemented |
 | Supplier management | Implemented |
-| Batch inventory and FEFO | Partially Implemented — FEFO implemented; positive-quantity batch creation blocked by validator |
+| Batch inventory and FEFO | Partially Implemented — FEFO implemented; batch creation validates |
 | Aggregate inventory | Partially Implemented — reconciliation gaps |
-| Purchase orders and receiving | Partially Implemented — receiving aborts at batch creation |
+| Purchase orders and receiving | Partially Implemented — receiving can complete; totals and validation still open |
 | Sales and VAT | Implemented |
 | Sales returns | Partially Implemented |
 | Purchase returns | Not Implemented |
@@ -123,11 +123,12 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | WebSocket push | Implemented |
 | Swagger/OpenAPI | Not Implemented (unmounted stubs) |
 | Pagination | Not Implemented |
-| Automated tests | Partially Implemented — one unit test file |
+| Automated tests | Partially Implemented — 22 files / 223 tests; no HTTP integration tests |
 
 ## Conventions used in this documentation
 
 - **Status labels:** `Implemented`, `Partially Implemented`, `Not Implemented`, `Unverified`.
+- **Limitation-table labels:** `Already fixed` (previously documented defect now corrected, with regression coverage), `Still open` (defect or gap remains; the Phase column points to the planned phase), `Needs decision` (choice not yet made), `Accepted limitation` (deliberate behaviour; no change planned), `Implemented` (capability exists and no defect is known).
 - **Source references** use paths relative to the repository root, for example `server/src/modules/sales/services/sales.service.ts`.
 - All API paths are relative to the `/api` mount point.
 - Unless stated otherwise, every non-auth endpoint requires a valid `token` cookie and accepts the roles `owner`, `inventory_manager`, and `pharmacist`.
@@ -136,4 +137,4 @@ The backend uses a **modular layered architecture** with manual dependency injec
 
 ## Important caveat
 
-Several behaviors in the code are internally inconsistent or broken (for example, two stock sources that can drift, a batch allocation endpoint that mutates stock and returns an empty array, a batch validator that blocks positive-quantity creation, and a return path that does not refund VAT). These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents. They are not documented as intended behavior.
+Several behaviors in the code are internally inconsistent or broken. Current examples: two stock sources that can drift and several operations that update only one; DAMAGED/EXPIRED/OPENED returns still restock sellable stock and GOOD returns do not restore the original batch; refunds omit VAT; purchase totals ignore VAT/discount; and invoice discounts are not clamped to the discounted subtotal. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents. They are not documented as intended behavior.

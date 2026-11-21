@@ -166,14 +166,12 @@ Express 5 would forward rejected async handlers automatically, but the code does
 | Notification per-recipient dispatch | Any error marks the recipient `Failed` and stores a truncated error; transient failures are retried |
 | `AuthService.registerUser` | Mongoose errors propagate |
 | Cron jobs | Catch and `console.error`; the `BackgroundJob` record is marked failed via `runJob` |
-| Return GOOD path | Expected to fail movement enum validation and abort the transaction (see below) |
+| Return GOOD path | Movement enum mismatch fixed; returns still omit `returnItems.VAT` (Phase 4) |
 | Dashboard repository `getExpiringSoonCount` | Queries a non-existent path, returns 0 silently |
 
-## 8. Expected failure in the return flow
+## 8. Return-flow movement reference
 
-`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine`. The GOOD branch forwards that value to `InventoryMovement`, whose schema enum only allows `PURCHASE_ORDER`, `SALE`, `RETURN`, `ADJUSTMENT`, `SYSTEM`. Isolated validation with the installed Mongoose version rejects `SALES_RETURN`, so the save throws and the return transaction aborts. Damaged/expired/opened returns use the valid literal `"RETURN"`.
-
-Status: **Confirmed enum mismatch**; the HTTP 500 is the expected runtime outcome.
+`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine`. `InventoryMovement.referenceType` now includes `SALES_RETURN`, so the GOOD path no longer fails enum validation. The remaining return defects are the condition semantics, the missing VAT on `returnItems`, and duplicate movement rows (Phase 4).
 
 Source: `server/src/modules/sales/services/return.service.ts`, `server/src/modules/inventory/services/inventory.service.ts`, `server/src/modules/inventory/model/inventoryMovement.model.ts`
 

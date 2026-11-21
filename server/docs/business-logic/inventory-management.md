@@ -35,7 +35,6 @@ This is the filter in `findSellableBatches` (`modules/batch/repo/medicineBatch.r
 Inconsistencies:
 
 - `BatchService.getAvailableBatches` omits the `isExpired` check.
-- `getTotalStock` (with a session) includes the `isExpired: false` filter.
 - Smart reorder's usable-stock query filters only by expiry date, not `isExpired` or quantity > 0 (zero quantities add nothing, so only the flag is a gap).
 - `Inventory.availableStock` is not recomputed when a batch expires; it changes only on the next sync or manual operation.
 
@@ -48,9 +47,9 @@ Inconsistencies:
 | GOOD return | None | `+quantity` | `RETURN` | Yes |
 | DAMAGED/EXPIRED/OPENED return | `+quantity` | Sync | 2 × `RETURN` | Yes |
 | Sale deletion | None | `+quantity` per item | `RETURN` | Yes |
-| Disposal | Set 0 | `-quantity` | `SALE` (requested `EXPIRED` lost) | No |
+| Disposal | Set 0 | `-quantity` | `EXPIRED` (requested type preserved) | No |
 | Manual increase | None | `+quantity` | `PURCHASE`/`RETURN` | No |
-| Manual decrease | None | `-quantity` | `SALE` always (requested type ignored) | No |
+| Manual decrease | None | `-quantity` | requested `SALE`/`EXPIRED`/`ADJUSTMENT` | No |
 | Reserve | None | `availableStock -quantity` | `RESERVE` | No |
 | Release | None | `availableStock +quantity` | `RELEASE` | No |
 | Batch deduct | `-quantity` | None | None | No |
@@ -72,22 +71,21 @@ Inconsistencies:
    - Set `availableStock = totalStock - reservedStock`.
    - If a movement context and a numeric `currentStock` are supplied, log the delta.
 
-### The no-session bug
+### Sellable filter
 
-`getTotalStock` has two branches (`modules/batch/repo/medicineBatch.repo.ts`):
+`getTotalStock` applies the same sellable filter whether or not a session is supplied (`modules/batch/repo/medicineBatch.repo.ts`):
 
 ```ts
-const batches = session
-  ? await this.batchModel.find({
-      medicineId,
-      quantityRemaining: { $gt: 0 },
-      expiryDate: { $gt: new Date() },
-      isExpired: false,
-    }).session(session).lean().exec()
-  : await this.batchModel.find({ medicineId }).lean().exec();
+const query = this.batchModel.find({
+  medicineId,
+  quantityRemaining: { $gt: 0 },
+  expiryDate: { $gt: new Date() },
+  isExpired: false,
+});
+if (session) query.session(session);
 ```
 
-The non-session branch still filters by `medicineId`, but it **includes expired and flagged batches** (zero-quantity rows are also included but contribute nothing). Therefore `POST /inventory/:medicineId/sync` (which passes no session) computes an inflated `currentStock` that includes unsellable stock. Session-backed callers (sales, receipts) get the correct sellable total.
+Both session-backed callers (sales, receipts) and `POST /inventory/:medicineId/sync` (no session) therefore compute the same sellable total. Expired, flagged, and zero-quantity batches are excluded.
 
 ### Other reconciliation gaps
 
@@ -155,11 +153,11 @@ disposable:       isExpired === true && quantityRemaining > 0
 sellable:         quantityRemaining > 0 && expiryDate > now && !isExpired
 ```
 
-A batch past its date but not yet flagged is excluded from sales (date filter) but still counted in `getTotalStock` non-session syncs and in `GET /batches/expired`.
+A batch past its date but not yet flagged is excluded from sales and from both `getTotalStock` branches (the date filter applies), but `GET /batches/expired` still returns it because that endpoint filters by date directly.
 
 ### Disposal
 
-Disposal is the only flow that writes off expired stock. It requires the flag to be set first (manual route or cron). Until disposal, expired stock remains in batch totals for non-session syncs.
+Disposal is the only flow that writes off expired stock. It requires the flag to be set first (manual route or cron). Until disposal, flagged expired stock remains in the batch table but is excluded from `getTotalStock` and therefore from syncs.
 
 ## 8. Reserved stock
 
@@ -179,7 +177,7 @@ Use this when diagnosing stock discrepancies:
    - `GET /inventory/medicine/:medicineId`
    - `GET /batches/medicine/:medicineId/available`
 2. Check for duplicate inventory rows for the medicine (no unique index).
-3. Check expired/flagged batches included by a non-session sync.
+3. Confirm that expired/flagged batches are excluded from the sync total (they should be, in both session and non-session calls).
 4. Review recent `inventorymovements` for the medicine (no HTTP endpoint; query the collection or use `/dashboard/recent-activity`).
 5. Check whether a GOOD return or sale deletion was applied to the aggregate only.
 6. Check whether batch deduct/increase was used without a sync.
@@ -190,8 +188,7 @@ These are operational notes, not changes to the code:
 
 - Prefer sales/receipts over manual inventory adjustments; they keep both layers aligned.
 - After any manual inventory or batch operation, verify the batch sum.
-- Do not use `GET /batches/medicine/:id/allocate`; it mutates stock without movements or a useful response.
-- Do not rely on `POST /inventory/:medicineId/sync` without a session until the non-session filter is fixed.
+- `POST /inventory/:medicineId/sync` now uses the sellable filter with or without a session.
 - Treat `reservedStock` as informational only.
 
 ## Related documents

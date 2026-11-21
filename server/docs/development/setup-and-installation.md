@@ -136,7 +136,7 @@ There are no migrations or seeders. Mongoose creates collections and indexes on 
 | Verification/reset link points to localhost in production | `CLIENT_URL` missing | Set `CLIENT_URL` to the deployed frontend origin |
 | `Missing required auth environment variables` at boot | `JWT_SECRET`, or production `JWT_REFRESH_SECRET` / `CLIENT_URL`, is unset | Fill them in `.env` |
 | Dashboard values stale | 60-second cache | Wait or restart Redis |
-| Batch create fails validation | `isActive` validator conflict | Confirmed defect; positive-quantity batches cannot be saved | See [Batches](../modules/batches.md) |
+| Batch create fails validation | `isActive` validator | Fixed: active batches may hold stock | See [Batches](../modules/batches.md) |
 | Port already in use | Another process on `PORT` | Change `PORT` |
 
 ## 9. Verification checklist
@@ -153,7 +153,7 @@ Manual smoke tests:
 3. Create catalog + supplier + purchase order.
 4. Approve and receive; verify batch and inventory records.
 5. Create a sale; verify batch deduction, movement rows, and VAT totals.
-6. Create a return; expect the GOOD path to fail if the enum mismatch is confirmed.
+6. Create a return; verify the movement row uses `referenceType: SALES_RETURN` (condition semantics are still Phase 4).
 7. `GET /api/dashboard`.
 8. Open `/ws` with the cookie and trigger an InApp notification.
 

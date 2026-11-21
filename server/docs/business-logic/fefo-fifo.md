@@ -17,7 +17,6 @@ FEFO is implemented in the batch repository and used by the sales path. FIFO inf
 | `MedicineBatchRepo.findSellableBatches` | Query and sort for sales |
 | `InventoryService.sellMedicine` | Allocate across the sorted batches |
 | `InventoryRepo.searchMedicines` | Return the earliest-expiring batch as `nextBatch` for the POS UI |
-| `BatchService.allocateStock` | Applies similar filters but **no sort**; broken (see below) |
 
 Source: `server/src/modules/batch/repo/medicineBatch.repo.ts`
 

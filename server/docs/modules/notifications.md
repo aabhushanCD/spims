@@ -348,28 +348,28 @@ sequenceDiagram
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| SMS delivery | Implemented via generic HTTP webhook |
-| Real SMTP configuration | Implemented when `SMTP_*` is set; the server refuses to boot in production without `SMTP_HOST` (the JSON transport would silently mark email `Sent`) |
-| Delivery error details | Stored per recipient, truncated to 1,000 characters; owner-only in detail responses |
-| Failed-recipient retries | Automatic at +1m/+5m plus forced manual retry |
-| User opt-out/preferences | Implemented (`{ email, sms }`); critical notifications bypass |
-| Read/unread state | Implemented per recipient |
-| Pagination | Implemented with a base64url cursor |
-| Authorization on `/notifications/user/:userId` | Implemented with a role hierarchy |
-| WebSocket delivery outside HTTP response | Implemented |
-| Notification templates | **Out of scope** — plain strings only |
-| Atomic dispatch claim | Implemented via `status` + `attempts` + `lastAttemptAt` compare-and-swap in `claimForDispatch`; delivery is at-least-once |
-| Multi-instance retry cron | No distributed lock; the stale-claim window bounds duplicate sends, but an external lock is still recommended |
-| Retry sweep overlap (single instance) | In-process guard skips a tick while a sweep is running |
-| Abandoned in-flight rows | Swept after 15 minutes (`STALE_IN_FLIGHT_MS`) |
-| Permanent SMTP failures | SMTP 5xx responses are terminal; other email errors retry |
-| SMTP hangs | Connect/greeting time out after 10s, socket after 20s |
-| Legacy recipient rows | `notification:backfill` derives `createdAt` from the ObjectId; `notification:dedupe` clears duplicates before the unique index |
-| GET /:id visibility | Requires `owner` or `pharmacist`; delivery details are owner-only |
-| Unique recipient index | Declared; existing duplicates must be cleaned before deploy |
-| Same-role inbox visibility | Peers may read each other's inboxes (locked decision) |
+| Issue | Status | Phase |
+|---|---|---|
+| SMS delivery | Implemented | — |
+| Real SMTP configuration | Implemented (production refuses to boot without `SMTP_HOST`) | — |
+| Delivery error details | Implemented (per recipient, truncated to 1,000 characters; owner-only) | — |
+| Failed-recipient retries | Implemented (+1m/+5m plus forced manual retry) | — |
+| User opt-out/preferences | Implemented (`{ email, sms }`; critical notifications bypass) | — |
+| Read/unread state | Implemented per recipient | — |
+| Pagination | Implemented with a base64url cursor | — |
+| Authorization on `/notifications/user/:userId` | Implemented with a role hierarchy | — |
+| WebSocket delivery outside HTTP response | Implemented | — |
+| Notification templates | Needs decision | Phase 6 |
+| Atomic dispatch claim | Implemented (compare-and-swap; at-least-once delivery) | — |
+| Multi-instance retry cron | Still open (no distributed lock; stale-claim window bounds duplicates) | Phase 5 |
+| Retry sweep overlap (single instance) | Implemented (in-process guard) | — |
+| Abandoned in-flight rows | Implemented (15-minute sweep) | — |
+| Permanent SMTP failures | Implemented (SMTP 5xx terminal; other errors retry) | — |
+| SMTP hangs | Implemented (10s connect/greeting, 20s socket) | — |
+| Legacy recipient rows | Implemented (`notification:backfill` / `notification:dedupe`) | — |
+| GET /:id visibility | Implemented (`owner`/`pharmacist`; delivery details owner-only) | — |
+| Unique recipient index | Still open (declared; duplicates must be cleaned before deploy) | Phase 5 |
+| Same-role inbox visibility | Accepted limitation (peers may read each other's inboxes) | — |
 
 ## Related documents
 

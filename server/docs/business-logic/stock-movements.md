@@ -15,7 +15,7 @@ Every intended stock change should leave an `InventoryMovement` row. In practice
 | `movementType` | `PURCHASE`, `SALE`, `RETURN`, `ADJUSTMENT`, `EXPIRED`, `RESERVE`, `RELEASE` |
 | `quantity` | Normally a positive magnitude; direction inferred from type. No schema constraint enforces this. |
 | `referenceId` | Business document id (sale, return, purchase order, adjustment, batch) |
-| `referenceType` | `PURCHASE_ORDER`, `SALE`, `RETURN`, `ADJUSTMENT`, `SYSTEM` |
+| `referenceType` | `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, `SYSTEM` |
 | `performedBy` | User id |
 | `remarks` | Free text |
 | `createdAt`, `updatedAt` | Timestamps |
@@ -27,10 +27,10 @@ Indexes: `{ medicineId, createdAt: -1 }`, `{ batchId }`, `{ movementType }`, `{ 
 | Type | Used for | Quantity semantics |
 |---|---|---|
 | `PURCHASE` | Goods receipt, manual increase | Units added |
-| `SALE` | Sale allocation, manual decrease | Units removed |
+| `SALE` | Sale allocation; manual decrease when `SALE` is requested | Units removed |
 | `RETURN` | Sales return, sale deletion | Units restored (intent) |
 | `ADJUSTMENT` | Inventory update/delete with context | Absolute delta magnitude |
-| `EXPIRED` | Intended for disposal; disposal is recorded as `SALE` because `decreaseStock` hardcodes it. Reachable only via a manual inventory update with an explicit `EXPIRED` context. | Units disposed |
+| `EXPIRED` | Disposal and manual expired decreases | Units disposed |
 | `RESERVE` | Reservation | Units removed from availability |
 | `RELEASE` | Reservation release | Units returned to availability |
 
@@ -41,12 +41,15 @@ There is no sign field. A consumer must join `movementType` with the operation t
 | Reference | Used by |
 |---|---|
 | `SALE` | Sales, sale deletion |
-| `RETURN` | Damaged/expired/opened returns |
+| `RETURN` | Damaged/expired/opened returns, generic returns |
+| `SALES_RETURN` | Sales-return parent documents |
 | `PURCHASE_ORDER` | Purchase receipts |
+| `PURCHASE` | Manual increases and inventory creation defaults |
 | `ADJUSTMENT` | Disposal, manual adjustments |
+| `RESERVE` / `RELEASE` | Reservation and release movements |
 | `SYSTEM` | Fallback in `createMovement` when no type is supplied |
 
-`ReturnService` passes `referenceType: "SALES_RETURN"` for GOOD returns, which is outside this enum. Isolated validation with the installed Mongoose version rejects `SALES_RETURN` (and also `RESERVE`, `RELEASE`, and `PURCHASE`), so GOOD returns are expected to fail on save and abort the transaction. This is a confirmed enum mismatch, not a runtime-only guess.
+All nine values are valid enum members, so GOOD returns no longer fail on the movement reference.
 
 ## 5. Coverage matrix
 
@@ -54,10 +57,10 @@ There is no sign field. A consumer must join `movementType` with the operation t
 |---|---|---|
 | Sale | Yes, one per batch | `referenceId` = sale id |
 | Purchase receipt | Yes | On inventory creation: quantity = full total; on update: delta |
-| Return GOOD | Yes (but invalid reference type) | No batch update |
-| Return DAMAGED/EXPIRED/OPENED | Yes, twice | Duplicate log per line |
+| Return GOOD | Yes, one per return line | Reference type `SALES_RETURN`; batch restoration is still Phase 4 work |
+| Return DAMAGED/EXPIRED/OPENED | Yes, twice | Duplicate log per line (Phase 4) |
 | Sale deletion | Yes, one per sale item | Stock added to aggregate only |
-| Disposal | Yes, but recorded as `SALE` (hardcoded in `decreaseStock`) | Misleading type |
+| Disposal | Yes, recorded as `EXPIRED` | Movement type follows the request |
 | Manual increase/decrease | Yes | Requires movement context |
 | Reserve/release | Yes | No `reservedStock` change |
 | Batch deduct/increase | **No** | |
@@ -93,7 +96,7 @@ If inventory does not exist, `createInventory` logs one PURCHASE for the new tot
 
 | Type | Batch | Quantity | Reference type |
 |---|---|---|---|
-| RETURN | original batch | 2 | `SALES_RETURN` (invalid) |
+| RETURN | original batch | 2 | `SALES_RETURN` |
 
 No batch increment.
 
@@ -110,9 +113,9 @@ The batch is incremented once. Two records are written for one physical event.
 
 | Type | Batch | Quantity | Reference |
 |---|---|---|---|
-| SALE | batch | 10 | batch id |
+| EXPIRED | batch | 10 | batch id |
 
-The intended `EXPIRED` type is overwritten by `SALE` inside `decreaseStock`.
+The movement type follows the request; disposal records `EXPIRED`.
 
 ## 7. Audit gaps
 
@@ -152,7 +155,7 @@ Repository helpers exist (`findAllByMedicineId`, `findAllByBatchId`, `findAllByR
 ## 10. Design observations
 
 - The movement service validates medicine, batch ownership, and user on every write, which is good, but it also requires a batch for aggregate-only operations, forcing callers to supply one.
-- The `referenceType` enum is too narrow for the values actually passed (`SALES_RETURN`, `RESERVE`, `RELEASE`).
+- The `referenceType` enum now covers every value passed by callers.
 - Movement `quantity` has no min/positive validator in the schema.
 - `InventoryMovementRepo.create` accepts any partial, so schema validation is the only guard.
 

@@ -123,7 +123,7 @@ These fields are queried frequently but have no declared index:
 | `users.provider` | `local`, `google` |
 | `suppliers.status` | `active`, `inActive` |
 | `inventorymovements.movementType` | `PURCHASE`, `SALE`, `RETURN`, `ADJUSTMENT`, `EXPIRED`, `RESERVE`, `RELEASE` |
-| `inventorymovements.referenceType` | `PURCHASE_ORDER`, `SALE`, `RETURN`, `ADJUSTMENT`, `SYSTEM` |
+| `inventorymovements.referenceType` | `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, `SYSTEM` |
 | `purchaseorders.status` | `pending`, `approved`, `received`, `cancelled` |
 | `sales.status` | `COMPLETED`, `PARTIALLY_RETURNED`, `RETURNED`, `CANCELLED`, `PENDING` |
 | `returns.status` | `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `COMPLETED` |

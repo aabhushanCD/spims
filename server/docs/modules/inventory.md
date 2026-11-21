@@ -77,7 +77,7 @@ Behavior worth noting:
 |---|---|
 | `createInventory` | Creates a row; optionally logs a movement for `currentStock` |
 | `increaseStock` | `currentStock += qty`, `availableStock += qty`, logs movement |
-| `decreaseStock` | Requires `availableStock >= qty`, subtracts, logs a movement **always as `SALE`** (ignores the requested type) |
+| `decreaseStock` | Requires `availableStock >= qty`, subtracts, logs the requested `SALE`/`EXPIRED`/`ADJUSTMENT` movement type |
 | `reserveStock` | Requires enough available, subtracts from `availableStock` only |
 | `releaseReservedStock` | Adds to `availableStock` only |
 | `syncInventoryFromBatch` | Recomputes `currentStock` from batches and `availableStock = current - reserved` |
@@ -126,7 +126,7 @@ See [Inventory data model](../database/inventory-data-model.md).
 1. `decreaseStock` and `reserveStock` require sufficient `availableStock`.
 2. `increaseStock` does not verify batch existence before adjusting the aggregate, but the movement service does (so it fails after the aggregate update when no session is used).
 3. Increase/decrease do not update batches.
-4. Sync overwrites `currentStock` from batches.
+4. Sync overwrites `currentStock` from sellable batches (positive, unexpired, not flagged), with or without a session.
 5. Movement type is constrained by the controller, not by the service.
 6. `reservedStock` is never updated by reserve/release.
 7. Duplicate inventory rows for one medicine are possible and are not detected.
@@ -179,20 +179,20 @@ No batch change.
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| `reservedStock` never changes | Partially Implemented |
-| Reserve/release not tied to orders | Partially Implemented |
-| Sync endpoint includes expired/flagged/zero batches without a session | Defect |
-| Reserve/release defaults use invalid movement `referenceType` | Confirmed defect; supply a valid enum value |
-| Decrease always logs `SALE` | Confirmed defect; `EXPIRED`/`ADJUSTMENT` requests mislabeled |
-| Inventory/batch drift on manual operations | Defect |
-| Duplicate inventory rows possible | Schema gap |
-| No validation middleware | Partially Implemented |
-| `StockAdjustment` unreachable | Not Implemented |
-| Movement read endpoints absent | Not Implemented |
-| No stocktake/bulk adjustment workflow | Not Implemented |
-| No optimistic concurrency on aggregate updates | Not Implemented |
+| Issue | Status | Phase |
+|---|---|---|
+| `reservedStock` never changes | Needs decision (keep and maintain, or remove from `availableStock`) | Phase 2 |
+| Reserve/release not tied to orders | Needs decision | Phase 2 |
+| Sync endpoint included expired/flagged/zero batches without a session | Already fixed (one sellable filter in both branches) | — |
+| Reserve/release defaults used invalid movement `referenceType` | Already fixed (enum widened) | — |
+| Decrease always logged `SALE` | Already fixed (respects `EXPIRED`/`ADJUSTMENT` context) | — |
+| Inventory/batch drift on manual operations | Still open | Phase 2 |
+| Duplicate inventory rows possible | Still open | Phase 2 |
+| No validation middleware | Still open | Phase 3 |
+| `StockAdjustment` unreachable | Needs decision | Phase 6 |
+| Movement read endpoints absent | Still open | Phase 5 |
+| No stocktake/bulk adjustment workflow | Needs decision | Phase 6 |
+| No optimistic concurrency on aggregate updates | Still open | Phase 5 |
 
 ## Related documents
 

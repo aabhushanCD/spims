@@ -237,20 +237,20 @@ sequenceDiagram
 
 ## 14. Limitations and status
 
-| Capability | Status |
-|---|---|
-| Local register/login/logout/me | Implemented |
-| JWT access cookie auth | Implemented |
-| Refresh tokens + rotation | Implemented |
-| Multi-device session list/revoke | Implemented |
-| Password reset | Implemented |
-| Email verification | Implemented |
-| Rate limiting | Implemented (IP-based, Redis) |
-| Google OAuth | Not implemented |
-| MFA | Not implemented |
-| Account lockout | Not implemented |
-| Immediate access-token revocation | Not implemented (wait for 15m expiry) |
-| Geo-IP location database | Not implemented; relies on proxy headers |
+| Capability | Status | Phase |
+|---|---|---|
+| Local register/login/logout/me | Implemented | — |
+| JWT access cookie auth | Implemented | — |
+| Refresh tokens + rotation | Implemented | — |
+| Multi-device session list/revoke | Implemented | — |
+| Password reset | Implemented | — |
+| Email verification | Implemented | — |
+| Rate limiting | Implemented (IP-based, Redis) | — |
+| Google OAuth | Still open | Phase 6 |
+| MFA | Still open | Phase 6 |
+| Account lockout | Still open | Phase 6 |
+| Immediate access-token revocation | Still open | Phase 6 |
+| Geo-IP location database | Needs decision | Phase 6 |
 
 ## Related documents
 
