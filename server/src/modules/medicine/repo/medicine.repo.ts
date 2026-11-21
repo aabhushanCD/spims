@@ -1,5 +1,6 @@
 import type { Model } from "mongoose";
 import { Types } from "mongoose";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
 import type { IMedicine } from "../models/medicine.model.js";
 import type {
   CreateMedicineDto,
@@ -20,9 +21,10 @@ export class MedicineRepo {
   }
 
   async searchMedicines(query: string): Promise<IMedicine[]> {
-    const regex = new RegExp(query, "i");
+    const regex = new RegExp(escapeRegex(query), "i");
     return this.medicineModel
       .find({
+        isActive: true,
         $or: [
           { medicineName: regex },
           { strength: regex },
@@ -78,6 +80,11 @@ export class MedicineRepo {
   }
   async findAllWithInventory() {
     return this.medicineModel.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
       {
         $lookup: {
           from: "inventories",
@@ -188,5 +195,21 @@ export class MedicineRepo {
         },
       },
     ]);
+  }
+
+  async countByBrandId(brandId: string): Promise<number> {
+    return this.medicineModel.countDocuments({ brandId }).exec();
+  }
+
+  async countByCategoryId(categoryId: string): Promise<number> {
+    return this.medicineModel.countDocuments({ categoryId }).exec();
+  }
+
+  async countByGenericNameId(genericNameId: string): Promise<number> {
+    return this.medicineModel.countDocuments({ genericNameId }).exec();
+  }
+
+  async countByUnitId(unitId: string): Promise<number> {
+    return this.medicineModel.countDocuments({ unitId }).exec();
   }
 }

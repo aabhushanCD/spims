@@ -7,7 +7,11 @@ import express, {
 const router = express.Router();
 
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
-import { validate } from "../../../shared/middleware/validate.middleware.js";
+import {
+  validate,
+  validateParams,
+} from "../../../shared/middleware/validate.middleware.js";
+import { objectIdParamSchema } from "../../../shared/schema/objectId.schema.ts";
 import {
   CreateBrandSchema,
   UpdateBrandSchema,
@@ -26,6 +30,7 @@ router.post(
 router.get(
   "/:id",
   verifyToken,
+  validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {
     brandController.getBrandById(req, res, next);
   },
@@ -41,6 +46,7 @@ router.get(
 
 router.put(
   "/:id",
+  validateParams(objectIdParamSchema),
   validate(UpdateBrandSchema),
   verifyToken,
   (req: Request, res: Response, next: NextFunction) => {
@@ -51,6 +57,7 @@ router.put(
 router.delete(
   "/:id",
   verifyToken,
+  validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {
     brandController.deleteBrand(req, res, next);
   },

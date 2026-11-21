@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
+import { AppError } from "../../../shared/error.ts";
 import type { PurchaseOrderService } from "../services/purchaseOrder.service.ts";
 
 export class PurchaseController {
   constructor(private readonly purchaseService: PurchaseOrderService) {}
 
   async createPurchaseOrder(req: Request, res: Response, next: NextFunction) {
-    console.log("Request body:", req.body);
     try {
       const purchaseOrder = await this.purchaseService.createPurchaseOrder(
         req.body,
@@ -80,10 +80,14 @@ export class PurchaseController {
 
   async receivePurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
+      const performedBy = req.user?.userId;
+      if (!performedBy) {
+        throw AppError.unauthorized("Authenticated user required");
+      }
       const purchaseOrder = await this.purchaseService.receivePurchaseOrder(
         req.params.id as string,
         req.body,
-        req.user?.userId as string,
+        performedBy,
       );
       return res.status(200).json({
         message: "Purchase order received successfully",

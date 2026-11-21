@@ -173,7 +173,6 @@ describe("PurchaseOrderService", () => {
 
       await expect(
         service.addPurchaseOrderItem(PURCHASE_ORDER_ID, {
-          purchaseOrderId: PURCHASE_ORDER_ID,
           medicineId: MEDICINE_ID,
           quantity: 1,
           purchasePrice: 10,
@@ -197,7 +196,6 @@ describe("PurchaseOrderService", () => {
 
       await expect(
         service.addPurchaseOrderItem(PURCHASE_ORDER_ID, {
-          purchaseOrderId: PURCHASE_ORDER_ID,
           medicineId: MEDICINE_ID,
           quantity: 1,
           purchasePrice: 10,

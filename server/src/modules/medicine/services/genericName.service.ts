@@ -1,5 +1,6 @@
 import type { AppError } from "../../../shared/error.js";
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
+import type { MedicineRepo } from "../repo/medicine.repo.js";
 import type { GenericNameRepo } from "../repo/genericName.repo.js";
 import type {
   CreateGenericNameDto,
@@ -9,6 +10,7 @@ import type {
 export class GenericNameService {
   constructor(
     private readonly genericNameRepo: GenericNameRepo,
+    private readonly medicineRepo: MedicineRepo,
     private readonly appError: typeof AppError,
   ) {}
 
@@ -53,6 +55,12 @@ export class GenericNameService {
     const existingGenericName = await this.genericNameRepo.findById(id);
     if (!existingGenericName) {
       throw this.appError.notFound("Generic name not found");
+    }
+    const usage = await this.medicineRepo.countByGenericNameId(id);
+    if (usage > 0) {
+      throw this.appError.conflict(
+        "Cannot delete a generic name referenced by medicines",
+      );
     }
     return this.genericNameRepo.delete(id);
   }

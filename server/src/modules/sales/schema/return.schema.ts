@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+
 export const ReturnConditionSchema = z.enum([
   "GOOD",
   "DAMAGED",
@@ -8,15 +10,12 @@ export const ReturnConditionSchema = z.enum([
 ]);
 
 export const ReturnItemSchema = z.object({
-  saleItemId: z.string().min(1, "Sale Item ID is required"),
-
+  saleItemId: objectIdSchema,
   quantity: z
     .number()
     .int("Quantity must be an integer")
     .positive("Quantity must be greater than 0"),
-
   condition: ReturnConditionSchema,
-
   remarks: z
     .string()
     .trim()
@@ -25,20 +24,29 @@ export const ReturnItemSchema = z.object({
 });
 
 export const CreateReturnSchema = z.object({
-  salesId: z.string().min(1, "Sales ID is required"),
-
-  returnReason: z.string().trim().min(3, "Return reason is required").max(500),
-
-  returnedBy: z.string().min(1, "Returned by is required"),
-
+  salesId: objectIdSchema,
+  returnReason: z
+    .string()
+    .trim()
+    .min(3, "Return reason is required")
+    .max(500, "Return reason cannot exceed 500 characters"),
+  returnedBy: objectIdSchema,
   returnDate: z.coerce.date(),
-
   items: z
     .array(ReturnItemSchema)
     .min(1, "At least one return item is required"),
-
-  performedBy: z.string().min(1, "Performed by is required"),
 });
+
+export const UpdateReturnSchema = z.object({
+  returnReason: z
+    .string()
+    .trim()
+    .min(3, "Return reason is required")
+    .max(500, "Return reason cannot exceed 500 characters"),
+});
+
+export const returnIdParamSchema = z.object({ id: objectIdSchema });
 
 export type ReturnItemInput = z.infer<typeof ReturnItemSchema>;
 export type CreateReturnDto = z.infer<typeof CreateReturnSchema>;
+export type UpdateReturnDto = z.infer<typeof UpdateReturnSchema>;

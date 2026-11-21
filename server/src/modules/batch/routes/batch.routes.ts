@@ -1,21 +1,41 @@
-// batch.routes.ts
 import { Router } from "express";
+
 import { medicineBatchController } from "../../../app/container.ts";
-// adjust to your actual module file
+import {
+  validate,
+  validateParams,
+  validateQuery,
+} from "../../../shared/middleware/validate.middleware.ts";
+import {
+  batchAdjustSchema,
+  batchIdParamSchema,
+  batchMedicineParamSchema,
+  batchQuantitySchema,
+  confirmDisposalSchema,
+  createBatchSchema,
+  lowStockQuerySchema,
+  updateBatchSchema,
+} from "../schema/batch.schema.ts";
 
 const router = Router();
 
 // Static/specific routes first, dynamic :id routes after
 router.get("/expired", medicineBatchController.getExpiredBatches);
-router.get("/low-stock", medicineBatchController.getLowStockBatches);
+router.get(
+  "/low-stock",
+  validateQuery(lowStockQuerySchema),
+  medicineBatchController.getLowStockBatches,
+);
 router.post("/mark-expired", medicineBatchController.markExpiredBatches);
 
 router.get(
   "/medicine/:medicineId",
+  validateParams(batchMedicineParamSchema),
   medicineBatchController.getBatchByMedicineId,
 );
 router.get(
   "/medicine/:medicineId/available",
+  validateParams(batchMedicineParamSchema),
   medicineBatchController.getAvailableBatches,
 );
 
@@ -23,17 +43,58 @@ router.get(
   "/expired/awaiting-disposal",
   medicineBatchController.getExpiredAwaitingDisposal,
 );
-router.post("/", medicineBatchController.createBatch);
+router.post(
+  "/",
+  validate(createBatchSchema),
+  medicineBatchController.createBatch,
+);
 router.get("/", medicineBatchController.getAllBatches);
 
-router.get("/:id", medicineBatchController.getBatchById);
+router.get(
+  "/:id",
+  validateParams(batchIdParamSchema),
+  medicineBatchController.getBatchById,
+);
 
-router.patch("/:id", medicineBatchController.updateBatch);
-router.delete("/:id", medicineBatchController.deleteBatch);
+router.patch(
+  "/:id",
+  validateParams(batchIdParamSchema),
+  validate(updateBatchSchema),
+  medicineBatchController.updateBatch,
+);
+router.delete(
+  "/:id",
+  validateParams(batchIdParamSchema),
+  medicineBatchController.deleteBatch,
+);
 
-router.post("/:id/deduct", medicineBatchController.deductQuantity);
-router.post("/:id/increase", medicineBatchController.increaseQuantity);
-router.post("/:id/adjust", medicineBatchController.adjustStock);
-router.get("/:id/history", medicineBatchController.getBatchHistory);
-router.post("/:id/confirm-disposal", medicineBatchController.confirmDisposal);
+router.post(
+  "/:id/deduct",
+  validateParams(batchIdParamSchema),
+  validate(batchQuantitySchema),
+  medicineBatchController.deductQuantity,
+);
+router.post(
+  "/:id/increase",
+  validateParams(batchIdParamSchema),
+  validate(batchQuantitySchema),
+  medicineBatchController.increaseQuantity,
+);
+router.post(
+  "/:id/adjust",
+  validateParams(batchIdParamSchema),
+  validate(batchAdjustSchema),
+  medicineBatchController.adjustStock,
+);
+router.get(
+  "/:id/history",
+  validateParams(batchIdParamSchema),
+  medicineBatchController.getBatchHistory,
+);
+router.post(
+  "/:id/confirm-disposal",
+  validateParams(batchIdParamSchema),
+  validate(confirmDisposalSchema),
+  medicineBatchController.confirmDisposal,
+);
 export default router;

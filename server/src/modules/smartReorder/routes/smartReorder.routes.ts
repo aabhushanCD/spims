@@ -2,16 +2,38 @@
 import { Router } from "express";
 
 import { authorize } from "../../../shared/middleware/authorize.ts";
+import { validateParams } from "../../../shared/middleware/validate.middleware.ts";
 import { smartReorderController } from "../../../app/container.ts";
+import {
+  smartReorderIdParamSchema,
+  smartReorderMedicineParamSchema,
+} from "../schema/smartReorder.schema.ts";
+
 const router = Router();
 
 router.get("/pending", smartReorderController.getPending);
-router.get("/medicine/:medicineId", smartReorderController.getByMedicineId);
+router.get(
+  "/medicine/:medicineId",
+  validateParams(smartReorderMedicineParamSchema),
+  smartReorderController.getByMedicineId,
+);
 router.get("/", smartReorderController.getAll);
-router.get("/:id", smartReorderController.getById);
+router.get(
+  "/:id",
+  validateParams(smartReorderIdParamSchema),
+  smartReorderController.getById,
+);
 
-router.patch("/:id/approve", smartReorderController.approve);
-router.patch("/:id/reject", smartReorderController.reject);
+router.patch(
+  "/:id/approve",
+  validateParams(smartReorderIdParamSchema),
+  smartReorderController.approve,
+);
+router.patch(
+  "/:id/reject",
+  validateParams(smartReorderIdParamSchema),
+  smartReorderController.reject,
+);
 
 router.post(
   "/generate",
@@ -21,8 +43,14 @@ router.post(
 router.post(
   "/generate/:medicineId",
   authorize(["owner", "inventory_manager"]),
+  validateParams(smartReorderMedicineParamSchema),
   smartReorderController.generateForMedicine,
 );
-router.delete("/:id", authorize(["owner"]), smartReorderController.delete);
+router.delete(
+  "/:id",
+  authorize(["owner"]),
+  validateParams(smartReorderIdParamSchema),
+  smartReorderController.delete,
+);
 
 export default router;

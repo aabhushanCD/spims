@@ -1,4 +1,5 @@
 import type mongoose from "mongoose";
+import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
 import type { IInventory } from "../model/inventory.model.js";
 import type Inventory from "../model/inventory.model.js";
 
@@ -184,6 +185,7 @@ export class InventoryRepo {
   }
 
   async searchMedicines(query: string) {
+    const pattern = escapeRegex(query);
     return this.inventoryModel.aggregate([
       // Only medicines with stock
       {
@@ -204,6 +206,11 @@ export class InventoryRepo {
       {
         $unwind: "$medicine",
       },
+      {
+        $match: {
+          "medicine.isActive": true,
+        },
+      },
 
       // Search by medicine fields
       {
@@ -211,19 +218,19 @@ export class InventoryRepo {
           $or: [
             {
               "medicine.medicineName": {
-                $regex: query,
+                $regex: pattern,
                 $options: "i",
               },
             },
             {
               "medicine.strength": {
-                $regex: query,
+                $regex: pattern,
                 $options: "i",
               },
             },
             {
               "medicine.barcode": {
-                $regex: query,
+                $regex: pattern,
                 $options: "i",
               },
             },

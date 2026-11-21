@@ -1,12 +1,14 @@
 import { AppError } from "../../../shared/error.js";
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { IUnit } from "../models/unit.model.js";
+import type { MedicineRepo } from "../repo/medicine.repo.js";
 import type { UnitRepo } from "../repo/unit.repo.js";
 import type { CreateUnitDto, UpdateUnitDto } from "../schema/unit.schema.js";
 
 export class UnitService {
   constructor(
     private readonly unitRepo: UnitRepo,
+    private readonly medicineRepo: MedicineRepo,
     private readonly appError: typeof AppError,
   ) {}
 
@@ -55,6 +57,12 @@ export class UnitService {
 
   async deleteUnit(id: string): Promise<IUnit | null> {
     await this.getUnitById(id);
+    const usage = await this.medicineRepo.countByUnitId(id);
+    if (usage > 0) {
+      throw this.appError.conflict(
+        "Cannot delete a unit referenced by medicines",
+      );
+    }
     return this.unitRepo.delete(id);
   }
 }

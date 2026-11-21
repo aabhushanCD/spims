@@ -3,10 +3,7 @@ import {
   DEFAULT_PAGE_LIMIT,
   MAX_PAGE_LIMIT,
 } from "../notification.constants.ts";
-
-const objectId = z
-  .string()
-  .regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
+import { objectIdSchema as objectId } from "../../../shared/schema/objectId.schema.ts";
 
 export const createNotificationSchema = z.object({
   title: z

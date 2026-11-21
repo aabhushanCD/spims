@@ -140,16 +140,25 @@ const inventoryService = new InventoryService(
   stockMutationService,
   AppError,
 );
-const unitService = new UnitService(unitRepo, AppError);
-const genericNameService = new GenericNameService(genericNameRepo, AppError);
-const categoryService = new CategoryService(categoryRepo, AppError);
-const brandService = new BrandService(brandRepo, AppError);
+const unitService = new UnitService(unitRepo, medicineRepo, AppError);
+const genericNameService = new GenericNameService(
+  genericNameRepo,
+  medicineRepo,
+  AppError,
+);
+const categoryService = new CategoryService(
+  categoryRepo,
+  medicineRepo,
+  AppError,
+);
+const brandService = new BrandService(brandRepo, medicineRepo, AppError);
 const medicineService = new MedicineService(
   medicineRepo,
   AppError,
   genericNameService,
   brandService,
   categoryService,
+  unitService,
 );
 
 const medicineBatchService = new BatchService(
@@ -210,7 +219,11 @@ const smartReorderService = new SmartReorderService(
   AppError,
 );
 
-const supplierService = new SupplierService(supplierRepo, AppError);
+const supplierService = new SupplierService(
+  supplierRepo,
+  purchaseOrderRepo,
+  AppError,
+);
 const dashboardService = new DashboardService(
   saleRepo,
   saleItemRepo,
