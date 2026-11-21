@@ -39,7 +39,6 @@ Base: `/api/batches`, roles: all three. No Zod middleware.
 | DELETE | `/:id` | Hard delete |
 | GET | `/medicine/:medicineId` | First batch for medicine |
 | GET | `/medicine/:medicineId/available` | Sellable batches |
-| GET | `/medicine/:medicineId/allocate?quantity=` | Allocation (destructive) |
 | GET | `/expired` | Batches past expiry date |
 | GET | `/expired/awaiting-disposal` | Expired with stock |
 | GET | `/low-stock?threshold=` | Per-batch low stock |
@@ -66,7 +65,7 @@ Full contracts: [endpoints.md](../api/endpoints.md#batches).
 
 | Method | Behavior |
 |---|---|
-| `createBatch` | Requires the purchase order to exist, then creates the batch. No inventory sync. **Blocked by the `isActive` validator for any positive `quantityRemaining`.** |
+| `createBatch` | Requires the purchase order to exist, then creates the batch. No inventory sync. |
 | `getBatchById` / `getAllBatches` | Reads. Missing batch throws plain `Error` → 500. |
 | `getAvailableBatches` | All batches for medicine with `quantityRemaining > 0` and `expiryDate > now` (does not check `isExpired`). |
 | `updateBatch` / `deleteBatch` | Generic update/delete; no sync or movement. |
@@ -75,10 +74,9 @@ Full contracts: [endpoints.md](../api/endpoints.md#batches).
 | `adjustStock` | Sets absolute `quantityRemaining`, then syncs aggregate. No movement. |
 | `markExpiredBatches` | Sets `isExpired: true` for batches with stock whose `expiryDate < now`; returns affected ids. |
 | `getExpiredBatches` | Filters by `expiryDate < now` only. |
-| `confirmDisposal` | Requires `isExpired` and stock > 0; sets batch to 0; calls `InventoryService.decreaseStock`, which records the movement as `SALE` despite the requested `EXPIRED` type. |
+| `confirmDisposal` | Requires `isExpired` and stock > 0; sets batch to 0; calls `InventoryService.decreaseStock`, which records the requested `EXPIRED` movement type. |
 | `getExpiredAwaitingDisposal` | `isExpired && quantityRemaining > 0`. |
 | `getLowStockBatches` | Per-batch threshold filter. |
-| `allocateStock` | FEFO loop that deducts stock and syncs, but returns an empty allocation array. |
 | `getBatchByMedicineId` | `findOne`, not a list. |
 | `getBatchHistory` | Returns batch metadata only, not movements. |
 
@@ -91,17 +89,10 @@ Important validators:
 ```text
 expiryDate > manufacturingDate
 quantityRemaining <= quantityReceived
-isActive === true only if quantityRemaining === 0
+isActive === false requires quantityRemaining === 0
 ```
 
-The last validator is inverted relative to its message and conflicts with the default `isActive: true`. **Confirmed:** validating a new batch with `quantityRemaining: 5` using the installed Mongoose version fails with `Batch can only be marked as inactive if quantity remaining is zero`. This blocks `POST /batches` and every purchase receipt, because both insert batches with positive quantity. A zero-quantity batch can validate, but receiving requires positive received quantities.
-
-Reproduction (no database needed):
-
-```ts
-const batch = new Batch({ /* required fields */ quantityReceived: 10, quantityRemaining: 10 });
-await batch.validate(); // throws the isActive validator error
-```
+Active batches may hold stock; only a deactivated batch must be at zero. The invariant is enforced on document `save()`; `findByIdAndUpdate` paths skip validators, so the HTTP update path still needs an explicit guard.
 
 ## 8. Validation
 
@@ -110,7 +101,6 @@ await batch.validate(); // throws the isActive validator error
 - positive `quantity` on deduct/increase;
 - non-negative `quantity` on adjust;
 - non-negative `threshold`;
-- positive `quantity` on allocate;
 - authenticated user on disposal.
 
 No date, price, or quantity relationship checks at the HTTP layer; only Mongoose validators on `save()`.
@@ -147,7 +137,7 @@ This is enforced in `findSellableBatches` (used by sales) but **not** in `getAva
 2. Batch must have remaining quantity.
 3. Set `quantityRemaining = 0`.
 4. Decrease aggregate stock by the disposed quantity.
-5. Write a movement — but note that `decreaseStock` hardcodes `movementType: "SALE"`, so the `EXPIRED` type passed in the context is lost.
+5. Write a movement with the requested `EXPIRED` movement type (the context type is no longer overwritten).
 
 No transaction; a failure between steps leaves partial state.
 
@@ -160,17 +150,7 @@ No transaction; a failure between steps leaves partial state.
 
 ### Allocation endpoint
 
-`GET /batches/medicine/:medicineId/allocate?quantity=N`:
-
-- Loads all batches for the medicine (unsorted).
-- Filters sellable by quantity and date.
-- Deducts across batches.
-- Syncs aggregate after each batch.
-- **Never appends to the `allocation` array**, so the response is `[]`.
-- Uses GET for a state-changing operation.
-- Writes no movements.
-
-Treat this endpoint as broken and unsafe.
+`GET /batches/medicine/:medicineId/allocate` was removed. It mutated stock, wrote no movements, and always returned `[]`. Sales allocate through `InventoryService.sellMedicine`, which applies FEFO inside the sale transaction.
 
 ## 11. Dependencies
 
@@ -213,19 +193,20 @@ sequenceDiagram
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| `isActive` validator blocks positive-quantity creation | Confirmed defect |
-| No movement on deduct/increase/adjust | Defect |
-| `allocateStock` returns empty array and mutates on GET | Defect |
-| `getBatchByMedicineId` returns one batch | Limitation |
-| `getBatchHistory` lacks movement history | Not Implemented |
-| Available endpoint ignores `isExpired` | Inconsistency |
-| No partial receiving/batch split | Not Implemented |
-| No batch merge/transfer | Not Implemented |
-| No transaction around disposal | Limitation |
-| No request validation | Partially Implemented |
-| Deletion allowed with stock | Risk |
+| Issue | Status | Phase |
+|---|---|---|
+| `isActive` validator blocked positive-quantity creation | Already fixed (active batches may hold stock) | — |
+| No movement on deduct/increase/adjust | Still open | Phase 2 |
+| `allocateStock` returned an empty array and mutated on GET | Already fixed (endpoint and client stub removed) | — |
+| Update paths skip validators, so `isActive`/quantity invariants are unenforced after create | Still open | Phase 2 |
+| `getBatchByMedicineId` returns one batch | Still open | Phase 5 |
+| `getBatchHistory` lacks movement history | Still open | Phase 5 |
+| Available endpoint ignores `isExpired` | Still open | Phase 2 |
+| No partial receiving/batch split | Needs decision | Phase 6 |
+| No batch merge/transfer | Needs decision | Phase 6 |
+| No transaction around disposal | Still open | Phase 2 |
+| No request validation | Still open | Phase 3 |
+| Deletion allowed with stock | Still open | Phase 2 |
 
 ## Related documents
 

@@ -149,22 +149,6 @@ export class BatchController {
     res.status(200).json({ success: true, data: batches });
   });
 
-  // GET /batches/medicine/:medicineId/allocate?quantity=5
-  // NOTE: currently identical to getAvailableBatches — see flagged issue above
-  allocateStock = asyncHandler(async (req: Request, res: Response) => {
-    const requestedQuantity = Number(req.query.quantity);
-    if (Number.isNaN(requestedQuantity) || requestedQuantity <= 0) {
-      throw AppError.badRequest(
-        "quantity query param must be a positive number",
-      );
-    }
-    const batches = await this.batchService.allocateStock(
-      req.params.medicineId as string,
-      requestedQuantity,
-    );
-    res.status(200).json({ success: true, data: batches });
-  });
-
   // GET /batches/:id/history
   getBatchHistory = asyncHandler(async (req: Request, res: Response) => {
     const history = await this.batchService.getBatchHistory(

@@ -39,12 +39,6 @@ const getAvailableBatches = async (medicineId: string) => {
   return response.data;
 };
 
-const allocateStock = async (medicineId: string) => {
-  const response = await api.get(`/batches/medicine/${medicineId}/allocate`);
-
-  return response.data;
-};
-
 const getExpiredAwaitingDisposal = async () => {
   const response = await api.get("/batches/expired/awaiting-disposal");
 
@@ -125,7 +119,6 @@ export const batchService = {
 
   getBatchByMedicineId,
   getAvailableBatches,
-  allocateStock,
 
   getExpiredAwaitingDisposal,
 

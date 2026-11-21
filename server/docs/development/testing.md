@@ -13,8 +13,8 @@
 | Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 19 files: auth, inventory, sales, returns, purchases, reorder math, batch repo, authorization, notifications, recipient repo, schemas, SMS, websocket, email config, dashboard |
-| Test count | 201 tests |
+| Test files | 22 files: auth, inventory, sales, returns, purchases, reorder math, batch repo, batch model, batch routes, movement model, authorization, notifications, recipient repo, schemas, SMS, websocket, email config, dashboard |
+| Test count | 223 tests |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 
@@ -164,10 +164,10 @@ npm run build
 
 | Area | Status |
 |---|---|
-| Auth unit tests | Partially Implemented (4 tests, one weak assertion) |
-| Other service tests | Not Implemented |
-| Repository tests | Not Implemented |
-| Controller/route tests | Not Implemented |
+| Auth unit tests | Implemented |
+| Other service tests | Implemented for core modules (inventory, sales, returns, purchases, reorder, notifications) |
+| Repository tests | Implemented for batches and notification recipients |
+| Controller/route tests | Partially Implemented (batch route table) |
 | Integration/E2E tests | Not Implemented |
 | Coverage reporting | Not Implemented |
 | CI test execution | Implemented |

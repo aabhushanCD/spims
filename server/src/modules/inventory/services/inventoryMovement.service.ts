@@ -6,11 +6,15 @@ import type { UserRepository } from "../../user/repo/user.repo.ts";
 import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
 import type { CreateInventoryMovementDto } from "../schema/inventoryMovement.schema.ts";
 type ReferenceType =
+  | "PURCHASE_ORDER"
+  | "PURCHASE"
   | "SALE"
   | "RETURN"
+  | "SALES_RETURN"
   | "ADJUSTMENT"
-  | "SYSTEM"
-  | "PURCHASE_ORDER";
+  | "RESERVE"
+  | "RELEASE"
+  | "SYSTEM";
 
 export class InventoryMovementService {
   constructor(

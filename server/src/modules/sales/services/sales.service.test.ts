@@ -286,6 +286,34 @@ describe("SalesService", () => {
       });
       expect(salesRepo.update).not.toHaveBeenCalled();
     });
+
+    it("ends the session after a successful sale", async () => {
+      const { service, inventoryService, session } = buildService();
+      inventoryService.sellMedicine.mockResolvedValue([
+        {
+          batchId: BATCH_ID,
+          batchNumber: "B-1",
+          medicineId: MEDICINE_ID,
+          quantity: 1,
+          unitPrice: 100,
+        },
+      ]);
+
+      await service.createSale(buildDto());
+
+      expect(session.endSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("ends the session when the transaction fails", async () => {
+      const { service, salesRepo, session } = buildService();
+      salesRepo.create.mockRejectedValueOnce(new Error("database unavailable"));
+
+      await expect(service.createSale(buildDto())).rejects.toThrow(
+        "database unavailable",
+      );
+
+      expect(session.endSession).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("reads and narrow updates", () => {

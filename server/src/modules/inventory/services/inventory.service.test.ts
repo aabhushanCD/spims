@@ -387,6 +387,32 @@ describe("InventoryService", () => {
       });
     });
 
+    it("labels a deduction with the requested movement type", async () => {
+      const { service, inventoryRepo, movementService } = buildService();
+      inventoryRepo.findByMedicineId.mockResolvedValue({
+        _id: "inv-1",
+        currentStock: 10,
+        availableStock: 10,
+        reservedStock: 0,
+      });
+      inventoryRepo.update.mockImplementation(async (_id, data) => data);
+
+      await service.decreaseStock(MEDICINE_ID, 4, {
+        ...movementContext,
+        movementType: "EXPIRED",
+        referenceType: "ADJUSTMENT",
+      });
+
+      expect(movementService.createMovement).toHaveBeenCalledWith(
+        expect.objectContaining({
+          movementType: "EXPIRED",
+          referenceType: "ADJUSTMENT",
+          quantity: 4,
+        }),
+        undefined,
+      );
+    });
+
     it("reserves stock without changing current stock", async () => {
       const { service, inventoryRepo } = buildService();
       inventoryRepo.findByMedicineId.mockResolvedValue({

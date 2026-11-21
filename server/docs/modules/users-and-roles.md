@@ -160,18 +160,20 @@ The only meaningful distinctions are: user administration is closed to inventory
 
 ## 14. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| Invalid role accepted on update | Fixed: service returns `400` |
-| Password update stored in plaintext | Implemented behavior — security defect |
-| Delete authorization uses request body | Implemented behavior — security defect |
-| `GET /users/active` unreachable | Implemented behavior |
-| Duplicate status route unreachable | Implemented behavior |
-| `isActive` ignored at login | Implemented behavior |
-| `lastLogin` never updated | Not Implemented |
-| Admin password reset | Not Implemented |
-| Pagination/search | Not Implemented |
-| Audit trail for user changes | Not Implemented |
+| Issue | Status | Phase |
+|---|---|---|
+| Pharmacist can create an `owner` or promote any user (including themselves) | Still open | Phase 3 |
+| Invalid role accepted on update | Already fixed | — |
+| Password update stored in plaintext | Already fixed (bcrypt) | — |
+| Delete authorization uses request body | Still open | Phase 3 |
+| `GET /users/active` shadowed by `GET /users/:id` | Still open | Phase 3 |
+| `GET /users/:id/inactive` ignores `:id` | Still open | Phase 3 |
+| Duplicate status route unreachable | Still open | Phase 3 |
+| `isActive` ignored at login | Already fixed | — |
+| `lastLogin` never updated | Already fixed | — |
+| Admin password reset | Needs decision | Phase 6 |
+| Pagination/search | Still open | Phase 5 |
+| Audit trail for user changes | Needs decision | Phase 6 |
 
 ## Related documents
 

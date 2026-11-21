@@ -148,7 +148,7 @@ Effect: aggregate stock is restored, batch stock is not. A subsequent sync can e
 
 1. Requires `isExpired === true` and `quantityRemaining > 0`.
 2. Sets batch `quantityRemaining = 0` directly.
-3. Calls `decreaseStock` for the disposed quantity. `decreaseStock` receives `movementType: EXPIRED` in its context but **hardcodes `movementType: "SALE"` when creating the movement**, so disposal is recorded as a SALE.
+3. Calls `decreaseStock` for the disposed quantity. `decreaseStock` records the requested `EXPIRED` movement type.
 
 Effect: both layers drop by the same amount, so they stay aligned unless they were already drifted. No transaction wraps the two writes.
 
@@ -162,7 +162,7 @@ Effect: both layers drop by the same amount, so they stay aligned unless they we
 
 ### 5.9 `POST /inventory/:medicineId/sync`
 
-Recomputes the aggregate from batches. **Bug:** when called without a session, `getTotalStock` still filters by medicine but includes expired, flagged, and zero-quantity batches, so a sync request can inflate `currentStock` with unsellable stock. The session branch applies the correct sellable filters.
+Recomputes the aggregate from batches. The same sellable filter (`quantityRemaining > 0`, `expiryDate > now`, `isExpired: false`) is applied with or without a session, so expired, flagged, and zero-quantity batches do not inflate `currentStock`.
 
 Source: `server/src/modules/batch/repo/medicineBatch.repo.ts` (`getTotalStock`), called by `server/src/modules/inventory/services/inventory.service.ts` (`syncInventoryFromBatch`).
 
@@ -197,14 +197,14 @@ Treat reservations as **Partially Implemented**.
 | Movement type | Written by | Notes |
 |---|---|---|
 | `PURCHASE` | Receipt sync, manual increase | Quantity is the increase |
-| `SALE` | Sale allocation, manual decrease | Quantity is units removed |
+| `SALE` | Sale allocation; manual decrease when `SALE` is requested | Quantity is units removed |
 | `RETURN` | Return, sale deletion | Positive quantity; direction inferred by type |
 | `ADJUSTMENT` | Inventory update/delete with context | Absolute delta |
-| `EXPIRED` | Intended for disposal, but disposal writes `SALE` because `decreaseStock` hardcodes it. Can be written via `PATCH /inventory/:id` with an explicit context. | Disposed quantity |
+| `EXPIRED` | Disposal and manual expired decreases | Disposed quantity |
 | `RESERVE` | Reserve endpoint | Quantity removed from available |
 | `RELEASE` | Release endpoint | Quantity returned to available |
 
-`referenceType` is validated against a 5-value enum; `RETURN` is used for sales returns even though `SALES_RETURN` is passed as a string in `ReturnService`. Mongoose rejects values outside the enum on `save()`, so `referenceType: "SALES_RETURN"` would fail validation if it reaches the movement model. This is a **latent bug** in the return path and should be verified when returns are exercised.
+`referenceType` is validated against a 9-value enum: `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, and `SYSTEM`. `SALES_RETURN` is used by sales returns. Adding these values does not require a data migration because existing documents remain valid.
 
 ## 9. Data repair guidance
 
@@ -213,7 +213,7 @@ If aggregate and batch stock disagree, the only supported repair is:
 1. Recompute from batches manually (`GET /batches/medicine/:medicineId`).
 2. Update via `PATCH /inventory/:id` or the sync endpoint.
 
-Do not use `POST /inventory/:medicineId/sync` until the `getTotalStock` filtering bug is fixed, unless the medicine is the only one with stock.
+`POST /inventory/:medicineId/sync` is safe to use for this repair: it applies the sellable filter with or without a session and does not include expired, flagged, or zero-quantity batches.
 
 ## Related documents
 

@@ -239,20 +239,21 @@ Sales.discount= 40
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| Sale creation session never ended | Resource leak; `createSale` lacks `session.endSession()` |
-| No payment ledger/gateway | Not Implemented |
-| No customer entity | Not Implemented |
-| No invoice PDF/print endpoint | Not Implemented |
-| Delete restores aggregate but not batches | Defect |
-| Sale item correction does not recompute sale totals | Defect |
-| `batchId` required in request but ignored | API inconsistency |
-| No validation on update/delete | Partially Implemented |
-| No idempotency key | Not Implemented |
-| No pagination/date filters | Not Implemented |
-| No prescription linkage | Not Implemented |
-| `VAT_RATE` constant unused (hardcoded 0.13) | Code quality |
+| Issue | Status | Phase |
+|---|---|---|
+| Sale creation session leak | Already fixed (`createSale` ends the session in `finally`) | — |
+| No payment ledger/gateway | Needs decision | Phase 6 |
+| No customer entity | Needs decision | Phase 6 |
+| No invoice PDF/print endpoint | Needs decision | Phase 6 |
+| Delete restores aggregate but not batches | Still open | Phase 2 |
+| Sale item correction does not recompute line or sale totals | Still open | Phase 4 |
+| Invoice discount is checked against the pre-line-discount subtotal, so taxable can go negative; `discountPercentage` has no upper bound | Still open | Phase 4 |
+| `batchId` required in request but ignored | Still open | Phase 4 |
+| No validation on update/delete | Still open | Phase 3 |
+| No idempotency key | Needs decision | Phase 5 |
+| No pagination/date filters | Still open | Phase 5 |
+| No prescription linkage | Needs decision | Phase 6 |
+| VAT rate is a code constant (`VAT_RATE = 0.13`) rather than configuration | Needs decision | Phase 6 |
 
 ## Related documents
 

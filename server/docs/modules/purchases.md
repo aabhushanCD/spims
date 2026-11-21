@@ -148,7 +148,7 @@ stateDiagram-v2
 8. `sellingPrice >= purchasePrice`.
 9. A batch is created with `quantityReceived = quantityRemaining`.
 
-> **Blocking defect:** batch creation with positive quantity currently fails the `isActive` validator (confirmed with the installed Mongoose version). Because of this, the entire receiving step aborts and the PO remains `approved`; the transaction rolls back. Purchase receiving is implemented in code but cannot succeed until the validator is corrected.
+> **Note:** batch creation with positive quantity now passes the `isActive` validator, so purchase receiving can complete. Remaining receiving defects are the unvalidated request body and stale totals.
 10. `syncInventoryFromBatch` runs per line with a `PURCHASE` movement context.
 11. PO becomes `received` with `receivedDate`.
 
@@ -193,22 +193,22 @@ sequenceDiagram
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| Client-supplied status can bypass the workflow | Defect |
-| Batch create blocked by `isActive` validator | Confirmed defect; receiving cannot complete |
-| VAT/discount not applied | Implemented behavior |
-| `recalculate` does not persist | Defect |
-| Update item leaves total stale | Defect |
-| `receive` body unvalidated at runtime | Risk |
-| Hard delete orphans items and batches | Risk |
-| No partial receiving | Not Implemented |
-| No PO numbering (counter unused) | Not Implemented |
-| No invoice file upload | Not Implemented |
-| No purchase returns | Not Implemented |
-| No approval audit (who/when) | Not Implemented |
-| `PurchaseOrderItemRepo.create` saves twice with a session | Risk |
-| No index on status/supplier/date | Performance gap |
+| Issue | Status | Phase |
+|---|---|---|
+| Client-supplied status can bypass the workflow | Still open | Phase 4 |
+| Batch creation was blocked by `isActive` validator | Already fixed (receiving can complete) | — |
+| VAT/discount not applied | Still open | Phase 4 |
+| `recalculate` does not persist | Still open | Phase 4 |
+| Update item leaves total stale | Still open | Phase 4 |
+| `receive` body unvalidated at runtime | Still open | Phase 3 |
+| Hard delete orphans items and batches | Still open | Phase 4 |
+| No partial receiving | Needs decision | Phase 6 |
+| No PO numbering (counter unused) | Still open | Phase 6 |
+| No invoice file upload | Needs decision | Phase 6 |
+| No purchase returns | Needs decision | Phase 6 |
+| No approval audit (who/when) | Needs decision | Phase 6 |
+| `PurchaseOrderItemRepo.create` saves twice with a session | Still open | Phase 4 |
+| No index on status/supplier/date | Still open | Phase 5 |
 
 ## Related documents
 

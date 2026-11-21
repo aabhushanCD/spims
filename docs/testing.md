@@ -42,8 +42,8 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the notification limitations change: **19 server test files, 201 tests**
-plus **2 client test files, 17 tests**, all passing. Overall statement coverage
+As of the Phase 0 baseline: **22 server test files, 223 tests** plus **2 client
+test files, 17 tests**, all passing. Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
 logic is:
@@ -76,7 +76,10 @@ covered by automated tests.
 | `return.service.test.ts` | Refund net of line discount, full vs partial status, over-return, invalid item, date validation, condition handling |
 | `purchaseOrder.service.test.ts` | Approval guards, cancellation guards, duplicate item guard, pending-only edits, total recalculation |
 | `smartReorder.Calculatro.test.ts` | WADS, sample standard deviation, delay factor, lead time, safety stock, reorder point, ROQ, confidence |
-| `medicineBatch.repo.test.ts` | FEFO sort/filter construction, transaction scoping, conditional stock decrement |
+| `medicineBatch.repo.test.ts` | FEFO sort/filter construction, transaction scoping, conditional stock decrement, sellable-filter sum |
+| `medicineBatch.model.test.ts` | Positive/zero/negative quantities, inactive-with-stock rejection, expiry ordering |
+| `batch.routes.test.ts` | Route table no longer exposes the removed allocation endpoint |
+| `inventoryMovement.model.test.ts` | Every `referenceType` enum value validates; unknown values are rejected |
 | `authorize.test.ts` | Allowed role, denied role, unauthenticated request, empty permission list |
 | `notification.service.test.ts` | Create/dedupe, InApp/email/SMS dispatch, retries, preferences, read state, pagination, hierarchy authorization, owner-only error detail, atomic claim contention, stale-claim recovery, attempt cap, missing-parent 404 |
 | `notificationRecipient.repo.test.ts` | Retry sweep filter, claim compare-and-swap lock, parent-aware unread aggregation, idempotent mark-read, bulk delete |

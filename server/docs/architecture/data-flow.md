@@ -124,7 +124,7 @@ sequenceDiagram
 
 Receiving does not support partial receipt or quantity tolerance; it requires exact matches.
 
-> **Current blocker:** the batch insert fails the `isActive` validator for positive quantities (confirmed with the installed Mongoose version), so the transaction aborts and the PO remains `approved`. The flow above describes the intended implementation; it cannot complete until the validator is fixed.
+> **Resolved:** batch creation with positive quantities now validates. Purchase receiving can complete end to end.
 
 Source: `server/src/modules/purchase/services/purchaseOrder.service.ts`
 
@@ -284,8 +284,8 @@ There are no client-to-server messages and no heartbeat.
 | Return GOOD | Yes | **No** | `increaseStock` | RETURN once |
 | Return DAMAGED/EXPIRED/OPENED | Yes | Increase | Recalculated | Two RETURN logs |
 | Purchase receive | Yes | Create batches | Recalculated per item | PURCHASE (on create or delta) |
-| Confirm disposal | No | Set 0 | `decreaseStock` | `SALE` (hardcoded; requested `EXPIRED` lost) |
-| Manual increase/decrease | No | No | Direct delta | `PURCHASE` on increase; `SALE` on decrease |
+| Confirm disposal | No | Set 0 | `decreaseStock` | `EXPIRED` (requested type preserved) |
+| Manual increase/decrease | No | No | Direct delta | Requested `PURCHASE`/`RETURN`/`SALE`/`EXPIRED`/`ADJUSTMENT` |
 | Reserve/release | No | No | Available only | RESERVE/RELEASE |
 | Batch adjust | No | Set value | Recalculated | None |
 

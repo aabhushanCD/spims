@@ -72,7 +72,52 @@ describe("MedicineBatchRepo", () => {
     });
   });
 
+  describe("getTotalStock", () => {
+    it("applies the sellable filter without a session", async () => {
+      const { repo, model } = buildRepo();
+
+      await repo.getTotalStock(MEDICINE_ID);
+
+      const filter = model.find.mock.calls[0]?.[0] as {
+        medicineId: { $eq: string };
+        quantityRemaining: { $gt: number };
+        expiryDate: { $gt: Date };
+        isExpired: boolean;
+      };
+      expect(filter.medicineId).toEqual({ $eq: MEDICINE_ID });
+      expect(filter.quantityRemaining).toEqual({ $gt: 0 });
+      expect(filter.isExpired).toBe(false);
+      expect(filter.expiryDate.$gt).toBeInstanceOf(Date);
+    });
+
+    it("applies the same filter inside a session", async () => {
+      const { repo, model, query } = buildRepo();
+      const session = { id: "session-1" };
+
+      await repo.getTotalStock(MEDICINE_ID, session as never);
+
+      const filter = model.find.mock.calls[0]?.[0] as {
+        quantityRemaining: { $gt: number };
+        isExpired: boolean;
+      };
+      expect(filter.quantityRemaining).toEqual({ $gt: 0 });
+      expect(filter.isExpired).toBe(false);
+      expect(query.session).toHaveBeenCalledWith(session);
+    });
+
+    it("sums the remaining quantity of the returned batches", async () => {
+      const { repo, query } = buildRepo();
+      query.exec.mockResolvedValueOnce([
+        { quantityRemaining: 3 },
+        { quantityRemaining: 4 },
+      ]);
+
+      await expect(repo.getTotalStock(MEDICINE_ID)).resolves.toBe(7);
+    });
+  });
+
   describe("deductBatchStock", () => {
+
     it("guards the decrement with a remaining-stock condition", async () => {
       const { repo, model } = buildRepo();
 

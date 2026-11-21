@@ -67,7 +67,7 @@ Failure points:
 
 - Invalid supplier → 404, nothing created.
 - Receive validation failure → transaction abort; no batches, PO stays `approved`.
-- Batch schema validation failure (confirmed: positive-quantity creation fails the `isActive` validator) → transaction abort, PO stays `approved`.
+- Batch schema validation failure (e.g. expiry before manufacturing, or deactivating with stock) → transaction abort, PO stays `approved`.
 - Duplicate batch number for the same medicine → 500, transaction abort.
 
 Post-conditions on success:
@@ -166,7 +166,7 @@ Behavior by condition:
 | EXPIRED | Write off | Batch restored |
 | OPENED | Write off | Batch restored |
 
-The GOOD path also passes an invalid `referenceType`, so it is expected to fail at movement validation. See [Returns](../modules/returns.md).
+The GOOD path's `referenceType` is now valid (`SALES_RETURN`); the remaining condition semantics are Phase 4 work. See [Returns](../modules/returns.md).
 
 ## 5. Expiry and disposal
 
@@ -186,7 +186,7 @@ sequenceDiagram
   API->>B: require isExpired + qty > 0
   B->>B: batch quantity = 0
   B->>B: decrease aggregate by disposed qty
-  Note over B: movement is logged as SALE (intended EXPIRED is overwritten); no transaction
+  Note over B: movement is logged as EXPIRED (requested type preserved); no transaction
 ```
 
 Timing:
@@ -264,7 +264,7 @@ Cron uses server-local time. There is no timezone configuration.
 | Receipt validation failure | PO still approved, no batches | Fix payload, retry |
 | Receipt DB failure | Transaction abort | Retry |
 | Disposal aggregate failure | Batch zeroed, aggregate not reduced | Manual reconciliation |
-| GOOD return enum failure | Transaction abort | Change implementation or condition |
+| Return condition/VAT defects | Return saved with current (incorrect) semantics | Phase 4 remediation |
 | SMTP failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |
 | Permanent SMTP 5xx | Recipient `Failed`, error stored | No retry |
 | SMS webhook failure | Recipient `Failed`, error stored | Automatic retry at +1m/+5m or forced dispatch |

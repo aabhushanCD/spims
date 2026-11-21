@@ -38,7 +38,7 @@ Router-level roles: **`owner`, `pharmacist` only**. No Zod middleware is applied
 | POST | `/users` | Create user | `name`, `email`, `password`, `role` | `201` raw user | Role checked in service; bcrypt hash applied |
 | GET | `/users` | List users | — | `200` array | |
 | GET | `/users/:id` | Get user | `id` | `200` raw user / `404` | |
-| PUT | `/users/:id` | Update user | any user fields | `200` raw user / `404` | **Password is not hashed** |
+| PUT | `/users/:id` | Update user | any user fields | `200` raw user / `404` | Password is bcrypt-hashed when supplied |
 | DELETE | `/users/:id` | Delete user | body `{ role }` | `200` `{ message }` | `401` unless body role is `owner` |
 | GET | `/users/role/:role` | Users by role | `role` | `200` array | |
 | GET | `/users/status/:isActive/last-login/:date` | Filter | `date` | `200` array | Reads `?isActive=`, ignores path param |
@@ -254,15 +254,15 @@ No Zod middleware. All responses are `{ success, data }` unless noted.
 | POST | `/inventory/:medicineId/decrease` | Decrease aggregate | same | `200` | `movementType` must be `SALE`, `EXPIRED`, or `ADJUSTMENT`; `400` insufficient |
 | POST | `/inventory/:medicineId/reserve` | Reduce available | `quantity`, `batchId?`, `referenceId`, `referenceType`, `remarks?` | `200` | Does not change `reservedStock` |
 | POST | `/inventory/:medicineId/release` | Increase available | same | `200` | Does not change `reservedStock` |
-| POST | `/inventory/:medicineId/sync` | Recompute aggregate from batches | — | `200` | **Bug:** without a session, expired/flagged/zero batches are included |
+| POST | `/inventory/:medicineId/sync` | Recompute aggregate from batches | — | `200` | Uses the sellable filter (positive, unexpired, not flagged) in both session and non-session paths |
 | PATCH | `/inventory/:id` | Update fields | arbitrary inventory fields + optional movement context | `200` / `404` | If `currentStock` changes and context is supplied, a movement is logged |
 | DELETE | `/inventory/:id` | Delete aggregate | optional movement context | `200` `{ success, message }` / `404` | Movement logged if stock > 0 |
 
 Manual increase/decrease do not touch batch quantities. See [Inventory data model](../database/inventory-data-model.md).
 
-> **Movement enum caveat:** `referenceType` is validated against `PURCHASE_ORDER`, `SALE`, `RETURN`, `ADJUSTMENT`, `SYSTEM`. The service defaults for manual increase (`PURCHASE`), reserve (`RESERVE`), and release (`RELEASE`) are **not** valid enum values. If the request omits a valid `referenceType`, the movement insert fails validation (500). Supply a valid enum value (for example `SYSTEM` or `ADJUSTMENT`) when using these endpoints. Confirmed with the installed Mongoose version.
+> **Movement enum:** `referenceType` accepts `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, and `SYSTEM`. The service defaults for manual increase (`PURCHASE`), reserve (`RESERVE`), and release (`RELEASE`) are valid enum members.
 >
-> **Movement type caveat:** `decreaseStock` always writes `movementType: "SALE"`, even when the controller accepted `EXPIRED` or `ADJUSTMENT`. Those requests succeed but are recorded as sales.
+> **Movement type:** `decreaseStock` records the requested `SALE`, `EXPIRED`, or `ADJUSTMENT` type.
 
 ## Sales
 
@@ -381,13 +381,13 @@ Service rules:
 
 Success: `201` `{ success: true, data: return }`.
 
-Errors: `400` empty items, invalid sale item, over-return, bad date; `404` sale; `500` for movement enum validation (expected on the GOOD path).
+Errors: `400` empty items, invalid sale item, over-return, bad date; `404` sale.
 
 Condition behavior:
 
 | Condition | Batch restored | Aggregate restored | Movement(s) |
 |---|---|---|---|
-| `GOOD` | No | Yes | 1 `RETURN` (with invalid `referenceType: SALES_RETURN`) |
+| `GOOD` | No (Phase 4) | Yes | 1 `RETURN` with `referenceType: SALES_RETURN` |
 | `DAMAGED` | Yes | Yes | 2 `RETURN` |
 | `EXPIRED` | Yes | Yes | 2 `RETURN` |
 | `OPENED` | Yes | Yes | 2 `RETURN` |
@@ -414,12 +414,11 @@ No Zod middleware. Responses are `{ success, data }` or `{ success, message }`.
 |---|---|---|---|---|---|
 | GET | `/batches` | List all | — | `200` | Medicine name populated |
 | GET | `/batches/:id` | Get batch | — | `200` | Missing → `500` (service throws `Error`) |
-| POST | `/batches` | Create batch | full batch body | `201` | PO must exist; no inventory sync; **blocked by `isActive` validator for positive quantity** |
+| POST | `/batches` | Create batch | full batch body | `201` | PO must exist; no inventory sync |
 | PATCH | `/batches/:id` | Update arbitrary fields | partial | `200` | No validation; no sync |
 | DELETE | `/batches/:id` | Delete | — | `200` | Hard delete; no stock reconciliation |
 | GET | `/batches/medicine/:medicineId` | **First** batch for medicine | — | `200` | Uses `findOne`, not a list; missing → `500` |
 | GET | `/batches/medicine/:medicineId/available` | Sellable batches | — | `200` | Filters quantity > 0 and expiry > now |
-| GET | `/batches/medicine/:medicineId/allocate?quantity=` | Allocate stock | `quantity` > 0 | `200` | **Mutates stock and returns `[]`** |
 | GET | `/batches/expired` | Batches past expiry date | — | `200` | Date-based, ignores `isExpired` |
 | GET | `/batches/expired/awaiting-disposal` | Flagged with stock | — | `200` | `isExpired && quantityRemaining > 0` |
 | GET | `/batches/low-stock?threshold=` | Per-batch low stock | threshold ≥ 0 | `200` | `0 < quantityRemaining <= threshold` |
@@ -430,7 +429,7 @@ No Zod middleware. Responses are `{ success, data }` or `{ success, message }`.
 | GET | `/batches/:id/history` | Batch metadata | — | `200` | **Not** movement history |
 | POST | `/batches/:id/confirm-disposal` | Dispose expired stock | `remarks?` | `200` | Requires `isExpired` and quantity > 0; no transaction |
 
-Important: `allocateStock` loops through batches, decrements `quantityRemaining`, syncs inventory, but never pushes to the allocation array, so the response is always an empty array. It is exposed as a **GET** despite mutating data.
+Important: the destructive `GET /batches/medicine/:medicineId/allocate` endpoint and its client stub were removed. Sales allocate FEFO stock through `InventoryService.sellMedicine`.
 
 Details: [batches.md](../modules/batches.md).
 
@@ -530,7 +529,6 @@ Details: [reporting.md](../modules/reporting.md).
 - Some list endpoints have no way to filter by medicine, date range, or status.
 - `GET /users/active` and one duplicate status route cannot be reached; see [API overview](api-overview.md#9-route-ordering-caveats).
 - `POST /batches/...` responses can be 500 for ordinary "not found" conditions because the service throws plain `Error`.
-- `GET /batches/medicine/:medicineId/allocate` is destructive despite being a GET.
 
 ## Related documents
 

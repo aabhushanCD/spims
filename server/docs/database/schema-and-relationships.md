@@ -59,8 +59,8 @@ Source: `server/src/modules/user/model/user.model.ts`
 | `role` | String | D `pharmacist`, enum | `owner`, `pharmacist`, `inventory_manager` |
 | `phone` | String \| null | D `null`, trim | Optional SMS destination |
 | `notificationPreferences` | Object | D `{ email: true, sms: true }` | Per-channel opt-out; in-app is always on |
-| `isActive` | Boolean | D `true` | Not checked during login |
-| `lastLogin` | Date | D `null` | Never updated by the login flow |
+| `isActive` | Boolean | D `true` | Login rejects deactivated accounts |
+| `lastLogin` | Date | D `null` | Updated on successful login |
 | `refreshToken` | String | D `null` | Unused |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
@@ -179,14 +179,14 @@ Source: `server/src/modules/batch/model/medicineBatch.model.ts`
 | `quantityReceived` | Number | R, min 1 | |
 | `quantityRemaining` | Number | R, min 0 | Validator: must not exceed `quantityReceived` |
 | `isExpired` | Boolean | D false | Set by expiry job or manual route |
-| `isActive` | Boolean | D true | Validator: only allowed true when `quantityRemaining === 0` (inverted; see risk below) |
+| `isActive` | Boolean | D true | Inactive batches must have `quantityRemaining === 0` |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
 Virtual `status`: `sold-out` when remaining is 0, else `expired` when `isExpired`, else `active`/`inactive`.
 
 Indexes: `{ expiryDate }`, unique `{ medicineId, batchNumber }`, `{ medicineId, expiryDate }`, `{ isExpired }`, `{ isActive }`.
 
-> **Confirmed defect:** the `isActive` validator requires `quantityRemaining === 0`, but the default is `true`. Using the installed Mongoose version, validating a new batch with `quantityRemaining: 5` fails with `Batch can only be marked as inactive if quantity remaining is zero`. Therefore `POST /batches` and every purchase receipt (which creates batches with positive quantity) fail validation before insertion. An isolated `doc.validate()` probe was used; no database is required to reproduce. See [Batches](../modules/batches.md).
+> **Validator semantics:** active batches may hold stock; only a batch marked `isActive: false` must have `quantityRemaining === 0`. The cross-field check runs on document `save()`; `findByIdAndUpdate` paths skip validators. See [Batches](../modules/batches.md).
 
 ### 5.2 `inventories` — `Inventory`
 
@@ -213,7 +213,7 @@ Source: `server/src/modules/inventory/model/inventoryMovement.model.ts`
 | `movementType` | String enum (7 values) | R |
 | `quantity` | Number | R, signed semantics not enforced |
 | `referenceId` | ObjectId | R |
-| `referenceType` | String enum (5 values) | R |
+| `referenceType` | String enum (9 values) | R |
 | `performedBy` | ObjectId → `User` | R |
 | `remarks` | String | D `""` |
 | `createdAt`, `updatedAt` | Date | timestamps |
@@ -418,12 +418,12 @@ No timestamps.
 2. `SalesItem.salesId` and `Return.salesId` are unindexed, making sale detail and return creation collection scans as data grows.
 3. `Return.returnNumber` is not unique despite being generated sequentially.
 4. `Return.returnItems.VAT` is required but never written; the update path bypasses validators.
-5. `Batch.isActive` validator conflicts with its default and blocks creation of any batch with positive quantity (confirmed by isolated validation).
+5. `Batch.isActive` now allows positive stock for active batches; inactive batches still require zero.
 6. `PurchaseOrder.VAT` and `PurchaseOrder.discount` are stored but never applied to `totalAmount`.
 7. `InventoryMovement.batchId` is optional in the schema but mandatory in the service, creating a mismatch for any future writer that bypasses the service.
 8. `Supplier.reliabilityScore` is never computed; smart reorder computes reliability on the fly instead.
 9. `Sales.status` includes `CANCELLED` and `PENDING`, but no code path sets either after creation.
-10. `User.lastLogin` and `User.refreshToken` are never maintained.
+10. `User.refreshToken` is a legacy field and is unused; refresh sessions live in `authsessions`. `User.lastLogin` is maintained on login.
 
 ## Related documents
 

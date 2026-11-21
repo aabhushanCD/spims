@@ -171,15 +171,15 @@ It does not include `_id` explicitly but Mongo includes it, and it does not filt
 
 ## 13. Limitations
 
-| Issue | Status |
-|---|---|
-| Pagination/filtering on medicine list | Not Implemented |
-| `unitId` existence check | Not Implemented |
-| Cascading/deactivation checks for lookup deletes | Not Implemented |
-| Unique index for name+strength+brand | Not Implemented (service check only) |
-| Search query escaping | Not Implemented (raw regex) |
-| Inactive filtering | Not Implemented |
-| Batch/price data in medicine list | Not Implemented (use inventory/batch endpoints) |
+| Issue | Status | Phase |
+|---|---|---|
+| Pagination/filtering on medicine list | Still open | Phase 5 |
+| `unitId` existence check | Still open | Phase 3 |
+| Cascading/deactivation checks for lookup deletes | Still open | Phase 3 |
+| Unique index for name+strength+brand | Needs decision (index vs service-only check) | Phase 5 |
+| Search query escaping (raw regex) | Still open | Phase 3 |
+| Inactive filtering | Still open | Phase 3 |
+| Batch/price data in medicine list | Needs decision | Phase 6 |
 
 ## Related documents
 

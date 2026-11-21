@@ -18,10 +18,6 @@ router.get(
   "/medicine/:medicineId/available",
   medicineBatchController.getAvailableBatches,
 );
-router.get(
-  "/medicine/:medicineId/allocate",
-  medicineBatchController.allocateStock,
-);
 
 router.get(
   "/expired/awaiting-disposal",

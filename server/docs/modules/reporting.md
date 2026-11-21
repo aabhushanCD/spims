@@ -228,19 +228,19 @@ sequenceDiagram
 
 ## 13. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| `year`/`monthBack` parameters ignored | Defect |
-| Revenue trend limited to current year | Limitation |
-| Sales total uses `createdAt` | Inconsistency |
-| Profit not COGS-based | Approximation |
-| Returned units not excluded from top selling | Defect |
-| `getInventoryHealth.expiringSoonCount` always 0 | Defect |
-| No date-range analytics | Not Implemented |
-| No export (CSV/PDF) | Not Implemented |
-| Dashboard cache not invalidated | Limitation |
-| No per-cashier or per-category breakdown | Not Implemented |
-| No timezone strategy | Limitation |
+| Issue | Status | Phase |
+|---|---|---|
+| `year`/`monthBack` parameters ignored | Still open | Phase 4 |
+| Revenue trend limited to current year | Needs decision | Phase 6 |
+| Sales total uses `createdAt` instead of `saleDate` | Still open | Phase 4 |
+| Profit not COGS-based | Still open | Phase 4 |
+| Returned units not excluded from top selling | Still open | Phase 4 |
+| `getInventoryHealth.expiringSoonCount` always 0 | Still open | Phase 4 |
+| No date-range analytics | Needs decision | Phase 6 |
+| No export (CSV/PDF) | Needs decision | Phase 6 |
+| Dashboard cache not invalidated | Still open | Phase 5 |
+| No per-cashier or per-category breakdown | Needs decision | Phase 6 |
+| No timezone strategy | Needs decision | Phase 4 |
 
 ## Related documents
 

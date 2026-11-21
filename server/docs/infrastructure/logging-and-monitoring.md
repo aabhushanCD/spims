@@ -111,14 +111,14 @@ The dashboard's inventory value and low-stock counts are derived from these same
 
 | Event | Audit record |
 |---|---|
-| Login/logout | None (lastLogin unused) |
+| Login/logout | Login updates `lastLogin`; no dedicated audit row. Logout has no record |
 | User create/update/delete | None |
 | Role change | None |
 | Purchase approval | Only status; no approver/timestamp |
 | PO cancellation | Only status; no actor |
 | Sale deletion | Movement with `performedBy`, but sale itself is gone |
 | Inventory adjustment | Movement if context supplied; batch adjust has none |
-| Batch disposal | Recorded as a `SALE` movement, with performer, due to the hardcoded type in `decreaseStock` |
+| Batch disposal | Recorded as an `EXPIRED` movement, with performer (the requested type is preserved) |
 | Return | `returnedBy` and movements |
 | Smart reorder approval | Status only; no approver |
 | Notification dispatch | Recipient status only |
@@ -152,7 +152,7 @@ None of these exist in the repository.
 | Reorder always 400 | Negative cache entry, no purchase history, stock above ROP |
 | Notifications stuck Pending | Dispatch not called, or the retry sweep is failing; never-attempted rows are swept next tick, abandoned claims after 15 minutes |
 | WebSocket never delivers | Cookie not sent on upgrade, expired token, no open socket |
-| Stock mismatch | Aggregate-only operations, GOOD returns, sale deletion, non-session sync |
+| Stock mismatch | Aggregate-only operations, GOOD returns, sale deletion |
 
 ## Related documents
 

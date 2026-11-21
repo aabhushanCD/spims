@@ -226,22 +226,22 @@ A recommendation for 45 units is stored, with confidence derived from data cover
 
 ## 14. Limitations and risks
 
-| Issue | Status |
-|---|---|
-| Auto-create purchase orders | Not Implemented |
-| MOQ / pack size | Not Implemented |
-| Seasonality/trend modeling | Not Implemented |
-| Cache invalidation | Not Implemented |
-| Negative results returned as success on cache hits | Defect |
-| Missing `expectedDeliveryDate` handling | Risk (`NaN`) |
-| Duplicate recommendations per run | Possible |
-| Recommendation deduplication | Not Implemented |
-| Approval audit (who/when) | Not Implemented |
-| `expiryRiskUnits` includes already-expired stock | Defect (no lower date bound) |
-| Indexes on medicine/status | Missing |
-| `createRecommendation` manual path | Not exposed and incomplete |
-| Manual confidence scale (0–1) differs from generated scale (0–100) | Inconsistency |
-| `supplier.reliabilityScore` | Unused; computed on the fly |
+| Issue | Status | Phase |
+|---|---|---|
+| Auto-create purchase orders | Needs decision | Phase 6 |
+| MOQ / pack size | Needs decision | Phase 6 |
+| Seasonality/trend modeling | Needs decision | Phase 6 |
+| Cache invalidation | Still open | Phase 5 |
+| Negative results returned as success on cache hits | Still open | Phase 5 |
+| Missing `expectedDeliveryDate` handling (`NaN`) | Still open | Phase 5 |
+| Duplicate recommendations per run | Still open | Phase 5 |
+| Recommendation deduplication | Still open | Phase 5 |
+| Approval audit (who/when) | Needs decision | Phase 6 |
+| `expiryRiskUnits` includes already-expired stock | Still open | Phase 5 |
+| Indexes on medicine/status | Still open | Phase 5 |
+| `createRecommendation` manual path | Needs decision | Phase 6 |
+| Manual confidence scale (0–1) differs from generated scale (0–100) | Still open | Phase 5 |
+| `supplier.reliabilityScore` unused | Still open | Phase 5 |
 
 ## Related documents
 
