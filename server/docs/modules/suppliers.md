@@ -45,9 +45,7 @@ Base: `/api/suppliers`. Roles: all three. Full contracts: [endpoints.md](../api/
 - `createSupplier`: pre-checks email and phone, then creates.
 - `getSupplierById`: validates ObjectId format (`400`), then `404` if absent.
 - `updateSupplier`: validates ObjectId, existence, and changed email/phone uniqueness.
-- `deleteSupplier`: validates ObjectId and existence, then hard deletes.
-
-No service checks for dependent purchase orders before deletion.
+- `deleteSupplier`: validates ObjectId and existence, blocks deletion while `pending`/`approved` purchase orders exist, then hard deletes.
 
 ## 7. Model
 
@@ -69,14 +67,15 @@ No service checks for dependent purchase orders before deletion.
 
 | Schema | Fields |
 |---|---|
-| `createSupplierSchema` | companyName, contactPerson, email, phone, address, leadTime (positive integer), status default `active` |
+| `createSupplierSchema` | companyName (2–100), contactPerson (2–100), email (normalized), phone (7–20 with pattern), address (5–250), leadTime (positive integer), status default `active` |
 | `updateSupplierSchema` | same fields, all optional |
+| `supplierIdParamSchema` | ObjectId route param |
 
 `reliabilityScore` is not part of either schema, so it is dropped from requests even if supplied.
 
 ## 9. Middleware
 
-`verifyToken` + `authorize` at the `/api/suppliers` mount. No additional middleware.
+`verifyToken` + `authorize` at the `/api/suppliers` mount, plus body and ObjectId-param validation.
 
 ## 10. Business rules
 
@@ -115,11 +114,11 @@ sequenceDiagram
 | Issue | Status | Phase |
 |---|---|---|
 | Phone unique index | Still open | Phase 5 |
-| Prevent delete with open POs | Still open | Phase 3 |
+| Prevent delete with open POs | Already fixed (409 for pending/approved POs) | — |
 | Supplier performance history endpoint | Needs decision | Phase 6 |
 | `reliabilityScore` maintenance | Still open | Phase 5 |
 | Pagination/filtering by status | Still open | Phase 5 |
-| Contact/address validation beyond non-empty | Still open | Phase 3 |
+| Contact/address validation beyond non-empty | Already fixed (trim, length, email, phone) | — |
 
 ## Related documents
 

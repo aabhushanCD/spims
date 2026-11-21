@@ -98,14 +98,14 @@ Key points:
 
 `CreateReturnSchema` defines:
 
-- `salesId` non-empty
+- `salesId` ObjectId
 - `returnReason` 3–500
-- `returnedBy` non-empty
+- `returnedBy` ObjectId
 - `returnDate` coerced date
-- `items` min 1, each with `saleItemId`, positive integer `quantity`, `condition` enum, optional `remarks` ≤ 500
-- `performedBy` non-empty
+- `items` min 1, each with ObjectId `saleItemId`, positive integer `quantity`, `condition` enum, optional `remarks` ≤ 500
+- `performedBy` is intentionally absent; the controller supplies the JWT user
 
-**None of this is applied by the router.** Runtime checks are the controller's item-array check and the service rules.
+`UpdateReturnSchema` requires a 3–500 character `returnReason`, and `returnIdParamSchema` validates the route id. All are wired to the routes.
 
 ## 9. Middleware
 
@@ -186,7 +186,7 @@ No VAT is added. The return is stored as `COMPLETED` with `refundAmount: 95`.
 | Damaged/expired/opened returns write duplicate movement rows | Fixed (one movement per return line) | — |
 | `returnItems.VAT` is required by the schema but never written | Still open | Phase 4 |
 | `SALES_RETURN` enum mismatch | Already fixed (enum widened) | — |
-| Return schema not wired | Still open | Phase 3 |
+| Return schema not wired | Already fixed (create/update/param validation) | — |
 | `remarks` discarded | Still open | Phase 4 |
 | No return deletion/reversal | Needs decision | Phase 6 |
 | `returnNumber` not unique | Still open | Phase 4 |

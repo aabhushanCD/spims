@@ -28,32 +28,32 @@ modules/user/
 
 ## 4. Routes
 
-Mounted at `/api/users` with roles **`owner` and `pharmacist` only**. `inventory_manager` cannot access user administration.
+Mounted at `/api/users` with roles **`owner` and `pharmacist` only**. Every write route additionally requires `owner`. `inventory_manager` cannot access user administration.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/` | Create user |
+| POST | `/` | Create user; owner only |
 | GET | `/` | List all |
-| GET | `/:id` | Get by id |
-| PUT | `/:id` | Update |
-| DELETE | `/:id` | Requires `role` in body |
+| GET | `/:id` | Get by id; ObjectId validated |
+| PUT | `/:id` | Update; owner only |
+| DELETE | `/:id` | Owner only; JWT role is authoritative; body must be empty |
 | GET | `/role/:role` | Filter by role |
-| GET | `/status/:isActive/last-login/:date` | Reads `?isActive=` instead of path param |
+| GET | `/status/:isActive/last-login/:date` | Reads `:isActive` path param |
 | GET | `/role/:role/last-login/:date` | Filter |
-| GET | `/role/:role/status/:isActive` | Reads `?isActive=` instead of path param |
-| GET | `/active` | **Shadowed** by `/:id` |
-| GET | `/:id/inactive` | Returns all inactive users, ignores `:id` |
+| GET | `/role/:role/status/:isActive` | Reads `:isActive` path param |
+| GET | `/active` | Registered before `/:id` |
+| GET | `/inactive` | All inactive users |
 | GET | `/last-login/:date` | Filter |
-| GET | `/status/:isActive/last-login/:date` | Duplicate registration, unreachable |
-| PATCH | `/:id/toggleUserActivation` | Toggle |
+| PATCH | `/:id/toggleUserActivation` | Toggle; owner only |
+| PATCH | `/:id/role` | Change role; owner only |
 
 Full contracts: [endpoints.md](../api/endpoints.md#users).
 
 ## 5. Controllers
 
-`UserController` returns raw user documents or arrays for most operations. It checks for `null` results and returns `404` directly. Errors go through `next(error)`.
+`UserController` returns public user documents or arrays for most operations. It checks for `null` results and returns `404` directly. Errors go through `next(error)`.
 
-`deleteUser` reads `req.body.role` and passes it to the service.
+`deleteUser` derives the actor role from `req.user.role`; a client-supplied body role is rejected by `deleteUserBodySchema`.
 
 ## 6. Services
 
@@ -61,12 +61,13 @@ Full contracts: [endpoints.md](../api/endpoints.md#users).
 
 | Method | Behavior |
 |---|---|
-| `createUser` | Role allow-list check → email uniqueness → bcrypt hash → create verified user |
-| `updateUser` | Validates role → bcrypt-hashes a supplied password → update |
-| `deleteUser` | Requires the supplied role to equal `owner` |
+| `createUser` | Owner check → role allow-list check → email uniqueness → bcrypt hash → create verified user |
+| `updateUser` | Owner check → validates role → bcrypt-hashes a supplied password → update |
+| `deleteUser` | Owner check from the authenticated role |
+| `changeRole` | Owner check → confirms the user exists → updates the role |
 | `getAllUsers` / `getByRole` / `getActive` / `getInactive` | Read-only |
 | `getUsersByStatusAndLastLogin` / `getByRoleAndLastLogin` / `getByLastLogin` | Read-only |
-| `toggleUserActivation` | Flips `isActive` |
+| `toggleUserActivation` | Owner check → flips `isActive` |
 
 ## 7. Model
 
@@ -80,13 +81,12 @@ not part of the generic user update contract.
 
 ## 8. Validation
 
-`modules/user/schema/user.schema.ts` defines `createUserSchema` and `updateUserSchema`, but **neither is wired to a route**. Consequences:
+`modules/user/schema/user.schema.ts` defines the runtime schemas wired to the routes:
 
-- `POST /users` accepts arbitrary fields; the Mongoose schema filters unknown paths.
-- `PUT /users/:id` accepts arbitrary fields. A supplied `password` is bcrypt-hashed by the service.
-- `role` values are checked in both `createUser` and `updateUser`; invalid values return `400`.
-- `updateUserSchema` now accepts an optional `phone` (7–20 characters) but the
-  route does not run it; the Mongoose schema trims and stores the value.
+- `createUserSchema` and `updateUserSchema` validate names, email, password length, roles, phone format, and `isActive`.
+- `deleteUserBodySchema` is strict and accepts only an empty body.
+- ObjectId, role, status, and date params are validated before controllers.
+- Invalid values return `400` with the standard `{ success: false, errors }` shape; non-owner writes return `403`.
 - Email changes do not reset `emailVerified`.
 
 ## 9. Middleware
@@ -100,13 +100,14 @@ There is no per-action ownership check and no self-service endpoint.
 
 ## 10. Effective role matrix
 
-The API claims RBAC, but only two real restrictions exist.
+The API still has broad module-level roles. User management is the main owner-only area.
 
 | Capability | owner | pharmacist | inventory_manager |
 |---|---|---|---|
 | Register/login/logout/me | yes | yes | yes |
-| User administration | yes | yes | **no** (403 at mount) |
-| Delete user | yes (with `role: "owner"` in body) | yes, **if body says `owner`** | no |
+| View users | yes | yes | **no** (403 at mount) |
+| Create/update/delete/role-change users | yes | **no** (403) | no |
+| Toggle user activation | yes | **no** (403) | no |
 | Medicine/catalog CRUD | yes | yes | yes |
 | Supplier CRUD | yes | yes | yes |
 | Purchase create/approve/receive/delete | yes | yes | yes |
@@ -118,7 +119,7 @@ The API claims RBAC, but only two real restrictions exist.
 | Smart reorder delete | yes | no | no |
 | Dashboard/notifications | yes | yes | yes |
 
-The only meaningful distinctions are: user administration is closed to inventory managers, and reorder generation/deletion has extra checks.
+The only meaningful distinctions are: user writes are owner-only, and reorder generation/deletion has extra checks.
 
 ## 11. Business rules
 
@@ -141,34 +142,35 @@ The only meaningful distinctions are: user administration is closed to inventory
 
 ### Create staff account
 
-1. Owner/pharmacist sends `POST /users`.
-2. Service validates role and email.
+1. Owner sends `POST /users`; pharmacists receive `403`.
+2. Zod validates the role, email, and password; the service repeats the role check.
 3. Password is hashed.
 4. User is stored and returned.
 
 ### Deactivate instead of delete
 
-1. `PATCH /users/:id/toggleUserActivation`.
+1. Owner sends `PATCH /users/:id/toggleUserActivation`.
 2. `isActive` flips.
-3. The user can still log in (see limitations).
+3. Login and refresh reject the deactivated account.
 
 ### Delete
 
-1. `DELETE /users/:id` with body `{ "role": "owner" }`.
-2. Service compares the **body** role to `owner`.
-3. Hard delete.
+1. Owner sends `DELETE /users/:id` with no body.
+2. Service authorizes from the JWT role, not client data.
+3. A client-supplied `{ "role": "owner" }` body is rejected by validation.
+4. Hard delete.
 
 ## 14. Limitations and risks
 
 | Issue | Status | Phase |
 |---|---|---|
-| Pharmacist can create an `owner` or promote any user (including themselves) | Still open | Phase 3 |
+| Pharmacist can create an `owner` or promote any user (including themselves) | Already fixed (owner-only writes plus service checks) | — |
 | Invalid role accepted on update | Already fixed | — |
 | Password update stored in plaintext | Already fixed (bcrypt) | — |
-| Delete authorization uses request body | Still open | Phase 3 |
-| `GET /users/active` shadowed by `GET /users/:id` | Still open | Phase 3 |
-| `GET /users/:id/inactive` ignores `:id` | Still open | Phase 3 |
-| Duplicate status route unreachable | Still open | Phase 3 |
+| Delete authorization uses request body | Already fixed (JWT role; body role rejected) | — |
+| `GET /users/active` shadowed by `GET /users/:id` | Already fixed (route order) | — |
+| `GET /users/:id/inactive` ignores `:id` | Already fixed (replaced by `GET /users/inactive`) | — |
+| Duplicate status route unreachable | Already fixed (single route) | — |
 | `isActive` ignored at login | Already fixed | — |
 | `lastLogin` never updated | Already fixed | — |
 | Admin password reset | Needs decision | Phase 6 |

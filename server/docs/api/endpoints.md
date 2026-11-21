@@ -7,7 +7,7 @@ Complete reference for every route registered in the backend.
 - **Base path:** `/api`
 - **Auth:** "Cookie JWT" means the request must carry the `token` cookie. Roles are enforced at the router mount (`app.routes.ts`).
 - **Roles:** unless stated otherwise, `owner`, `inventory_manager`, and `pharmacist` are all allowed.
-- **Validation:** "Zod body" means `validate(schema)` runs before the controller. Params and query strings are never validated by middleware.
+- **Validation:** `validate`, `validateParams`, and `validateQuery` run before controllers on the routes listed below. Malformed ObjectIds are rejected with `400` instead of reaching Mongoose; a global `CastError` mapper is the safety net.
 - **Errors:** all endpoints can return `401`, `403`, `500`, and (for unknown paths) `404`. Only endpoint-specific errors are listed.
 - **Source paths** are relative to the repository root.
 - Route handlers that `throw new Error(...)` from a service (batch module) become **500**, not 404/400.
@@ -18,7 +18,7 @@ Source: `server/src/modules/auth/routes/auth.route.ts`
 
 | Method | Path | Purpose | Auth / roles | Body / query | Validation | Success |
 |---|---|---|---|---|---|---|
-| POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password`, `role?` | `registerSchema` | `201` raw user (includes password hash) |
+| POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password` (`role` is stripped) | `registerSchema` | `201` raw user (includes password hash) |
 | POST | `/auth/login` | Authenticate and set cookie | Public | `email`, `password` | `loginSchema` | `200` raw user + `token`; sets `token` cookie |
 | POST | `/auth/logout` | Clear cookie | Cookie JWT / any | — | — | `200` `{ message }` |
 | GET | `/auth/me` | Current user | Cookie JWT / any | — | — | `200` raw user (includes password hash) |
@@ -31,24 +31,24 @@ Details: [authentication.md](authentication.md).
 
 Source: `server/src/modules/user/routes/user.route.ts`
 
-Router-level roles: **`owner`, `pharmacist` only**. No Zod middleware is applied.
+Router-level roles: **`owner`, `pharmacist` only**. Every write route also requires `owner`. ObjectId params are validated before controllers run.
 
 | Method | Path | Purpose | Body / params / query | Success | Notes |
 |---|---|---|---|---|---|
-| POST | `/users` | Create user | `name`, `email`, `password`, `role` | `201` raw user | Role checked in service; bcrypt hash applied |
+| POST | `/users` | Create user | `name`, `email`, `password`, `role` | `201` public user | Owner only; `createUserSchema`; bcrypt hash applied |
 | GET | `/users` | List users | — | `200` array | |
-| GET | `/users/:id` | Get user | `id` | `200` raw user / `404` | |
-| PUT | `/users/:id` | Update user | any user fields | `200` raw user / `404` | Password is bcrypt-hashed when supplied |
-| DELETE | `/users/:id` | Delete user | body `{ role }` | `200` `{ message }` | `401` unless body role is `owner` |
-| GET | `/users/role/:role` | Users by role | `role` | `200` array | |
-| GET | `/users/status/:isActive/last-login/:date` | Filter | `date` | `200` array | Reads `?isActive=`, ignores path param |
+| GET | `/users/:id` | Get user | ObjectId `id` | `200` public user / `404` | |
+| PUT | `/users/:id` | Update user | partial user fields | `200` public user / `404` | Owner only; `updateUserSchema`; password is bcrypt-hashed |
+| DELETE | `/users/:id` | Delete user | no body | `200` `{ message }` | Owner only; JWT role is authoritative; a body `{ role }` is rejected |
+| GET | `/users/role/:role` | Users by role | `owner` / `pharmacist` / `inventory_manager` | `200` array | |
+| GET | `/users/status/:isActive/last-login/:date` | Filter | `true`/`false`, parseable `date` | `200` array | Reads path params |
 | GET | `/users/role/:role/last-login/:date` | Filter | `role`, `date` | `200` array | |
-| GET | `/users/role/:role/status/:isActive` | Filter | `role` | `200` array | Reads `?isActive=`, ignores path param |
-| GET | `/users/active` | Active users | — | `200` array | **Unreachable**: shadowed by `GET /users/:id` |
-| GET | `/users/:id/inactive` | Inactive users | `id` (ignored) | `200` array | Returns all inactive users |
+| GET | `/users/role/:role/status/:isActive` | Filter | `role`, `true`/`false` | `200` array | Reads path params |
+| GET | `/users/active` | Active users | — | `200` array | Registered before `GET /users/:id` |
+| GET | `/users/inactive` | Inactive users | — | `200` array | Replaces the misleading `GET /users/:id/inactive` |
 | GET | `/users/last-login/:date` | Users since date | `date` | `200` array | |
-| GET | `/users/status/:isActive/last-login/:date` | Duplicate registration | `date` | — | **Unreachable**: first registration wins |
-| PATCH | `/users/:id/toggleUserActivation` | Toggle `isActive` | `id` | `200` `{ message }` / `404` | |
+| PATCH | `/users/:id/toggleUserActivation` | Toggle `isActive` | ObjectId `id` | `200` `{ message }` / `404` | Owner only |
+| PATCH | `/users/:id/role` | Change role | `{ role }` | `200` public user | Owner only; matches the client service call |
 
 Details: [users-and-roles.md](../modules/users-and-roles.md).
 
@@ -59,14 +59,14 @@ Source: `server/src/modules/medicine/routes/medicine.route.ts`
 | Method | Path | Purpose | Body / query | Validation | Success |
 |---|---|---|---|---|---|
 | POST | `/medicines` | Create medicine | catalog fields | `createMedicineSchema` | `201` raw medicine |
-| GET | `/medicines` | List with inventory | — | — | `200` projected array (name, strength, reorderLevel, manufacturer, barcode, generic/brand/category/unit names, currentStock, availableStock) |
-| GET | `/medicines/search` | Regex search | `?query=` | — | `200` raw array |
-| GET | `/medicines/:id` | Get one | `id` | — | `200` raw / `404` |
-| PUT | `/medicines/:id` | Update | partial catalog fields | `updateMedicineSchema` | `200` raw / `404` |
-| DELETE | `/medicines/:id` | Deactivate | `id` | — | `200` `{ message }`; sets `isActive: false` |
+| GET | `/medicines` | List with inventory | — | — | `200` active medicines only |
+| GET | `/medicines/search` | Literal substring search | `?query=` | `medicineSearchQuerySchema` | `200` active matches |
+| GET | `/medicines/:id` | Get one | ObjectId `id` | param schema | `200` raw / `404` |
+| PUT | `/medicines/:id` | Update | partial catalog fields | param + `updateMedicineSchema` | `200` raw / `404` |
+| DELETE | `/medicines/:id` | Deactivate | ObjectId `id` | param schema | `200` `{ message }`; sets `isActive: false` |
 
-Create errors: `400` validation, `404` missing brand/category/generic, `409` duplicate barcode or name+strength+brand, `500` invalid `unitId`.
-Search uses `new RegExp(query)` without escaping; a missing `query` matches the literal `undefined`.
+Create errors: `400` validation, `404` missing brand/category/generic/unit, `409` duplicate barcode or name+strength+brand.
+Search escapes regex metacharacters and returns active medicines only.
 
 ## Units
 
@@ -80,7 +80,7 @@ Source: `server/src/modules/medicine/routes/unit.route.ts`
 | PUT | `/units/:id` | Update | partial | `UpdateUnitSchema` | `200` / `404` |
 | DELETE | `/units/:id` | Delete | — | — | `200` `{ message }` / `404` |
 
-The router also calls `verifyToken` per route (redundant with the mount).
+The router also calls `verifyToken` per route (redundant with the mount). ObjectId params are validated. `DELETE` returns `409` when a medicine references the unit.
 
 ## Categories
 
@@ -94,7 +94,7 @@ Source: `server/src/modules/medicine/routes/category.route.ts`
 | PUT | `/categories/:id` | Update | partial | `updateCategorySchema` | `200` / `404` |
 | DELETE | `/categories/:id` | Delete | — | — | `200` `{ message }` / `404` |
 
-`updateCategorySchema` accepts and strips an unused `updatedBy` field.
+`updateCategorySchema` accepts and strips an unused `updatedBy` field. ObjectId params are validated, and `DELETE` returns `409` when referenced by a medicine.
 
 ## Brands
 
@@ -108,7 +108,7 @@ Source: `server/src/modules/medicine/routes/brand.route.ts`
 | PUT | `/brands/:id` | Update | partial | `UpdateBrandSchema` | `200` / `404` |
 | DELETE | `/brands/:id` | Delete | — | — | `200` `{ message }` / `404` |
 
-Duplicate name → `409`.
+Duplicate name → `409`. ObjectId params are validated, and deleting a referenced brand returns `409`.
 
 ## Generic names
 
@@ -122,7 +122,7 @@ Source: `server/src/modules/medicine/routes/genericName.route.ts`
 | PUT | `/generic-names/:id` | Update | partial | `UpdateGenericNameSchema` | `200` / `404` |
 | DELETE | `/generic-names/:id` | Delete | — | — | `200` `{ message }` / `404` |
 
-Duplicate name → `409` (service pre-check and index).
+Duplicate name → `409` (service pre-check and index). ObjectId params are validated, and deleting a referenced generic name returns `409`.
 
 ## Suppliers
 
@@ -138,7 +138,7 @@ All responses use `{ success, message, data }`.
 | PUT | `/suppliers/:id` | Update | partial | `updateSupplierSchema` | `200`; `400`, `404`, `409` |
 | DELETE | `/suppliers/:id` | Delete | — | — | `200` `{ success, message, data: deleted }`; `400`, `404` |
 
-`reliabilityScore` cannot be set through the API (the Zod schema strips it).
+`reliabilityScore` cannot be set through the API (the Zod schema strips it). Delete returns `409` while the supplier has `pending` or `approved` purchase orders.
 
 ## Purchases
 
@@ -156,7 +156,7 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 | DELETE | `/purchases/:id` | Hard delete PO | — | — | `200` `{ message }`; `404`; items are orphaned |
 | PATCH | `/purchases/:id/cancel` | Cancel | — | — | `200` `{ message }`; `400` if received; `404` |
 | PATCH | `/purchases/:id/approve` | Approve | — | — | `200` `{ message }`; `400` if not pending or empty; `404` |
-| POST | `/purchases/:id/receive` | Receive goods and create batches | `items[]` | none | `200` `{ message, data: { message } }` |
+| POST | `/purchases/:id/receive` | Receive goods and create batches | `items[]` | param + `receivePurchaseOrderSchema` | `200` `{ message, data: { message } }` |
 | PATCH | `/purchases/:id/recalculate` | Compute total | — | — | `200` `{ message, data: number }` — **does not persist** |
 | GET | `/purchases/:id/items` | List items | — | — | `200` `{ message, data: items[] }`; `404` PO |
 | GET | `/purchases/supplier/:supplierId` | POs for supplier | — | — | `200` `{ message, data }`; `404` supplier |
@@ -182,7 +182,7 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 
 Schema notes:
 
-- `expectedDeliveryDate` and `receivedDate` are **required** by Zod even for a new PO.
+- `expectedDeliveryDate` and `receivedDate` are optional.
 - `status` may be supplied by the client; the service stores it as-is.
 - `VAT` and `discount` are stored but **not applied** to `totalAmount`.
 - `totalAmount` is computed as `sum(quantity * purchasePrice)`, ignoring client input.
@@ -225,11 +225,11 @@ Errors: `400` for each rule above, `404` PO/user/supplier, `500` for batch valid
 
 | Method | Path | Purpose | Body | Validation | Success |
 |---|---|---|---|---|---|
-| POST | `/purchases/:id/items` | Add item | `purchaseOrderId`, `medicineId`, `quantity`, `purchasePrice` | `createPurchaseOrderItemSchema` | `201` `{ message, data }` |
-| PATCH | `/purchases/:id/items/:itemId` | Update item | `quantity?`, `purchasePrice?` | `updatePurchaseOrderItemSchema` | `200` `{ message, data }` |
-| DELETE | `/purchases/:id/items/:itemId` | Remove item | — | — | `200` `{ message }` |
+| POST | `/purchases/:id/items` | Add item | `medicineId`, `quantity`, `purchasePrice` | param + `createPurchaseOrderItemSchema` | `201` `{ message, data }` |
+| PATCH | `/purchases/:id/items/:itemId` | Update item | `quantity?`, `purchasePrice?` | param + `updatePurchaseOrderItemSchema` | `200` `{ message, data }` |
+| DELETE | `/purchases/:id/items/:itemId` | Remove item | — | param schemas | `200` `{ message }` |
 
-- `purchaseOrderId` is required in the add-item body even though the path also contains it. The service overwrites it with the path value.
+- The path supplies `purchaseOrderId`; the client does not send it.
 - Items can be added/updated/removed only while the PO is `pending`.
 - Duplicate medicine in the same PO → `400`.
 - Mismatched `itemId`/`purchaseOrderId` → `400`.
@@ -241,22 +241,22 @@ Details: [purchases.md](../modules/purchases.md).
 
 Source: `server/src/modules/inventory/routes/inventory.routes.ts`
 
-No Zod middleware. All responses are `{ success, data }` unless noted.
+Body, ObjectId-param, and search-query schemas are wired. All responses are `{ success, data }` unless noted.
 
 | Method | Path | Purpose | Body / query | Success | Notes |
 |---|---|---|---|---|---|
-| POST | `/inventory` | Create aggregate row from batch truth | `medicineId`, `reservedStock?`, optional movement context | `201` `{ success, data }` | `currentStock`/`availableStock` are ignored; duplicate medicine → `409` |
+| POST | `/inventory` | Create aggregate row from batch truth | `medicineId`, `reservedStock?`, optional movement context | `201` `{ success, data }` | Strict schema; `currentStock`/`availableStock` are rejected; duplicate medicine → `409` |
 | GET | `/inventory` | List | — | `200` | Medicine populated |
-| GET | `/inventory/:id` | Get | — | `200` / `404` | |
-| GET | `/inventory/medicine/:medicineId` | Get by medicine | — | `200` / `404` | |
-| GET | `/inventory/medicines/search` | Sellable medicine search | `?query=` | `200` | Requires `availableStock > 0`; includes earliest batch |
+| GET | `/inventory/:id` | Get | ObjectId `id` | `200` / `404` | |
+| GET | `/inventory/medicine/:medicineId` | Get by medicine | ObjectId `medicineId` | `200` / `404` | |
+| GET | `/inventory/medicines/search` | Sellable medicine search | `?query=` | `200` | Requires `availableStock > 0`; active medicines only; escaped regex |
 | POST | `/inventory/:medicineId/increase` | Increase batch + aggregate | `quantity` > 0, `batchId`, `referenceId`, `referenceType`, `movementType`, `remarks?` | `200` | `movementType` must be `PURCHASE` or `RETURN`; `409` if above `quantityReceived` |
 | POST | `/inventory/:medicineId/decrease` | Decrease batch + aggregate | same | `200` | `movementType` must be `SALE`, `EXPIRED`, or `ADJUSTMENT`; `409` insufficient batch stock |
 | POST | `/inventory/:medicineId/reserve` | Increase reserved, reduce available | `quantity` > 0, `batchId?`, `referenceId`, `referenceType`, `remarks?` | `200` | Maintains `reservedStock`; `400` if over available |
 | POST | `/inventory/:medicineId/release` | Reduce reserved, restore available | same | `200` | `400` if releasing more than reserved |
 | POST | `/inventory/:medicineId/sync` | Recompute aggregate from batches | `remarks?` | `200` | Writes one `ADJUSTMENT` for the delta; uses the sellable filter |
-| PATCH | `/inventory/:id` | Update reservation only | `reservedStock`, `lastUpdated?` | `200` / `400` / `404` | `currentStock`/`availableStock` and other fields are rejected |
-| DELETE | `/inventory/:id` | Delete aggregate | — | `200` `{ success, message }` / `404` / `409` | Blocked while stock or reservations exist |
+| PATCH | `/inventory/:id` | Update reservation only | `reservedStock`, `lastUpdated?` | `200` / `400` / `404` | Strict schema; derived stock fields are rejected |
+| DELETE | `/inventory/:id` | Delete aggregate | optional movement context | `200` `{ success, message }` / `404` / `409` | Blocked while stock or reservations exist |
 
 Every inventory stock mutation updates the batch, recomputes the aggregate, and writes one movement in one transaction. `PATCH /inventory/:id` only changes `reservedStock` and writes no movement; use the reserve/release endpoints for audited holds. See [Inventory data model](../database/inventory-data-model.md).
 
@@ -327,7 +327,7 @@ Behavior:
 | PATCH | `/sales/:id` | Edit customer/payment | `customerName?`, `paymentMethod?` | `200` `{ success, data }` / `404` |
 | DELETE | `/sales/:id` | Delete and restore stock | — | `200` `{ success, message }` / `404` |
 
-There is no validation middleware on update. Financial fields and quantities cannot be edited through this endpoint.
+`updateSaleSchema` accepts `customerName` and/or `paymentMethod`; empty updates return `400`. Financial fields and quantities cannot be edited through this endpoint. ObjectId params are validated.
 
 Delete restores `quantity - returnedQuantity` to the original batch, syncs the aggregate, and writes one `RETURN` movement per restored item. See [Sales](../modules/sales.md).
 
@@ -350,7 +350,7 @@ Source: `server/src/modules/sales/routes/return.routes.ts`, `services/return.ser
 
 ### Create return
 
-`POST /returns` — **no validation middleware**, although `CreateReturnSchema` exists.
+`POST /returns` runs `CreateReturnSchema`; `salesId`, `saleItemId`, and `returnedBy` are validated as ObjectIds.
 
 ```json
 {
@@ -364,9 +364,9 @@ Source: `server/src/modules/sales/routes/return.routes.ts`, `services/return.ser
 }
 ```
 
-`performedBy` in the body is ignored; the JWT user is used for movement attribution.
+`performedBy` is not accepted from the client; the controller supplies the JWT user for movement attribution.
 
-Controller checks only that `items` is a non-empty array and that a user is authenticated.
+The route validates the body and items; the controller checks that a user is authenticated.
 
 Service rules:
 
@@ -408,25 +408,25 @@ No DELETE. Status transitions other than `COMPLETED` are unreachable.
 
 Source: `server/src/modules/batch/routes/batch.routes.ts`
 
-No Zod middleware. Responses are `{ success, data }` or `{ success, message }`.
+Body, ObjectId-param, and low-stock-query schemas are wired. Responses are `{ success, data }` or `{ success, message }`.
 
 | Method | Path | Purpose | Input | Success | Notes |
 |---|---|---|---|---|---|
 | GET | `/batches` | List all | — | `200` | Medicine name populated |
-| GET | `/batches/:id` | Get batch | — | `200` / `404` | Missing → `404` |
-| POST | `/batches` | Create batch | full batch body + optional movement context | `201` | Requires authenticated user; PO must exist; syncs aggregate and writes `PURCHASE` |
+| GET | `/batches/:id` | Get batch | ObjectId `id` | `200` / `404` | Missing → `404` |
+| POST | `/batches` | Create batch | validated batch body + optional movement context | `201` | Requires authenticated user; PO must exist; syncs aggregate and writes `PURCHASE` |
 | PATCH | `/batches/:id` | Update allowed fields | `batchNumber`, dates, prices, `quantityRemaining`, `isActive` | `200` / `400` / `404` | Immutable fields rejected; quantity changes sync + movement |
-| DELETE | `/batches/:id` | Delete a zero-stock batch | — | `200` / `404` / `409` | `409` while `quantityRemaining > 0` |
-| GET | `/batches/medicine/:medicineId` | **First** batch for medicine | — | `200` / `404` | Uses `findOne`, not a list |
-| GET | `/batches/medicine/:medicineId/available` | Sellable batches | — | `200` | Filters quantity > 0, expiry > now, and `!isExpired` |
+| DELETE | `/batches/:id` | Delete a zero-stock batch | ObjectId `id` | `200` / `404` / `409` | `409` while `quantityRemaining > 0` |
+| GET | `/batches/medicine/:medicineId` | **First** batch for medicine | ObjectId `medicineId` | `200` / `404` | Uses `findOne`, not a list |
+| GET | `/batches/medicine/:medicineId/available` | Sellable batches | ObjectId `medicineId` | `200` | Filters quantity > 0, expiry > now, and `!isExpired` |
 | GET | `/batches/expired` | Batches past expiry date | — | `200` | Date-based, ignores `isExpired` |
 | GET | `/batches/expired/awaiting-disposal` | Flagged with stock | — | `200` | `isExpired && quantityRemaining > 0` |
-| GET | `/batches/low-stock?threshold=` | Per-batch low stock | threshold ≥ 0 | `200` | `0 < quantityRemaining <= threshold` |
+| GET | `/batches/low-stock?threshold=` | Per-batch low stock | threshold ≥ 0, default 10 | `200` | `0 < quantityRemaining <= threshold` |
 | POST | `/batches/mark-expired` | Flag expired batches | — | `200` `{ message }` | No movements; sync aggregates on the next mutation or sync call |
-| POST | `/batches/:id/deduct` | Decrement | `quantity` > 0 + movement context | `200` / `409` | Atomic batch + aggregate + movement |
-| POST | `/batches/:id/increase` | Increment | `quantity` > 0 + movement context | `200` / `409` | Rejects above `quantityReceived` |
-| POST | `/batches/:id/adjust` | Set absolute quantity | `quantity` ≥ 0 + movement context | `200` / `400` | Must be within `quantityReceived`; syncs + movement |
-| GET | `/batches/:id/history` | Batch metadata | — | `200` / `404` | **Not** movement history |
+| POST | `/batches/:id/deduct` | Decrement | positive whole `quantity` + `remarks?` | `200` / `409` | Atomic batch + aggregate + movement |
+| POST | `/batches/:id/increase` | Increment | positive whole `quantity` + `remarks?` | `200` / `409` | Rejects above `quantityReceived` |
+| POST | `/batches/:id/adjust` | Set absolute quantity | non-negative whole `quantity` + `remarks?` | `200` / `400` | Must be within `quantityReceived`; syncs + movement |
+| GET | `/batches/:id/history` | Batch metadata | ObjectId `id` | `200` / `404` | **Not** movement history |
 | POST | `/batches/:id/confirm-disposal` | Dispose expired stock | `remarks?` | `200` / `400` / `404` | Requires `isExpired` and quantity > 0; batch + aggregate + movement are atomic |
 
 Important: the destructive `GET /batches/medicine/:medicineId/allocate` endpoint and its client stub were removed. Sales allocate FEFO stock through `InventoryService.sellMedicine`.

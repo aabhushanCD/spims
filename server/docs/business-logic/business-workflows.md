@@ -21,7 +21,7 @@ Prerequisites for later flows:
 
 - A medicine must exist before ordering or selling.
 - A supplier must exist before creating a PO.
-- A unit must exist for the medicine; the service does not validate `unitId`, so an invalid id can fail at the database layer.
+- A unit must exist for the medicine; `MedicineService` validates `unitId` on create and update.
 
 ## 2. Procurement: order → approve → receive
 

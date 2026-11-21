@@ -28,7 +28,7 @@ modules/purchase/
 ├── schema/
 │   ├── purchaseOrder.schema.ts
 │   ├── purchaseOrderItem.schema.ts
-│   └── receivePurchaseOrder.type.ts
+│   └── receivePurchaseOrder.schema.ts
 └── services/purchaseOrder.service.ts
 ```
 
@@ -93,10 +93,11 @@ See [Schema and relationships](../database/schema-and-relationships.md#4-supply)
 
 | Schema | Applied to | Notes |
 |---|---|---|
-| `createPurchaseOrderSchema` | `POST /purchases` | Requires `expectedDeliveryDate` and `receivedDate`; allows client `status` |
-| `createPurchaseOrderItemSchema` | `POST /:id/items` | Requires `purchaseOrderId` in body |
-| `updatePurchaseOrderItemSchema` | `PATCH /:id/items/:itemId` | Optional quantity/price |
-| `ReceivePurchaseOrderDto` (TypeScript only) | `POST /:id/receive` | **No runtime validation** |
+| `createPurchaseOrderSchema` | `POST /purchases` | Dates are optional; allows client `status`; requires at least one item |
+| `createPurchaseOrderItemSchema` | `POST /:id/items` | No `purchaseOrderId` in body; the path supplies it |
+| `updatePurchaseOrderItemSchema` | `PATCH /:id/items/:itemId` | Optional quantity/price; requires at least one field |
+| `receivePurchaseOrderSchema` | `POST /:id/receive` | Validates items, dates, quantities, and duplicate medicines at runtime |
+| `purchaseIdParamSchema` / `purchaseItemParamSchema` / `purchaseSupplierParamSchema` | id-bearing routes | Rejects malformed ObjectIds before controllers |
 
 ## 9. Middleware
 
@@ -199,7 +200,7 @@ sequenceDiagram
 | VAT/discount not applied | Still open | Phase 4 |
 | `recalculate` does not persist | Still open | Phase 4 |
 | Update item leaves total stale | Still open | Phase 4 |
-| `receive` body unvalidated at runtime | Still open | Phase 3 |
+| `receive` body unvalidated at runtime | Already fixed (runtime receive schema) | — |
 | Hard delete orphans items and batches | Still open | Phase 4 |
 | No partial receiving | Needs decision | Phase 6 |
 | No PO numbering (counter unused) | Still open | Phase 6 |

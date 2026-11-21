@@ -70,13 +70,13 @@ All require the cookie and allow all three roles. Full contracts: [endpoints.md]
 
 - `MedicineController` returns raw documents/arrays and a `{ message }` on deactivate.
 - The four lookup controllers follow the same pattern: raw document on create/get/update, `{ message }` on delete.
-- None of them sanitize responses or validate ObjectIds.
+- Lookup routes validate ObjectId params; responses are not sanitized (lookup records contain no secrets).
 
 ## 6. Services
 
 ### MedicineService
 
-- `createMedicine`: validates that category, generic name, and brand exist; checks barcode and name+strength+brand duplicates; creates.
+- `createMedicine`: validates that category, generic name, brand, and unit exist; checks barcode and name+strength+brand duplicates; creates.
 - `getMedicineById`: 404 via `AppError`.
 - `updateMedicine`: re-validates changed references and barcode; updates.
 - `deactivateMedicine`: sets `isActive: false`.
@@ -85,7 +85,7 @@ All require the cookie and allow all three roles. Full contracts: [endpoints.md]
 
 ### Lookup services
 
-Each provides create (duplicate name check), get by id, list, update, and delete. Delete is a **hard delete** and does not check whether medicines reference the record.
+Each provides create (duplicate name check), get by id, list, update, and delete. Delete is a **hard delete** and returns `409` while any medicine references the record.
 
 ## 7. Models
 
@@ -103,7 +103,7 @@ Key points:
 
 | Schema | Rules |
 |---|---|
-| `createMedicineSchema` | name 1–100, description ≤ 500, category/brand/generic/unit non-empty, manufacturer ≤ 100, barcode ≤ 50, dosageForm ≤ 100, strength max 100 (no minimum), reorderLevel integer ≥ 0 default 0, isActive default true |
+| `createMedicineSchema` | name 1-100, description ≤ 500, category/brand/generic/unit ObjectIds, manufacturer ≤ 100, barcode ≤ 50, dosageForm ≤ 100, strength max 100 (no minimum), reorderLevel integer ≥ 0 default 0, isActive default true |
 | `updateMedicineSchema` | `createMedicineSchema.partial()` |
 | Brand/category/generic/unit schemas | Name required; brand and generic `description` are required by Zod; unit description 1–10 |
 
@@ -119,14 +119,14 @@ Model-level differences:
 
 ## 10. Business rules
 
-1. A medicine cannot be created without valid category, generic name, and brand IDs.
-2. `unitId` is **not** validated by the service; an invalid id produces a Mongoose cast error (500) or a dangling reference if it happens to be a valid ObjectId.
+1. A medicine cannot be created without valid category, generic name, brand, and unit IDs.
+2. `unitId` existence is checked on create and update.
 3. Duplicate barcode → 409.
 4. Duplicate `medicineName + strength + brandId` → 409.
 5. `DELETE /medicines/:id` deactivates, never removes.
-6. Lookup deletes are permanent and do not cascade or block.
-7. Inactive medicines still appear in `GET /medicines`; the aggregation does not filter `isActive`.
-8. Search includes inactive medicines and does not filter by stock.
+6. Lookup deletes are permanent but return 409 while any medicine references the lookup.
+7. Inactive medicines are excluded from `GET /medicines`.
+8. Search escapes regex metacharacters and returns active medicines only.
 
 ## 11. Dependencies
 
@@ -146,6 +146,7 @@ sequenceDiagram
   participant CS as CategoryService
   participant GS as GenericNameService
   participant BS as BrandService
+  participant US as UnitService
   participant MR as MedicineRepo
 
   C->>MC: POST /api/medicines
@@ -153,6 +154,7 @@ sequenceDiagram
   MS->>CS: getCategoryById
   MS->>GS: getGenericNameById
   MS->>BS: getBrandById
+  MS->>US: getUnitById
   MS->>MR: findByBarcode (if provided)
   MS->>MR: findByNameAndStrength + brand
   MS->>MR: create
@@ -174,11 +176,11 @@ It does not include `_id` explicitly but Mongo includes it, and it does not filt
 | Issue | Status | Phase |
 |---|---|---|
 | Pagination/filtering on medicine list | Still open | Phase 5 |
-| `unitId` existence check | Still open | Phase 3 |
-| Cascading/deactivation checks for lookup deletes | Still open | Phase 3 |
+| `unitId` existence check | Already fixed (validated on create/update) | — |
+| Cascading/deactivation checks for lookup deletes | Already fixed (references block hard delete) | — |
 | Unique index for name+strength+brand | Needs decision (index vs service-only check) | Phase 5 |
-| Search query escaping (raw regex) | Still open | Phase 3 |
-| Inactive filtering | Still open | Phase 3 |
+| Search query escaping (raw regex) | Already fixed (`escapeRegex`) | — |
+| Inactive filtering | Already fixed (catalog list/search return active medicines) | — |
 | Batch/price data in medicine list | Needs decision | Phase 6 |
 
 ## Related documents

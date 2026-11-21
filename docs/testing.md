@@ -42,7 +42,7 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the Phase 2 baseline: **24 server test files, 253 tests** plus **2 client
+As of the Phase 3 baseline: **46 server test files, 335 tests** plus **2 client
 test files, 17 tests**, all passing. Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -70,7 +70,23 @@ covered by automated tests.
 | `auth.service.test.ts` | Registration conflicts/verification email, login status checks, refresh rotation/reuse detection, email verification, password reset, session listing/revocation, current user |
 | `authTokens.test.ts` | Access/refresh signing, token-type separation, hashing and constant-time comparison |
 | `rateLimit.middleware.test.ts` | Under-limit pass-through, 429 + `Retry-After`, Redis failure fails open |
-| `user.service.test.ts` | Admin-created verified users, password hashing on update, invalid-role rejection |
+| `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, password hashing, invalid-role rejection |
+| `user.route.test.ts` | Static-before-dynamic ordering, single status route, removed `/:id/inactive`, role-change route |
+| `user.schema.test.ts` | ObjectId/role/status/date params, strict delete body |
+| `register.schema.test.ts` | Public registration strips a supplied `role` |
+| `validate.middleware.test.ts` | Body/params/query parsing, Express query getter replacement, existing 400 shape |
+| `globalError.middleware.test.ts` | AppError passthrough, `CastError` → 400, unknown error → 500 |
+| `batch.schema.test.ts` | Batch create/update, dates, ObjectIds, quantities, movement metadata, thresholds |
+| `inventory.schema.test.ts` | Phase 2 create contract, derived-field rejection, operation movement types |
+| `inventoryMovement.schema.test.ts` | All nine reference types, defaults, malformed ids |
+| `sales.schema.test.ts` | Item ObjectIds, editable sale fields, sale-item correction rules |
+| `return.schema.test.ts` | No body `performedBy`, id/condition validation, reason updates |
+| `purchase.schema.test.ts` | Optional dates, item body without `purchaseOrderId`, receive schema + duplicate medicines |
+| `supplier.schema.test.ts` / `supplier.service.test.ts` | Contact normalization, open-PO delete guard |
+| `medicine.repo.test.ts` / `inventory.repo.test.ts` | Active filtering, escaped regex search |
+| `medicine.service.test.ts` | Unit existence on create/update |
+| `brand/category/genericName/unit.service.test.ts` | Referenced-lookup delete guards |
+| `escapeRegex.test.ts` | Metacharacter escaping and literal matching |
 | `inventory.service.test.ts` | FEFO allocation across batches, stock limits, non-positive quantities, concurrent deduction conflict, return conditions, reserve/release |
 | `sales.service.test.ts` | Empty cart, duplicate line merging, line and invoice discounts, 13% VAT rounding, discount validation |
 | `return.service.test.ts` | Refund net of line discount, full vs partial status, over-return, invalid item, date validation, condition handling |

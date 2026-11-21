@@ -145,10 +145,9 @@ See [Schema and relationships](../database/schema-and-relationships.md#6-sales-a
 - `saleDate`: coerced date.
 - `discount`: number ≥ 0.
 - `items`: min 1.
-- Per item: `medicineId`, `batchId` (required but unused), `quantity` positive integer, `discountPercentage` ≥ 0.
+- Per item: `medicineId`, `batchId` (both ObjectIds), `quantity` positive integer, `discountPercentage` ≥ 0.
 
-`updateSaleSchema` exists but is **not wired** to `PATCH /sales/:id`.
-No validation exists for sale item updates or deletes.
+`updateSaleSchema` is wired to `PATCH /sales/:id` and accepts only `customerName` / `paymentMethod`, with at least one field required. `updateSaleItemSchema` accepts `unitPrice` / `discount`, also with at least one field required. ObjectId params are validated for sale, sale-item, and return routes.
 
 ## 9. Middleware
 
@@ -250,7 +249,7 @@ Sales.discount= 40
 | Sale item correction does not recompute line or sale totals | Still open | Phase 4 |
 | Invoice discount is checked against the pre-line-discount subtotal, so taxable can go negative; `discountPercentage` has no upper bound | Still open | Phase 4 |
 | `batchId` required in request but ignored | Still open | Phase 4 |
-| No validation on update/delete | Still open | Phase 3 |
+| No validation on update/delete | Already fixed (body and ObjectId param schemas) | — |
 | No idempotency key | Needs decision | Phase 5 |
 | No pagination/date filters | Still open | Phase 5 |
 | No prescription linkage | Needs decision | Phase 6 |

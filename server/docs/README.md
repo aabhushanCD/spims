@@ -34,7 +34,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
 | Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
-| Tests | Vitest | 24 test files, 253 tests |
+| Tests | Vitest | 46 test files, 335 tests |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -123,7 +123,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | WebSocket push | Implemented |
 | Swagger/OpenAPI | Not Implemented (unmounted stubs) |
 | Pagination | Not Implemented |
-| Automated tests | Partially Implemented — 24 files / 253 tests; no HTTP integration tests |
+| Automated tests | Partially Implemented - 46 files / 335 tests; no HTTP integration tests |
 
 ## Conventions used in this documentation
 
