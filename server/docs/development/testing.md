@@ -13,8 +13,8 @@
 | Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 22 files: auth, inventory, sales, returns, purchases, reorder math, batch repo, batch model, batch routes, movement model, authorization, notifications, recipient repo, schemas, SMS, websocket, email config, dashboard |
-| Test count | 223 tests |
+| Test files | 24 files: auth, inventory, stock mutation, sales, returns, purchases, batch service, batch repo, batch model, batch routes, movement model, reorder math, authorization, notifications, recipient repo, schemas, SMS, websocket, email config, dashboard |
+| Test count | 253 tests |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 
