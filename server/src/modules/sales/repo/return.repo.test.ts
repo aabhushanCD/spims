@@ -47,6 +47,15 @@ describe("ReturnRepo", () => {
     expect(find).toHaveBeenCalledWith({});
   });
 
+  it("rejects an unrecognised status without building a query", async () => {
+    const { repo, find } = buildRepo();
+
+    await expect(repo.findAll({ $ne: null } as never)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(find).not.toHaveBeenCalled();
+  });
+
   it("transitions status only from the expected state", async () => {
     const { repo, findOneAndUpdate } = buildRepo();
 

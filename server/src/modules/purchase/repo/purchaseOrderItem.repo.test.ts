@@ -49,3 +49,42 @@ describe("PurchaseOrderItemRepo.create", () => {
     expect(save).toHaveBeenCalledWith();
   });
 });
+
+describe("PurchaseOrderItemRepo.update", () => {
+  function buildUpdateModel() {
+    const exec = vi.fn().mockResolvedValue({ _id: "item-1" });
+    const session = vi.fn().mockReturnValue({ exec });
+    const findByIdAndUpdate = vi.fn().mockReturnValue({ exec, session });
+    return { model: { findByIdAndUpdate } as never, findByIdAndUpdate };
+  }
+
+  it("passes only known numeric fields to Mongoose", async () => {
+    const { model, findByIdAndUpdate } = buildUpdateModel();
+    const repo = new PurchaseOrderItemRepo(model);
+
+    await repo.update("item-1", {
+      quantity: 3,
+      $set: { purchasePrice: 1 },
+    } as never);
+
+    expect(findByIdAndUpdate).toHaveBeenCalledWith(
+      "item-1",
+      { quantity: 3 },
+      { new: true },
+    );
+  });
+
+  it("applies the provided session to the update", async () => {
+    const { model, findByIdAndUpdate } = buildUpdateModel();
+    const repo = new PurchaseOrderItemRepo(model);
+    const session = { id: "session" };
+
+    await repo.update("item-1", { purchasePrice: 12.5 } as never, session as never);
+
+    expect(findByIdAndUpdate).toHaveBeenCalledWith(
+      "item-1",
+      { purchasePrice: 12.5 },
+      { new: true },
+    );
+  });
+});

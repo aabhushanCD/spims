@@ -66,14 +66,26 @@ export class PurchaseOrderItemRepo {
     updateData: UpdatePurchaseOrderItemDto,
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem | null> {
+    // Build the update document from known fields only; never pass the raw
+    // request body to Mongoose, which would allow operator injection.
+    const update: { quantity?: number; purchasePrice?: number } = {};
+    const quantity = Number(updateData.quantity);
+    const purchasePrice = Number(updateData.purchasePrice);
+    if (Number.isFinite(quantity) && quantity > 0) {
+      update.quantity = quantity;
+    }
+    if (Number.isFinite(purchasePrice) && purchasePrice > 0) {
+      update.purchasePrice = purchasePrice;
+    }
+
     if (session) {
       return await this.purchaseOrderItemModel
-        .findByIdAndUpdate(id, updateData, { new: true })
+        .findByIdAndUpdate(id, update, { new: true })
         .session(session)
         .exec();
     }
     return await this.purchaseOrderItemModel
-      .findByIdAndUpdate(id, updateData, { new: true })
+      .findByIdAndUpdate(id, update, { new: true })
       .exec();
   }
 

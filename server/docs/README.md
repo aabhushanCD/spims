@@ -123,7 +123,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | WebSocket push | Implemented |
 | Swagger/OpenAPI | Not Implemented (unmounted stubs) |
 | Pagination | Not Implemented |
-| Automated tests | Partially Implemented - 58 files / 422 tests; no HTTP integration tests |
+| Automated tests | Partially Implemented - 58 files / 425 tests; no HTTP integration tests |
 
 ## Conventions used in this documentation
 

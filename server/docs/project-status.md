@@ -26,7 +26,7 @@ It is not production-hardened. The main risks are:
 | Endpoint rows documented | 142 (128 with a method column + 14 dashboard `GET` rows; 152 live registrations) |
 | Transactions | 7 flows |
 | Cron jobs | 3 active, 1 dead duplicate |
-| Tests | 58 files, 422 cases |
+| Tests | 58 files, 425 cases |
 
 ## 3. Module status matrix
 
@@ -54,7 +54,7 @@ It is not production-hardened. The main risks are:
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Partially Implemented | 58 suites / 422 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
+| Automated tests | Partially Implemented | 58 suites / 425 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
 
 ## 4. Implemented features
 
@@ -93,7 +93,7 @@ It is not production-hardened. The main risks are:
 | Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls | Expiry flagging needs a follow-up sync |
 | Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed | No arbitrary date-range analytics; cache still uninvalidated |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 58 suites / 422 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
+| Tests | 58 suites / 425 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
 
 ## 6. Not implemented
 
@@ -132,7 +132,7 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 4 suite is 58 files, 422 tests) |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 4 suite is 58 files, 425 tests) |
 | Client tests | 2 files, 17 tests passed |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
@@ -140,7 +140,7 @@ It is not production-hardened. The main risks are:
 ### Verified during this audit
 
 - `npx tsc --noEmit -p tsconfig.json` completes with no diagnostics.
-- `npx vitest run` passes: 58 files, 422 tests (server).
+- `npx vitest run` passes: 58 files, 425 tests (server).
 - Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all nine `referenceType` values validate.
 
 ### Phase 4 state (2026-11-21)

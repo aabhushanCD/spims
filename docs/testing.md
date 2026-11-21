@@ -42,7 +42,7 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the Phase 4 baseline: **58 server test files, 422 tests** plus **2 client
+As of the Phase 4 baseline: **58 server test files, 425 tests** plus **2 client
 test files, 17 tests**, all passing. Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business

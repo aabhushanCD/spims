@@ -1,7 +1,31 @@
 import mongoose from "mongoose";
+
+import { AppError } from "../../../shared/error.ts";
 import type { ISalesReturn } from "../model/return.model.ts";
 import type Return from "../model/return.model.ts";
 import type { ReturnStatus } from "../types/return.type.ts";
+
+/** Whitelist of literal filters so request data never becomes a query object. */
+function statusFilter(status?: ReturnStatus): { status: ReturnStatus } | Record<string, never> {
+  if (status === undefined) {
+    return {};
+  }
+
+  switch (status) {
+    case "PENDING":
+      return { status: "PENDING" };
+    case "APPROVED":
+      return { status: "APPROVED" };
+    case "REJECTED":
+      return { status: "REJECTED" };
+    case "CANCELLED":
+      return { status: "CANCELLED" };
+    case "COMPLETED":
+      return { status: "COMPLETED" };
+    default:
+      throw AppError.badRequest("Invalid return status");
+  }
+}
 
 export interface OutstandingReturnQuantity {
   saleItemId: string;
@@ -82,10 +106,7 @@ export class ReturnRepo {
     status?: ReturnStatus,
     session?: mongoose.ClientSession,
   ): Promise<ISalesReturn[]> {
-    const filter: Record<string, string> = {};
-    if (status) {
-      filter.status = status;
-    }
+    const filter = statusFilter(status);
 
     if (session) {
       return this.returnModel
