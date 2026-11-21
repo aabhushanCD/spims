@@ -11,6 +11,7 @@ Complete reference for every route registered in the backend.
 - **Errors:** all endpoints can return `401`, `403`, `500`, and (for unknown paths) `404`. Only endpoint-specific errors are listed.
 - **Source paths** are relative to the repository root.
 - **Pagination:** paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and return `data: { items, nextCursor }`. Pass `nextCursor` as the next `cursor`; `null` means the end.
+- **CSRF:** every response sets a non-HttpOnly `csrfToken` cookie. Unsafe requests (`POST`, `PUT`, `PATCH`, `DELETE`) must echo it in `X-CSRF-Token`; only the login/register/refresh/recovery endpoints are exempt (they are origin-checked).
 - Route handlers that `throw new Error(...)` from a service (batch module) become **500**, not 404/400.
 
 ## Auth

@@ -13,8 +13,8 @@
 | Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 65 unit files plus 1 HTTP integration suite covering auth, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, pagination, caching, locking, observability, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
-| Test count | 454 unit tests + 6 HTTP integration tests |
+| Test files | 66 unit files plus 1 HTTP integration suite covering auth, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, pagination, caching, locking, CSRF, observability, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
+| Test count | 458 unit tests + 6 HTTP integration tests |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 

@@ -26,7 +26,7 @@ It is not production-hardened. The main risks are:
 | Endpoint rows documented | 144 (130 with a method column + 14 dashboard `GET` rows; 154 live registrations) |
 | Transactions | 7 flows |
 | Cron jobs | 3 active |
-| Tests | 65 unit files / 454 cases + 6 HTTP integration cases |
+| Tests | 66 unit files / 458 cases + 6 HTTP integration cases |
 
 ## 3. Module status matrix
 
@@ -54,7 +54,7 @@ It is not production-hardened. The main risks are:
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Implemented | 65 unit suites / 454 tests + 6 HTTP integration tests | Controllers, Redis, Mongo, and SMTP are covered by unit fakes and the integration suite; live provider behavior still unverified |
+| Automated tests | Implemented | 66 unit suites / 458 tests + 6 HTTP integration tests | Controllers, Redis, Mongo, and SMTP are covered by unit fakes and the integration suite; live provider behavior still unverified |
 
 ## 4. Implemented features
 
@@ -93,14 +93,14 @@ It is not production-hardened. The main risks are:
 | Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls; expiry flagging reconciles affected medicines immediately | Optimistic conflicts surface as `409` and must be retried by the caller |
 | Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed, cache invalidated on writes | No arbitrary date-range analytics |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 65 unit suites / 454 tests + 6 HTTP integration tests | Live SMTP/SMS/Upstash behavior remains unverified |
+| Tests | 66 unit suites / 458 tests + 6 HTTP integration tests | Live SMTP/SMS/Upstash behavior remains unverified |
 
 ## 6. Not implemented
 
 - Purchase returns / supplier returns.
 - Payment gateways, payment records, refunds, credit tracking.
 - MFA, account lockout.
-- CSRF protection tokens and security headers.
+- Security headers (helmet or equivalent).
 - Pagination, sorting, date-range filters on non-notification lists.
 - File uploads (invoice file is a string).
 - Google OAuth.
@@ -132,7 +132,7 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 5 suite is 65 unit files / 454 tests + 6 HTTP integration tests) |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 5 suite is 66 unit files / 458 tests + 6 HTTP integration tests) |
 | Client tests | 2 files, 17 tests passed |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
@@ -179,7 +179,7 @@ It is not production-hardened. The main risks are:
 | Token expiry | 15m access + 7d rotating refresh sessions |
 | HttpOnly cookie | Yes (`token` + scoped `refreshToken`) |
 | Secure/SameSite | Production: secure + `None`; dev: `Strict` |
-| CSRF protection | Partial: Origin allow-list on auth routes; no CSRF token |
+| CSRF protection | Global double-submit cookie (`csrfToken` + `X-CSRF-Token`) for unsafe methods; Origin allow-list on auth routes |
 | Rate limiting | Implemented for auth endpoints (Redis, fail-open) |
 | Input validation | Implemented for bodies, ObjectId params, and search/query schemas on module routes |
 | Output sanitization | Auth and user responses strip password/refresh/reset hashes |
