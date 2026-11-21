@@ -53,6 +53,9 @@ function buildService() {
     update: vi.fn(),
     delete: vi.fn(),
   };
+  const saleItemRepo = {
+    existsByBatchId: vi.fn().mockResolvedValue(false),
+  };
   const purchaseOrderRepo = { findById: vi.fn() };
   const stockMutation = {
     receiveStock: vi.fn().mockResolvedValue({ batch: buildBatch() }),
@@ -65,6 +68,7 @@ function buildService() {
 
   const service = new BatchService(
     batchRepo as never,
+    saleItemRepo as never,
     purchaseOrderRepo as never,
     stockMutation as never,
     AppError,
@@ -76,6 +80,7 @@ function buildService() {
     session,
     connection,
     batchRepo,
+    saleItemRepo,
     purchaseOrderRepo,
     stockMutation,
   };
@@ -227,7 +232,20 @@ describe("BatchService", () => {
       expect(batchRepo.delete).not.toHaveBeenCalled();
     });
 
-    it("deletes a zero-stock batch", async () => {
+    it("blocks deleting a sold-out batch referenced by sales", async () => {
+      const { service, batchRepo, saleItemRepo } = buildService();
+      batchRepo.findById.mockResolvedValue(buildBatch({ quantityRemaining: 0 }));
+      saleItemRepo.existsByBatchId.mockResolvedValue(true);
+
+      await expect(service.deleteBatch(BATCH_ID)).rejects.toMatchObject({
+        message:
+          "Cannot delete a batch referenced by sales; COGS and returns depend on it",
+        statusCode: 409,
+      });
+      expect(batchRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("deletes a zero-stock batch with no sales history", async () => {
       const { service, batchRepo } = buildService();
       batchRepo.findById.mockResolvedValue(buildBatch({ quantityRemaining: 0 }));
       batchRepo.delete.mockResolvedValue(buildBatch({ quantityRemaining: 0 }));

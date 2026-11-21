@@ -1,6 +1,41 @@
 import mongoose from "mongoose";
+
+import { AppError } from "../../../shared/error.ts";
 import type { ISalesReturn } from "../model/return.model.ts";
 import type Return from "../model/return.model.ts";
+import type { ReturnStatus } from "../types/return.type.ts";
+
+/** Whitelist of literal filters so request data never becomes a query object. */
+function statusFilter(status?: ReturnStatus): { status: ReturnStatus } | Record<string, never> {
+  if (status === undefined) {
+    return {};
+  }
+
+  switch (status) {
+    case "PENDING":
+      return { status: "PENDING" };
+    case "APPROVED":
+      return { status: "APPROVED" };
+    case "REJECTED":
+      return { status: "REJECTED" };
+    case "CANCELLED":
+      return { status: "CANCELLED" };
+    case "COMPLETED":
+      return { status: "COMPLETED" };
+    default:
+      throw AppError.badRequest("Invalid return status");
+  }
+}
+
+export interface OutstandingReturnQuantity {
+  saleItemId: string;
+  quantity: number;
+}
+
+export interface RefundTotals {
+  grossRefunds: number;
+  refundVat: number;
+}
 
 export class ReturnRepo {
   constructor(private readonly returnModel: typeof Return) {}
@@ -34,6 +69,21 @@ export class ReturnRepo {
     return this.returnModel.findById(returnId).lean().exec();
   }
 
+  /** Loads a return without populating references (used inside transactions). */
+  async findByIdRaw(
+    returnId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<ISalesReturn | null> {
+    if (session) {
+      return this.returnModel
+        .findById(returnId)
+        .session(session)
+        .lean()
+        .exec();
+    }
+    return this.returnModel.findById(returnId).lean().exec();
+  }
+
   async findBySale(
     salesId: string,
     session?: mongoose.ClientSession,
@@ -52,11 +102,20 @@ export class ReturnRepo {
       .exec();
   }
 
-  async findAll(session?: mongoose.ClientSession): Promise<ISalesReturn[]> {
+  async findAll(
+    status?: ReturnStatus,
+    session?: mongoose.ClientSession,
+  ): Promise<ISalesReturn[]> {
+    const filter = statusFilter(status);
+
     if (session) {
-      return this.returnModel.find().session(session).lean().exec();
+      return this.returnModel
+        .find(filter)
+        .session(session)
+        .lean()
+        .exec();
     }
-    return this.returnModel.find().lean().exec();
+    return this.returnModel.find(filter).lean().exec();
   }
 
   async findByReturnNumber(
@@ -78,6 +137,7 @@ export class ReturnRepo {
 
     return !!exists;
   }
+
   async findPendingReturns(
     session?: mongoose.ClientSession,
   ): Promise<ISalesReturn[]> {
@@ -109,11 +169,40 @@ export class ReturnRepo {
       .lean()
       .exec();
   }
+
+  /**
+   * Atomically transitions a return when it is still in `from`. Returns null
+   * when the document does not exist or is already in another state.
+   */
+  async transitionStatus(
+    returnId: string,
+    from: ReturnStatus,
+    to: ReturnStatus,
+    session?: mongoose.ClientSession,
+  ): Promise<ISalesReturn | null> {
+    const options = {
+      new: true,
+      ...(session ? { session } : {}),
+    };
+    if (session) {
+      return this.returnModel
+        .findOneAndUpdate({ _id: returnId, status: from }, { status: to }, options)
+        .session(session)
+        .lean()
+        .exec();
+    }
+    return this.returnModel
+      .findOneAndUpdate({ _id: returnId, status: from }, { status: to }, options)
+      .lean()
+      .exec();
+  }
+
   async getTotalRefundAmount(
     session?: mongoose.ClientSession,
   ): Promise<number> {
     const result = await this.returnModel
       .aggregate([
+        { $match: { status: "COMPLETED" } },
         {
           $group: {
             _id: null,
@@ -126,55 +215,6 @@ export class ReturnRepo {
       .session(session ?? null);
 
     return result[0]?.total ?? 0;
-  }
-
-  async approveReturn(
-    returnId: string,
-    session?: mongoose.ClientSession,
-  ): Promise<ISalesReturn | null> {
-    const options = {
-      new: true,
-      ...(session ? { session } : {}),
-    };
-
-    if (session) {
-      const updatedReturn = await this.returnModel
-        .findByIdAndUpdate(returnId, { status: "APPROVED" }, options)
-        .lean()
-        .exec();
-
-      return updatedReturn;
-    }
-    const updatedReturn = await this.returnModel
-      .findByIdAndUpdate(returnId, { status: "APPROVED" }, options)
-      .lean()
-      .exec();
-
-    return updatedReturn;
-  }
-
-  async rejectReturn(
-    returnId: string,
-    session?: mongoose.ClientSession,
-  ): Promise<ISalesReturn | null> {
-    const options = {
-      new: true,
-      ...(session ? { session } : {}),
-    };
-
-    if (session) {
-      const updatedReturn = await this.returnModel
-        .findByIdAndUpdate(returnId, { status: "REJECTED" }, options)
-        .lean()
-        .exec();
-
-      return updatedReturn;
-    }
-    const updatedReturn = await this.returnModel
-      .findByIdAndUpdate(returnId, { status: "REJECTED" }, options)
-      .lean()
-      .exec();
-    return updatedReturn;
   }
 
   async getReturnsByDateRange(
@@ -203,9 +243,12 @@ export class ReturnRepo {
   async getReturnStatistics(
     session?: mongoose.ClientSession,
   ): Promise<{ totalReturns: number; totalRefundAmount: number }> {
-    const totalReturnsQuery = this.returnModel.countDocuments();
+    const totalReturnsQuery = this.returnModel.countDocuments({
+      status: "COMPLETED",
+    });
     const totalRefundAmountQuery = this.returnModel
       .aggregate([
+        { $match: { status: "COMPLETED" } },
         {
           $group: {
             _id: null,
@@ -228,27 +271,102 @@ export class ReturnRepo {
     };
   }
 
-  async cancelReturn(
-    returnId: string,
+  /**
+   * Refunds recognised in a half-open period. Only COMPLETED returns count.
+   * Legacy completed returns have no embedded VAT, so `refundVat` is 0 for
+   * them; their `refundAmount` was already VAT-exclusive.
+   */
+  async getRefundTotalsInRange(
+    start: Date,
+    endExclusive: Date,
     session?: mongoose.ClientSession,
-  ): Promise<ISalesReturn | null> {
-    const options = {
-      new: true,
-      ...(session ? { session } : {}),
+  ): Promise<RefundTotals> {
+    const [result] = await this.returnModel
+      .aggregate([
+        {
+          $match: {
+            status: "COMPLETED",
+            returnDate: { $gte: start, $lt: endExclusive },
+          },
+        },
+        {
+          $project: {
+            refundAmount: { $ifNull: ["$refundAmount", 0] },
+            vat: {
+              $sum: {
+                $map: {
+                  input: { $ifNull: ["$returnItems", []] },
+                  as: "item",
+                  in: { $ifNull: ["$$item.VAT", 0] },
+                },
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            grossRefunds: { $sum: "$refundAmount" },
+            refundVat: { $sum: "$vat" },
+          },
+        },
+      ])
+      .session(session ?? null);
+
+    return {
+      grossRefunds: result?.grossRefunds ?? 0,
+      refundVat: result?.refundVat ?? 0,
     };
+  }
 
-    if (session) {
-      const updatedReturn = await this.returnModel
-        .findByIdAndUpdate(returnId, { status: "CANCELLED" }, options)
-        .lean()
-        .exec();
-
-      return updatedReturn;
+  /**
+   * Quantities already promised by PENDING/APPROVED returns for the supplied
+   * sale items, so a second request cannot commit the same units twice.
+   */
+  async sumOutstandingBySaleItemIds(
+    saleItemIds: string[],
+    session?: mongoose.ClientSession,
+  ): Promise<OutstandingReturnQuantity[]> {
+    if (!saleItemIds.length) {
+      return [];
     }
-    const updatedReturn = await this.returnModel
-      .findByIdAndUpdate(returnId, { status: "CANCELLED" }, options)
-      .lean()
-      .exec();
-    return updatedReturn;
+
+    const ids = saleItemIds.map((id) => new mongoose.Types.ObjectId(id));
+    const results = await this.returnModel
+      .aggregate([
+        {
+          $match: {
+            status: { $in: ["PENDING", "APPROVED"] },
+            "returnItems.saleItemId": { $in: ids },
+          },
+        },
+        { $unwind: "$returnItems" },
+        { $match: { "returnItems.saleItemId": { $in: ids } } },
+        {
+          $group: {
+            _id: "$returnItems.saleItemId",
+            quantity: { $sum: "$returnItems.quantity" },
+          },
+        },
+      ])
+      .session(session ?? null);
+
+    return results.map((row) => ({
+      saleItemId: row._id.toString(),
+      quantity: row.quantity,
+    }));
+  }
+
+  /** True when a sale has returns that still reference it. */
+  async hasActiveBySale(
+    salesId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<boolean> {
+    const query = this.returnModel.exists({
+      salesId: new mongoose.Types.ObjectId(salesId),
+      status: { $in: ["PENDING", "APPROVED", "COMPLETED"] },
+    });
+    const exists = session ? await query.session(session) : await query;
+    return !!exists;
   }
 }

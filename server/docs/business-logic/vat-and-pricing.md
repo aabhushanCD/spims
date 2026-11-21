@@ -5,11 +5,11 @@
 | Rule | Status |
 |---|---|
 | 13% VAT on sales | **Implemented** |
-| VAT on purchases | **Stored only, not calculated** |
-| VAT refund on returns | **Not Implemented** |
+| VAT on purchases | **Implemented** (percentage applied to taxable subtotal) |
+| VAT refund on returns | **Implemented** (line VAT persisted) |
 | Tax-inclusive pricing | **Not Implemented** |
-| Configurable VAT rate | **Not Implemented** (hardcoded 0.13) |
-| Rounding to 2 decimals | **Partially Implemented** (VAT only) |
+| Configurable VAT rate | **Not Implemented** (shared constant 13/0.13) |
+| Rounding to 2 decimals | **Implemented** (line and header monetary values) |
 
 ## 2. Sales pricing pipeline
 
@@ -77,65 +77,79 @@ The sale stores `subTotal: 400`, `discount: 40`, `VAT: 46.8`, `totalAmount: 406.
 
 | Discount | Input | Scope | Applied |
 |---|---|---|---|
-| Line discount | `items[].discountPercentage` (0–100 not enforced) | Per medicine line | Before invoice discount |
+| Line discount | `items[].discountPercentage` (0–100) | Per medicine line | Before invoice discount |
 | Invoice discount | `discount` (absolute) | Whole sale | After line discounts |
 
 Rules:
 
 - Duplicate medicine lines are merged; the **maximum** `discountPercentage` is kept.
-- Line discount percentages have no upper bound in Zod (`z.number().min(0)`), so a value above 100 produces a negative line total and negative taxable amount.
-- Invoice discount must be ≥ 0 and ≤ `subtotal` (not ≤ taxable). It is validated after allocation.
-- If line discounts already exceed the subtotal, invoice discount validation can still pass and produce a negative `taxable`, hence negative VAT.
+- Line discount percentages are capped at 100.
+- Invoice discount must be ≥ 0 and ≤ `subtotal - lineDiscounts`; a larger value returns `400`.
+- A sale-item correction recomputes the line and parent totals; the invoice
+  discount is derived from the stored sale total and preserved.
 - No coupon, promotion, or customer-tier discount models exist.
 
 ## 5. Rounding
 
-Only VAT is rounded:
+All persisted monetary values are rounded to two decimals through
+`shared/finance/money.ts`:
 
 ```ts
-const vat = Math.round(taxable * 0.13 * 100) / 100;
+roundCurrency(value)   // Math.round(|value| * 100) / 100, sign preserved
+calculateVat(net)      // roundCurrency(net * VAT_RATE)
 ```
 
-- `subtotal`, line totals, and `totalAmount` are not rounded.
-- `totalAmount = taxable + vat` can carry more than two decimals when batch prices have decimals.
-- JavaScript `Number` (binary floating point) is used; there is no Decimal128 or integer-minor-units representation.
-- No rounding mode configuration; `Math.round` rounds half away from zero for positive values.
-
-Example of drift: two units at `0.1` produce `subtotal = 0.2`, but repeated additions can produce `0.30000000000000004` in longer carts.
+- Line totals, line discounts, `subtotal`, `totalAmount`, refunds, and purchase
+  totals are rounded.
+- VAT is calculated once on the rounded taxable amount.
+- JavaScript `Number` (binary floating point) is used; there is no Decimal128 or
+  integer-minor-units representation.
+- No rounding mode configuration; `Math.round` rounds half away from zero.
 
 ## 6. VAT on purchases
 
 `PurchaseOrder`:
 
-- `VAT` defaults to `13` and is stored as a **percentage**.
-- `discount` defaults to `0`.
-- `totalAmount` is computed as `Σ(quantity * purchasePrice)`.
-- Neither VAT nor discount is applied to `totalAmount`.
-- `GET /purchases/:id` returns `VAT` and `discount` but does not compute a tax amount.
-
-So a purchase order with `VAT: 13` does not show a VAT-inclusive total. The field is descriptive only.
+- `VAT` defaults to `13` and is stored as a **percentage** (0–100).
+- `discount` defaults to `0` and is an absolute amount.
+- `subtotal = Σ(quantity × purchasePrice)`.
+- `taxable = subtotal − discount`; a discount larger than the subtotal returns `400`.
+- `vatAmount = round(taxable × VAT% / 100)`.
+- `totalAmount = taxable + vatAmount` and is persisted.
+- `PATCH /purchases/:id/recalculate` and item add/update/remove persist the
+  recalculated total.
 
 ## 7. Returns and refunds
 
 Source: `server/src/modules/sales/services/return.service.ts`
 
 ```text
-discountPerUnit = salesItem.discount / salesItem.quantity
-refund          = salesItem.unitPrice * returnQty - discountPerUnit * returnQty
+gross               = salesItem.unitPrice × returnQty
+lineDiscountShare   = salesItem.discount / salesItem.quantity × returnQty
+netBeforeInvoice    = gross − lineDiscountShare
+invoiceDiscount     = sale.discount − Σ(all sale-item discounts)
+invoiceShare        = invoiceDiscount × netBeforeInvoice / Σ(all line net values)
+totalDiscountShare  = lineDiscountShare + invoiceShare
+net                 = gross − totalDiscountShare
+VAT                 = round(net × 0.13, 2)
+refundAmount        = net + VAT
 ```
 
-- The refund is VAT-exclusive.
-- VAT paid on the original sale is not refunded.
+- The refund includes VAT.
+- `returnItems[].VAT` stores the line VAT amount and is required.
+- Returns are created as `PENDING`; stock/refund are applied only on
+  `COMPLETED`.
 - The return document stores `refundAmount` at both line and header level.
-- `returnItems[].VAT` is required in the schema but never populated. Because returns are written with `findByIdAndUpdate`, the required validator is skipped.
 - The return does not create any payment/refund transaction.
+- Invoice-level discounts are apportioned to returned lines, so refunds cannot
+  exceed the net amount paid.
 
-Example: an item sold at 100 with a 5% line discount (5 per unit), VAT 13%.
+Example: an item sold at 100 with a 5% line discount (5 per unit), VAT 13%,
+returning one unit.
 
 ```text
-Original customer paid: 100 - 5 = 95 net + 12.35 VAT = 107.35
-Refund computed:        100 - 5 = 95
-Difference:             12.35 not refunded
+Original customer paid: 100 − 5 = 95 net + 12.35 VAT = 107.35
+Refund computed:        95 net + 12.35 VAT = 107.35
 ```
 
 ## 8. Payment handling
@@ -163,24 +177,27 @@ Difference:             12.35 not refunded
 
 | Metric | Formula | Caveat |
 |---|---|---|
-| Gross profit | `totalSales - totalPurchases` (current month) | Not COGS; VAT-inclusive sales vs VAT-exclusive purchases |
-| Margin % | `grossProfit / totalSales * 100`, one decimal | Same caveat |
-| Inventory value | `Σ(quantityRemaining * sellingPrice)` | Retail value, not cost |
-| Top-selling revenue | `Σ SalesItem.totalPrice` | VAT-exclusive, returns not deducted |
+| Net revenue | `(gross sales − sales VAT) − (refunds − refund VAT)` | Current reporting month |
+| COGS | `Σ max(quantity − GOOD-returned, 0) × cost` | Cost = `SalesItem.purchasePrice` snapshot (batch fallback for legacy items) |
+| Gross profit | `netRevenue − COGS` | Monthly |
+| Margin % | `grossProfit / netRevenue × 100`, one decimal | 0 when net revenue ≤ 0 |
+| Inventory value | `Σ(quantityRemaining × sellingPrice)` | Retail value, not cost; includes expired batches |
+| Top-selling revenue | `Σ totalPrice × (quantity − returnedQuantity) / quantity` | VAT-exclusive, net of returns |
 
 ## 11. Edge cases
 
 | Case | Outcome |
 |---|---|
 | `discountPercentage = 100` | Line total 0; VAT 0 |
-| `discountPercentage > 100` | Negative line total; negative taxable possible |
-| Invoice discount > subtotal | 400 |
-| Invoice discount between taxable and subtotal | Accepted; can produce negative VAT |
+| `discountPercentage > 100` | Rejected by the schema |
+| Invoice discount > `subtotal − lineDiscounts` | 400 |
 | Zero-priced batch | Allowed (`min: 0`); zero-value sale line |
 | Selling price below purchase price | Allowed for direct batch creation; receiving enforces `sellingPrice >= purchasePrice` |
 | Return of fully discounted item | Refund 0 |
-| Multiple returns | Each refund uses the original per-unit discount; total refunds converge to the item's net value minus VAT |
-| Rounding | VAT rounded; other totals not |
+| Multiple returns | Each refund uses the original per-unit + apportioned invoice discount and includes VAT |
+| Sale-item correction after a return | 409 |
+| Written-off return | Revenue refunded; stock/cost not restored |
+| Rounding | All persisted monetary values rounded to two decimals |
 
 ## 12. What is missing
 
@@ -189,11 +206,9 @@ Difference:             12.35 not refunded
 - Tax exemption categories.
 - Per-item VAT rates.
 - VAT return/report.
-- Refund of VAT.
 - Payment ledger and reconciliation.
 - Currency and minor-unit handling.
-- Rounding policy for line and invoice totals.
-- Discount validation upper bound.
+- Effective-dated VAT rates.
 
 ## Related documents
 

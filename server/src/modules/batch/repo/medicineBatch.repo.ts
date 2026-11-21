@@ -209,6 +209,15 @@ export class MedicineBatchRepo {
       .exec();
   }
 
+  async existsByPurchaseOrderId(
+    purchaseOrderId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<boolean> {
+    const query = this.batchModel.exists({ purchaseOrderId });
+    const exists = session ? await query.session(session) : await query;
+    return !!exists;
+  }
+
   async findMostRecentPurchaseOrderId(
     medicineId: string,
     session?: mongoose.ClientSession,

@@ -1,10 +1,10 @@
 import { model, Schema, Document, Types } from "mongoose";
-import type { ReturnItem } from "../types/return.type.ts";
+import type { ReturnItem, ReturnStatus } from "../types/return.type.ts";
 
 export interface ISalesReturn extends Document {
   salesId: Types.ObjectId;
   returnNumber: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "COMPLETED";
+  status: ReturnStatus;
   returnReason: string;
   returnedBy: Types.ObjectId;
   returnDate: Date;
@@ -19,7 +19,7 @@ const returnSchema = new Schema<ISalesReturn>(
     returnedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     refundAmount: { type: Number, default: 0 },
     returnDate: { type: Date, required: true },
-    returnNumber: { type: String, required: true },
+    returnNumber: { type: String, required: true, unique: true },
     status: {
       type: String,
       enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED"],

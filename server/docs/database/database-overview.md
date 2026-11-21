@@ -103,18 +103,17 @@ These fields are queried frequently but have no declared index:
 
 | Collection | Field(s) | Query source |
 |---|---|---|
-| `inventories` | `medicineId` | `findByMedicineId` on every sale/receipt |
 | `salesitems` | `salesId` | sale detail, return creation, top-selling |
 | `sales` | `saleDate`, `status` | analytics, comparisons |
 | `purchaseorders` | `status`, `orderDate`, `receivedDate`, `supplierId` | dashboard, smart reorder |
-| `returns` | `salesId`, `returnNumber` | detail and lookup |
+| `returns` | `salesId` | sale-side lookup |
 | `notificationrecipients` | `userId`, `notificationId`, `status`; unique `{ notificationId, userId }`, `{ userId, createdAt, _id }`, `{ status, nextAttemptAt }` | inbox, retry sweep, counts |
 | `notifications` | `{ createdAt: -1, _id: -1 }` | cursor pagination |
 | `smartreorders` | `medicineId`, `status` | pending list, per-medicine |
 | `users` | `lastLogin`, `role` | admin filters |
 | `stockadjustments` | `medicineId` | adjustments lookup |
 
-`returns.returnNumber` is generated from a counter but is **not unique** at the database level.
+`inventories.medicineId` (Phase 2) and `returns.returnNumber` (Phase 4) now have unique indexes and are no longer gaps.
 
 ## 6. Enumerations
 

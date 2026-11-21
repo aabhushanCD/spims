@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { CreateReturnSchema, UpdateReturnSchema } from "./return.schema.ts";
+import {
+  CreateReturnSchema,
+  ReturnListQuerySchema,
+  UpdateReturnSchema,
+} from "./return.schema.ts";
 
 const SALES_ID = "507f1f77bcf86cd799439011";
 const ITEM_ID = "507f1f77bcf86cd799439021";
@@ -56,5 +60,33 @@ describe("return schemas", () => {
     expect(UpdateReturnSchema.parse({ returnReason: "Wrong item" })).toEqual({
       returnReason: "Wrong item",
     });
+  });
+
+  it("validates the status list filter", () => {
+    expect(ReturnListQuerySchema.parse({ status: "PENDING" })).toEqual({
+      status: "PENDING",
+    });
+    expect(() =>
+      ReturnListQuerySchema.parse({ status: "UNKNOWN" }),
+    ).toThrow();
+  });
+
+  it("accepts per-line remarks", () => {
+    const parsed = CreateReturnSchema.parse({
+      salesId: SALES_ID,
+      returnReason: "Customer changed their mind",
+      returnedBy: USER_ID,
+      returnDate: "2026-01-15",
+      items: [
+        {
+          saleItemId: ITEM_ID,
+          quantity: 1,
+          condition: "GOOD",
+          remarks: "  Seal intact  ",
+        },
+      ],
+    });
+
+    expect(parsed.items[0]?.remarks).toBe("Seal intact");
   });
 });

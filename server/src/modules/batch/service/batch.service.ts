@@ -8,6 +8,7 @@ import type {
 } from "../../inventory/types/stockMovement.type.ts";
 import type { StockMutationService } from "../../inventory/services/stockMutation.service.ts";
 import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.js";
+import type { SaleItemRepo } from "../../sales/repo/saleItem.repo.js";
 import type { IBatch } from "../model/medicineBatch.model.js";
 import type { MedicineBatchRepo } from "../repo/medicineBatch.repo.js";
 
@@ -41,6 +42,7 @@ export type BatchMovementCtx = Omit<StockMovementCtx, "medicineId">;
 export class BatchService {
   constructor(
     private readonly batchRepo: MedicineBatchRepo,
+    private readonly saleItemRepo: SaleItemRepo,
     private readonly purchaseOrderRepo: PurchaseOrderRepo,
     private readonly stockMutation: StockMutationService,
     private readonly appError: typeof AppError,
@@ -172,6 +174,13 @@ export class BatchService {
 
   async getAllBatches(session?: mongoose.ClientSession): Promise<IBatch[]> {
     return await this.batchRepo.findAll(session);
+  }
+
+  /** True when a purchase order has already produced batches. */
+  async hasBatchesForPurchaseOrder(
+    purchaseOrderId: string,
+  ): Promise<boolean> {
+    return await this.batchRepo.existsByPurchaseOrderId(purchaseOrderId);
   }
 
   async getAvailableBatches(
@@ -328,6 +337,13 @@ export class BatchService {
     }
     if (batch.quantityRemaining > 0) {
       throw this.appError.conflict("Cannot delete a batch with stock");
+    }
+    // Deletion would erase the cost basis for historical COGS and make an
+    // approved GOOD return impossible because there is no batch to restore to.
+    if (await this.saleItemRepo.existsByBatchId(batchId, session)) {
+      throw this.appError.conflict(
+        "Cannot delete a batch referenced by sales; COGS and returns depend on it",
+      );
     }
     const deleted = await this.batchRepo.delete(batchId, session);
     if (!deleted) {

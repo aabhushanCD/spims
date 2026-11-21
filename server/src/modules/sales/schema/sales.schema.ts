@@ -14,7 +14,8 @@ const paymentMethodSchema = z.enum([
  * Sales Item Schema
  */
 export const createSalesItemSchema = z.object({
-  batchId: objectIdSchema,
+  // Optional: FEFO chooses the batch. Accepted for older clients.
+  batchId: objectIdSchema.optional(),
   medicineId: objectIdSchema,
   quantity: z
     .number()
@@ -23,6 +24,7 @@ export const createSalesItemSchema = z.object({
   discountPercentage: z
     .number()
     .min(0, "Discount percentage cannot be negative")
+    .max(100, "Discount percentage cannot exceed 100")
     .default(0),
 });
 

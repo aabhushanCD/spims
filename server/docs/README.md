@@ -13,7 +13,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 - Batch-level inventory, expiry tracking, and FEFO (First Expire First Out) sales allocation.
 - Purchase order lifecycle from creation to goods receipt.
 - Sales invoicing with 13% VAT and stock deduction.
-- Sales returns with stock restoration and refund calculation.
+- Sales returns with an approval lifecycle, stock restoration/write-off, and VAT-inclusive refunds.
 - Stock movement audit trail.
 - Dashboard analytics and smart reorder recommendations.
 - In-app, email, and SMS (generic HTTP webhook) notifications.
@@ -110,9 +110,9 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | Supplier management | Implemented |
 | Batch inventory and FEFO | Partially Implemented — FEFO implemented; batch creation validates |
 | Aggregate inventory | Partially Implemented — reconciliation gaps |
-| Purchase orders and receiving | Partially Implemented — receiving can complete; totals and validation still open |
+| Purchase orders and receiving | Implemented — VAT/discount totals, guarded delete |
 | Sales and VAT | Implemented |
-| Sales returns | Partially Implemented |
+| Sales returns | Implemented — approval workflow, VAT refunds |
 | Purchase returns | Not Implemented |
 | Stock adjustments | Partially Implemented — service not exposed |
 | Smart reorder | Implemented |
@@ -123,7 +123,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | WebSocket push | Implemented |
 | Swagger/OpenAPI | Not Implemented (unmounted stubs) |
 | Pagination | Not Implemented |
-| Automated tests | Partially Implemented - 46 files / 335 tests; no HTTP integration tests |
+| Automated tests | Partially Implemented - 58 files / 425 tests; no HTTP integration tests |
 
 ## Conventions used in this documentation
 
@@ -137,4 +137,4 @@ The backend uses a **modular layered architecture** with manual dependency injec
 
 ## Important caveat
 
-Several behaviors in the code are still incomplete. Stock writes now run through one transactional path, but refunds omit VAT; purchase totals ignore VAT/discount; invoice discounts are not clamped to the discounted subtotal; and expiry flagging does not sync aggregates until the next mutation or sync call. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents. They are not documented as intended behavior.
+Several behaviors in the code are still incomplete. Phase 4 corrected refund VAT, invoice-discount apportionment, purchase totals, sale-item recalculation, reporting, GOOD-only COGS reversal, and historical cost snapshots; historical rows are not backfilled. Expiry flagging still does not sync aggregates until the next mutation or sync call, list endpoints still lack pagination, and the dashboard cache is not invalidated. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents.

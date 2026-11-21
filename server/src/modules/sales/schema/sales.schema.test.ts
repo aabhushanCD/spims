@@ -30,6 +30,34 @@ describe("sales schemas", () => {
     });
   });
 
+  it("does not require batchId because FEFO selects the batch", () => {
+    const parsed = createSaleSchema.parse({
+      customerName: "Walk-in",
+      paymentMethod: "CASH",
+      saleDate: new Date(),
+      items: [{ medicineId: MEDICINE_ID, quantity: 1 }],
+    });
+
+    expect(parsed.items[0]?.batchId).toBeUndefined();
+  });
+
+  it("caps line discounts at 100 percent", () => {
+    expect(() =>
+      createSaleSchema.parse({
+        customerName: "Walk-in",
+        paymentMethod: "CASH",
+        saleDate: new Date(),
+        items: [
+          {
+            medicineId: MEDICINE_ID,
+            quantity: 1,
+            discountPercentage: 101,
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
   it("rejects malformed item ObjectIds", () => {
     expect(() =>
       createSaleSchema.parse({

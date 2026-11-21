@@ -1,6 +1,22 @@
 import type { ISales } from "../model/sales.model.ts";
 import type mongoose from "mongoose";
 import type Sales from "../model/sales.model.ts";
+import {
+  getElapsedMonthsInYear,
+  getYearRange,
+} from "../../../shared/utils/reportingPeriod.ts";
+
+export interface SalesTotals {
+  gross: number;
+  vat: number;
+}
+
+export interface MonthlySalesPoint {
+  month: number;
+  total: number;
+  count: number;
+}
+
 export class SalesRepo {
   constructor(private readonly salesModel: typeof Sales) {}
 
@@ -76,64 +92,77 @@ export class SalesRepo {
     return this.salesModel.findByIdAndDelete(salesId).lean().exec();
   }
 
-  async getTotalSales(session?: mongoose.ClientSession): Promise<number> {
-    const now = new Date();
-
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-    if (session) {
-      const result = await this.salesModel
-        .aggregate([
-          {
-            $match: {
-              createdAt: {
-                $gte: startOfMonth,
-                $lt: startOfNextMonth,
-              },
-            },
-          },
-          { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
-        ])
-        .session(session)
-        .exec();
-      return result[0]?.totalSales || 0;
-    }
-    const result = await this.salesModel
+  async getSalesTotalsInRange(
+    startDate: Date,
+    endExclusive: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<SalesTotals> {
+    const [result] = await this.salesModel
       .aggregate([
         {
-          $match: { createdAt: { $gte: startOfMonth, $lt: startOfNextMonth } },
+          $match: {
+            status: { $ne: "CANCELLED" },
+            saleDate: { $gte: startDate, $lt: endExclusive },
+          },
         },
-        { $group: { _id: null, totalSales: { $sum: "$totalAmount" } } },
+        {
+          $group: {
+            _id: null,
+            gross: { $sum: "$totalAmount" },
+            vat: { $sum: "$VAT" },
+          },
+        },
       ])
-      .exec();
-    return result[0]?.totalSales || 0;
+      .session(session ?? null);
+
+    return {
+      gross: result?.gross ?? 0,
+      vat: result?.vat ?? 0,
+    };
   }
 
-  async getSalesByMonth(
-    monthBack: number,
-    year: number,
-    session?: mongoose.ClientSession,
-  ): Promise<{ month: number; total: number; count: number }[]> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), 0, 1);
+  /**
+   * Calendar-year monthly series. The series always starts in January of the
+   * requested year; `months` caps how many entries are returned. Past years
+   * return 12 entries, the current year returns January..current month, and
+   * future years return an empty series.
+   */
+  async getSalesByMonth(input: {
+    year: number;
+    months?: number;
+    timeZone: string;
+    now?: Date;
+    session?: mongoose.ClientSession;
+  }): Promise<MonthlySalesPoint[]> {
+    const { year, timeZone } = input;
+    const months = input.months ?? 12;
+    const now = input.now ?? new Date();
+    const session = input.session;
 
-    const endDate = new Date(now.getFullYear() + 1, 0, 1);
+    const elapsedMonths = getElapsedMonthsInYear(year, now, timeZone);
+    const monthCount = Math.min(months, elapsedMonths);
+    if (monthCount <= 0) {
+      return [];
+    }
+
+    const range = getYearRange(year, timeZone);
 
     const results = await this.salesModel
       .aggregate([
         {
           $match: {
+            status: { $ne: "CANCELLED" },
             saleDate: {
-              $gte: startOfMonth,
-              $lte: endDate,
+              $gte: range.start,
+              $lt: range.endExclusive,
             },
           },
         },
         {
           $group: {
-            _id: { $month: "$saleDate" },
+            _id: {
+              $month: { date: "$saleDate", timezone: timeZone },
+            },
             total: { $sum: "$totalAmount" },
             count: { $sum: 1 },
           },
@@ -146,28 +175,16 @@ export class SalesRepo {
       ])
       .session(session ?? null);
 
-    // Convert aggregation results into a map
     const salesMap = new Map(
-      results.map((r) => [
-        r._id,
-        {
-          total: r.total,
-          count: r.count,
-        },
+      results.map((row) => [
+        row._id,
+        { total: row.total, count: row.count },
       ]),
     );
 
-    // Return all 12 months
-    return Array.from({ length: now.getMonth() + 1 }, (_, index) => {
+    return Array.from({ length: monthCount }, (_, index) => {
       const month = index + 1;
       const data = salesMap.get(month);
-      if (!data) {
-        return {
-          month,
-          total: 0,
-          count: 0,
-        };
-      }
       return {
         month,
         total: data?.total ?? 0,
@@ -175,17 +192,18 @@ export class SalesRepo {
       };
     });
   }
+
+  /** Gross sales (VAT-inclusive) in a half-open period. */
   async getTotalSalesInRange(
     startDate: Date,
-    endDate: Date,
+    endExclusive: Date,
     session?: mongoose.ClientSession,
   ): Promise<number> {
-    const [result] = await this.salesModel
-      .aggregate([
-        { $match: { saleDate: { $gte: startDate, $lte: endDate } } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-      ])
-      .session(session ?? null);
-    return result?.total ?? 0;
+    const totals = await this.getSalesTotalsInRange(
+      startDate,
+      endExclusive,
+      session,
+    );
+    return totals.gross;
   }
 }

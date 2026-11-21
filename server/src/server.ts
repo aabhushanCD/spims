@@ -15,6 +15,7 @@ import redis from "./config/redis.config.ts";
 import { errorHandler } from "./shared/middleware/globalError.middleware.ts";
 import { assertAuthConfig } from "./modules/auth/utils/authConfig.ts";
 import { assertEmailConfig } from "./shared/provider/email.provider.ts";
+import { assertReportingConfig } from "./config/reporting.config.ts";
 
 dotenv.config();
 const app = express();
@@ -113,6 +114,7 @@ async function startServer() {
   try {
     assertAuthConfig();
     assertEmailConfig();
+    assertReportingConfig();
     await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();

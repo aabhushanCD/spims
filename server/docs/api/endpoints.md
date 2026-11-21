@@ -153,11 +153,11 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 | POST | `/purchases` | Create PO with items | see below | `createPurchaseOrderSchema` | `201` `{ message, data: PO }` |
 | GET | `/purchases` | List POs | — | — | `200` `{ message, data: array }` (supplier companyName populated) |
 | GET | `/purchases/:id` | PO detail with items | — | — | `200` `{ message, data: { supplier, items[], ... } }`; `404` |
-| DELETE | `/purchases/:id` | Hard delete PO | — | — | `200` `{ message }`; `404`; items are orphaned |
+| DELETE | `/purchases/:id` | Hard delete PO + items | — | — | `200` `{ message }`; `404`; `409` if received or batches exist |
 | PATCH | `/purchases/:id/cancel` | Cancel | — | — | `200` `{ message }`; `400` if received; `404` |
 | PATCH | `/purchases/:id/approve` | Approve | — | — | `200` `{ message }`; `400` if not pending or empty; `404` |
 | POST | `/purchases/:id/receive` | Receive goods and create batches | `items[]` | param + `receivePurchaseOrderSchema` | `200` `{ message, data: { message } }` |
-| PATCH | `/purchases/:id/recalculate` | Compute total | — | — | `200` `{ message, data: number }` — **does not persist** |
+| PATCH | `/purchases/:id/recalculate` | Recompute and persist total | — | — | `200` `{ message, data: { subtotal, discount, taxable, vatAmount, totalAmount } }` |
 | GET | `/purchases/:id/items` | List items | — | — | `200` `{ message, data: items[] }`; `404` PO |
 | GET | `/purchases/supplier/:supplierId` | POs for supplier | — | — | `200` `{ message, data }`; `404` supplier |
 
@@ -173,7 +173,6 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
   "receivedDate": "2026-02-01",
   "discount": 0,
   "VAT": 13,
-  "status": "pending",
   "items": [
     { "medicineId": "665f...", "quantity": 100, "purchasePrice": 12.5 }
   ]
@@ -183,9 +182,12 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 Schema notes:
 
 - `expectedDeliveryDate` and `receivedDate` are optional.
-- `status` may be supplied by the client; the service stores it as-is.
-- `VAT` and `discount` are stored but **not applied** to `totalAmount`.
-- `totalAmount` is computed as `sum(quantity * purchasePrice)`, ignoring client input.
+- `status` is **not accepted** on create; every order starts `pending`. A supplied
+  `status` is stripped by the schema.
+- `VAT` is a percentage (0–100, default 13). `discount` is an absolute amount.
+- `totalAmount = subtotal - discount + VAT% of (subtotal - discount)` and is
+  persisted; a discount larger than the subtotal returns `400`.
+- `recalculate` and item add/update/remove persist the recalculated total.
 
 #### Receive body
 
@@ -282,7 +284,6 @@ Body (`createSaleSchema`):
   "discount": 25,
   "items": [
     {
-      "batchId": "unused-but-required",
       "medicineId": "665f...",
       "quantity": 3,
       "discountPercentage": 5
@@ -299,15 +300,17 @@ Body (`createSaleSchema`):
 | `discount` | number ≥ 0, default 0; absolute invoice discount |
 | `items` | min 1 |
 | `items[].medicineId` | non-empty string |
-| `items[].batchId` | non-empty string, **required by schema but not used** |
+| `items[].batchId` | optional ObjectId; FEFO chooses the batch |
 | `items[].quantity` | integer > 0 |
-| `items[].discountPercentage` | number ≥ 0, default 0 |
+| `items[].discountPercentage` | number 0–100, default 0 |
 
 `cashierId` comes from the JWT and cannot be supplied by the client.
 
 Success: `201` `{ success: true, data: sale }`. The returned sale is reloaded **without** its items.
 
-Errors: `400` empty cart, invalid discount, discount > subtotal, insufficient stock; `401` missing user; `500` transaction or validation failure.
+Errors: `400` empty cart, invalid discount, invoice discount greater than the
+post-line-discount subtotal, insufficient stock; `401` missing user; `500`
+transaction or validation failure.
 
 Behavior:
 
@@ -315,7 +318,9 @@ Behavior:
 - The sale is created with `status: "COMPLETED"` and zero totals, then updated inside the same transaction.
 - Allocations and per-batch `SalesItem` rows are created by `InventoryService.sellMedicine`.
 - Prices come from each batch's `sellingPrice`; client-supplied prices are ignored.
-- VAT is 13% of `subtotal - line discounts - invoice discount`.
+- VAT is 13% of `subtotal - line discounts - invoice discount`; the invoice
+  discount cannot exceed `subtotal - line discounts`.
+- Line discounts, line totals, and sale totals are rounded to two decimals.
 - Payment method is recorded but no payment transaction is created.
 
 ### Other sale endpoints
@@ -325,11 +330,11 @@ Behavior:
 | GET | `/sales` | List sales | — | `200` `{ success, data: array }` (cashier populated) |
 | GET | `/sales/:id` | Sale + items | — | `200` `{ success, data: { ...sale, items } }` / `404` |
 | PATCH | `/sales/:id` | Edit customer/payment | `customerName?`, `paymentMethod?` | `200` `{ success, data }` / `404` |
-| DELETE | `/sales/:id` | Delete and restore stock | — | `200` `{ success, message }` / `404` |
+| DELETE | `/sales/:id` | Delete and restore stock | — | `200` `{ success, message }` / `404` / `409` if returns exist |
 
 `updateSaleSchema` accepts `customerName` and/or `paymentMethod`; empty updates return `400`. Financial fields and quantities cannot be edited through this endpoint. ObjectId params are validated.
 
-Delete restores `quantity - returnedQuantity` to the original batch, syncs the aggregate, and writes one `RETURN` movement per restored item. See [Sales](../modules/sales.md).
+Delete restores `quantity - returnedQuantity` to the original batch, syncs the aggregate, and writes one `RETURN` movement per restored item. A sale with `PENDING`, `APPROVED`, or `COMPLETED` returns cannot be deleted (`409`). See [Sales](../modules/sales.md).
 
 ## Sale items
 
@@ -340,9 +345,12 @@ Source: `server/src/modules/sales/routes/saleItem.routes.ts`
 | GET | `/sale-items` | List all | — | `200` `{ success, data }` |
 | GET | `/sale-items/sales/:salesId` | Items for sale | — | `200` `{ success, data }` |
 | GET | `/sale-items/:id` | Get item | — | `200` / `404` |
-| PATCH | `/sale-items/:id` | Price/discount correction | `unitPrice?`, `discount?` (at least one) | `200`; `400` if both absent; `404` |
+| PATCH | `/sale-items/:id` | Price/discount correction | `unitPrice?`, `discount?` (at least one) | `200`; `400` invalid; `404`; `409` if returned |
 
-No create or delete routes. Items are created only by `SalesService`.
+A correction recomputes the line `totalPrice` and the parent sale's `subTotal`,
+`discount`, `VAT`, and `totalAmount`. The invoice-level discount is derived from
+the stored sale total and preserved. Lines with `returnedQuantity > 0` cannot be
+corrected. No create or delete routes; items are created only by `SalesService`.
 
 ## Returns
 
@@ -368,41 +376,68 @@ Source: `server/src/modules/sales/routes/return.routes.ts`, `services/return.ser
 
 The route validates the body and items; the controller checks that a user is authenticated.
 
-Service rules:
+Service rules (creation):
 
 1. Sale must exist.
 2. `returnDate` must not be before `saleDate`.
 3. Each `saleItemId` must belong to the sale.
-4. Requested quantity must not exceed `quantity - returnedQuantity`.
-5. Stock restoration depends on `condition` (see below).
-6. `returnedQuantity` is incremented per sale item.
-7. Return is stored with `status: "COMPLETED"` and computed `refundAmount`.
-8. Sale becomes `RETURNED` if every item is fully returned, else `PARTIALLY_RETURNED`.
+4. Requested quantity must not exceed
+   `quantity - returnedQuantity - outstanding PENDING/APPROVED quantities`.
+5. The return is stored as `PENDING` with a refund quote and embedded lines.
+   **No stock or `returnedQuantity` changes happen at creation.**
+6. Duplicate lines are merged only when both `saleItemId` and `condition` match.
 
 Success: `201` `{ success: true, data: return }`.
 
-Errors: `400` empty items, invalid sale item, over-return, bad date; `404` sale.
+Errors: `400` empty items, invalid sale item, over-commit, bad date; `404` sale.
 
-Condition behavior:
+### Return lifecycle
 
-| Condition | Batch restored | Aggregate restored | Movement(s) |
+```text
+PENDING ──approve──> APPROVED ──complete──> COMPLETED
+   ├────reject──────> REJECTED
+   └────cancel──────> CANCELLED
+```
+
+| Method | Path | Roles | Behaviour |
 |---|---|---|---|
-| `GOOD` | No (Phase 4) | Yes | 1 `RETURN` with `referenceType: SALES_RETURN` |
-| `DAMAGED` | Yes | Yes | 2 `RETURN` |
-| `EXPIRED` | Yes | Yes | 2 `RETURN` |
-| `OPENED` | Yes | Yes | 2 `RETURN` |
+| GET | `/returns?status=` | all three | List, optional `PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`/`COMPLETED` filter |
+| GET | `/returns/:id` | all three | Detail |
+| PATCH | `/returns/:id` | all three | Update `returnReason`; only while `PENDING` |
+| PATCH | `/returns/:id/approve` | owner, inventory_manager | `PENDING → APPROVED` |
+| PATCH | `/returns/:id/reject` | owner, inventory_manager | `PENDING → REJECTED` |
+| PATCH | `/returns/:id/cancel` | all three | `PENDING → CANCELLED` |
+| PATCH | `/returns/:id/complete` | all three | `APPROVED → COMPLETED`; applies stock and refund |
 
-Refund = `unitPrice * quantity - (saleItem.discount / saleItem.quantity) * quantity`. VAT is not refunded.
+Invalid transitions return `409`; an unknown return returns `404`.
 
-### Other return endpoints
+Completion:
 
-| Method | Path | Purpose | Body | Success |
-|---|---|---|---|---|
-| GET | `/returns` | List | — | `200` `{ success, data }` |
-| GET | `/returns/:id` | Detail | — | `200` / `404` |
-| PATCH | `/returns/:id` | Update reason | `returnReason` required | `200`; `400` if absent; `404` |
+- Re-validates each line against the current `returnedQuantity`.
+- One movement per return line:
+  - `GOOD` restores the original batch and syncs the aggregate.
+  - `DAMAGED`/`EXPIRED`/`OPENED` write one `RETURN` movement and do **not**
+    increase sellable stock.
+- Increments each sale item's `returnedQuantity`.
+- Recomputes the final refund and persists `returnItems.VAT` and `remarks`.
+- Sets the sale to `RETURNED` or `PARTIALLY_RETURNED`.
 
-No DELETE. Status transitions other than `COMPLETED` are unreachable.
+Refund per line:
+
+```text
+lineDiscountShare  = saleItem.discount / saleItem.quantity × quantity
+netBeforeInvoice   = gross − lineDiscountShare
+invoiceShare       = invoiceDiscount × netBeforeInvoice / Σ(all line net values)
+totalDiscountShare = lineDiscountShare + invoiceShare
+net                = gross − totalDiscountShare
+VAT                = net × 13%
+refundAmount       = net + VAT
+```
+
+Invoice-level discounts are apportioned by returned net value, so refunds do
+not exceed the net amount paid.
+
+No DELETE. Reversing a completed return is not implemented.
 
 ## Batches
 
@@ -416,7 +451,7 @@ Body, ObjectId-param, and low-stock-query schemas are wired. Responses are `{ su
 | GET | `/batches/:id` | Get batch | ObjectId `id` | `200` / `404` | Missing → `404` |
 | POST | `/batches` | Create batch | validated batch body + optional movement context | `201` | Requires authenticated user; PO must exist; syncs aggregate and writes `PURCHASE` |
 | PATCH | `/batches/:id` | Update allowed fields | `batchNumber`, dates, prices, `quantityRemaining`, `isActive` | `200` / `400` / `404` | Immutable fields rejected; quantity changes sync + movement |
-| DELETE | `/batches/:id` | Delete a zero-stock batch | ObjectId `id` | `200` / `404` / `409` | `409` while `quantityRemaining > 0` |
+| DELETE | `/batches/:id` | Delete a zero-stock batch with no sales history | ObjectId `id` | `200` / `404` / `409` | `409` while `quantityRemaining > 0` or sale items reference it |
 | GET | `/batches/medicine/:medicineId` | **First** batch for medicine | ObjectId `medicineId` | `200` / `404` | Uses `findOne`, not a list |
 | GET | `/batches/medicine/:medicineId/available` | Sellable batches | ObjectId `medicineId` | `200` | Filters quantity > 0, expiry > now, and `!isExpired` |
 | GET | `/batches/expired` | Batches past expiry date | — | `200` | Date-based, ignores `isExpired` |
@@ -512,15 +547,17 @@ All endpoints are `GET`, return `{ success: true, data }`, and accept no body.
 | `/dashboard/recent-activity` | Latest movements | `limit` > 0 (default 10) | movement documents with medicine/batch/user populated |
 | `/dashboard/system-health` | Stale jobs | — | `staleJobCount`, `staleJobs[]` |
 | `/dashboard/notifications` | Delivery counts | — | `failedDeliveries`, `pendingDeliveries`, `skippedDeliveries` |
-| `/dashboard/profit` | Gross profit | — | `totalSales`, `totalPurchases`, `grossProfit`, `marginPercent` |
+| `/dashboard/profit` | COGS-based profit | — | `totalSales`, `totalPurchases`, `netRevenue`, `cogs`, `grossProfit`, `marginPercent` |
 | `/dashboard/sales-comparison` | Month over month | — | `thisMonth`, `lastMonth`, `percentChange` (nullable) |
 | `/dashboard/suppliers` | Supplier counts | — | `activeSuppliers`, `inactiveSuppliers`, `total` |
-| `/dashboard/sales` | Sales analytics | `year` | `totalSales`, `salesByMonth[]` |
+| `/dashboard/sales` | Sales analytics | `year` (2000–2100) | `year`, `totalSales`, `totalVat`, `salesByMonth[]` |
 | `/dashboard/purchases` | Purchase analytics | — | `totalPurchases`, `purchasesByStatus[]` |
 | `/dashboard/inventory` | Inventory analytics | — | `totalValue`, `inventoryHealth`, `lowStockCount`, `outOfStockCount`, `expiringSoonCount` |
-| `/dashboard/top-selling` | Top medicines | `limit` > 0 (default 10) | `medicineId`, `medicineName`, `strength`, `totalQuantitySold`, `totalRevenue` |
+| `/dashboard/top-selling` | Top medicines | `limit` > 0 (default 10) | `medicineId`, `medicineName`, `strength`, `totalQuantitySold`, `totalRevenue` (net of returns) |
 
-Invalid `limit` or `year` → `400`. Only `/dashboard` is cached (60 seconds).
+Invalid `limit` or `year` → `400`; both must be whole numbers. Reporting periods
+use `REPORTING_TIMEZONE` (default `Asia/Kathmandu`). Only `/dashboard` is cached
+(60 seconds).
 
 Details: [reporting.md](../modules/reporting.md).
 

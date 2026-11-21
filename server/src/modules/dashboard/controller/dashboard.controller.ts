@@ -38,8 +38,8 @@ export class DashboardController {
   // GET /dashboard/recent-activity?limit=10
   getRecentActivity = asyncHandler(async (req: Request, res: Response) => {
     const limit = req.query.limit ? Number(req.query.limit) : 10;
-    if (Number.isNaN(limit) || limit <= 0) {
-      throw AppError.badRequest("limit must be a positive number");
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw AppError.badRequest("limit must be a positive whole number");
     }
     const data = await this.dashboardService.getRecentActivity(limit);
     res.status(200).json({ success: true, data });
@@ -79,11 +79,12 @@ export class DashboardController {
 
   // GET /dashboard/sales?year=2026
   getSalesAnalytics = asyncHandler(async (req: Request, res: Response) => {
-    const year = req.query.year
-      ? Number(req.query.year)
-      : new Date().getFullYear();
-    if (Number.isNaN(year)) {
-      throw AppError.badRequest("year must be a valid number");
+    const currentYear = new Date().getFullYear();
+    const year = req.query.year ? Number(req.query.year) : currentYear;
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw AppError.badRequest(
+        "year must be a whole number between 2000 and 2100",
+      );
     }
     const data = await this.dashboardService.getSalesAnalytics(year);
     res.status(200).json({ success: true, data });
@@ -104,8 +105,8 @@ export class DashboardController {
   // GET /dashboard/top-selling?limit=10
   getTopSellingMedicines = asyncHandler(async (req: Request, res: Response) => {
     const limit = req.query.limit ? Number(req.query.limit) : 10;
-    if (Number.isNaN(limit) || limit <= 0) {
-      throw AppError.badRequest("limit must be a positive number");
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw AppError.badRequest("limit must be a positive whole number");
     }
     const data = await this.dashboardService.getTopSellingMedicines(limit);
     res.status(200).json({ success: true, data });

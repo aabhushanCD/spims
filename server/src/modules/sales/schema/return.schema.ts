@@ -9,6 +9,14 @@ export const ReturnConditionSchema = z.enum([
   "OPENED",
 ]);
 
+export const ReturnStatusSchema = z.enum([
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+  "COMPLETED",
+]);
+
 export const ReturnItemSchema = z.object({
   saleItemId: objectIdSchema,
   quantity: z
@@ -45,8 +53,13 @@ export const UpdateReturnSchema = z.object({
     .max(500, "Return reason cannot exceed 500 characters"),
 });
 
+export const ReturnListQuerySchema = z.object({
+  status: ReturnStatusSchema.optional(),
+});
+
 export const returnIdParamSchema = z.object({ id: objectIdSchema });
 
 export type ReturnItemInput = z.infer<typeof ReturnItemSchema>;
 export type CreateReturnDto = z.infer<typeof CreateReturnSchema>;
 export type UpdateReturnDto = z.infer<typeof UpdateReturnSchema>;
+export type ReturnListQuery = z.infer<typeof ReturnListQuerySchema>;

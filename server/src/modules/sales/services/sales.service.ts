@@ -1,14 +1,14 @@
 // sales.service.ts
 import mongoose, { Types } from "mongoose";
+import { calculateVat, roundCurrency } from "../../../shared/finance/money.ts";
 import type { AppError } from "../../../shared/error.ts";
 import type { SalesRepo } from "../repo/sales.repo.ts";
 import type { SaleItemRepo } from "../repo/saleItem.repo.ts";
+import type { ReturnRepo } from "../repo/return.repo.ts";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { InventoryService } from "../../inventory/services/inventory.service.ts";
 import type { CounterRepository } from "../repo/counter.repo.ts";
 import type { CreateSaleDto } from "../schema/sales.schema.ts";
-
-const VAT_RATE = 0.13; // Nepal standard VAT — move to config if this can vary
 
 export class SalesService {
   constructor(
@@ -17,6 +17,7 @@ export class SalesService {
     private readonly inventoryService: InventoryService,
     private readonly batchRepo: MedicineBatchRepo,
     private readonly counterRepo: CounterRepository,
+    private readonly returnRepo: ReturnRepo,
     private readonly appError: typeof AppError,
 
     private readonly connection: mongoose.Connection,
@@ -121,9 +122,13 @@ export class SalesService {
         );
 
         for (const allocation of allocations) {
-          const lineTotal = allocation.unitPrice * allocation.quantity;
+          const lineTotal = roundCurrency(
+            allocation.unitPrice * allocation.quantity,
+          );
 
-          const lineDiscount = (lineTotal * item.discountPercentage) / 100;
+          const lineDiscount = roundCurrency(
+            (lineTotal * item.discountPercentage) / 100,
+          );
 
           subtotal += lineTotal;
 
@@ -141,38 +146,44 @@ export class SalesService {
 
               unitPrice: allocation.unitPrice,
 
+              purchasePrice: allocation.purchasePrice,
+
               discount: lineDiscount,
 
-              totalPrice: lineTotal - lineDiscount,
+              totalPrice: roundCurrency(lineTotal - lineDiscount),
             },
             session,
           );
         }
       }
 
-      const invoiceDiscount = dto.discount ?? 0;
+      const invoiceDiscount = roundCurrency(dto.discount ?? 0);
 
       if (invoiceDiscount < 0) {
         throw this.appError.badRequest("Invalid discount");
       }
 
-      if (invoiceDiscount > subtotal) {
-        throw this.appError.badRequest("Discount exceeds subtotal");
+      const discountedSubtotal = roundCurrency(subtotal - totalDiscount);
+
+      if (invoiceDiscount > discountedSubtotal) {
+        throw this.appError.badRequest(
+          "Discount exceeds the discounted subtotal",
+        );
       }
 
-      const taxable = subtotal - totalDiscount - invoiceDiscount;
+      const taxable = roundCurrency(discountedSubtotal - invoiceDiscount);
 
-      const vat = Math.round(taxable * VAT_RATE * 100) / 100;
+      const vat = calculateVat(taxable);
 
-      const total = taxable + vat;
+      const total = roundCurrency(taxable + vat);
 
       await this.salesRepo.update(
         sale._id.toString(),
 
         {
-          subTotal: subtotal,
+          subTotal: roundCurrency(subtotal),
 
-          discount: invoiceDiscount + totalDiscount,
+          discount: roundCurrency(invoiceDiscount + totalDiscount),
 
           VAT: vat,
 
@@ -224,6 +235,11 @@ export class SalesService {
         const sale = await this.salesRepo.findById(id, session);
         if (!sale) {
           throw this.appError.notFound("Sale not found");
+        }
+        if (await this.returnRepo.hasActiveBySale(id, session)) {
+          throw this.appError.conflict(
+            "Cannot delete a sale with returns; reverse the return first",
+          );
         }
         const items = await this.saleItemRepo.findBySalesId(id, session);
 

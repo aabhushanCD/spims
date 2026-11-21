@@ -4,6 +4,7 @@ import { AppError } from "../../../shared/error.ts";
 
 const PURCHASE_ORDER_ID = "507f1f77bcf86cd799439071";
 const MEDICINE_ID = "507f1f77bcf86cd799439011";
+const OTHER_MEDICINE_ID = "507f1f77bcf86cd799439012";
 const USER_ID = "507f1f77bcf86cd799439031";
 
 function buildService() {
@@ -31,7 +32,10 @@ function buildService() {
     update: vi.fn(),
     delete: vi.fn(),
   };
-  const batchService = { createBatch: vi.fn() };
+  const batchService = {
+    createBatch: vi.fn(),
+    hasBatchesForPurchaseOrder: vi.fn().mockResolvedValue(false),
+  };
   const userRepo = { findById: vi.fn() };
 
   const service = new PurchaseOrderService(
@@ -208,11 +212,13 @@ describe("PurchaseOrderService", () => {
   });
 
   describe("recalculateTotals", () => {
-    it("sums quantity multiplied by purchase price", async () => {
+    it("applies VAT and discount, persists the total, and returns the breakdown", async () => {
       const { service, purchaseOrderRepo, purchaseOrderItemRepo } =
         buildService();
       purchaseOrderRepo.findById.mockResolvedValue({
         _id: PURCHASE_ORDER_ID,
+        discount: 6.5,
+        VAT: 13,
       });
       purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
         { quantity: 2, purchasePrice: 10 },
@@ -221,7 +227,190 @@ describe("PurchaseOrderService", () => {
 
       await expect(
         service.recalculateTotals(PURCHASE_ORDER_ID),
-      ).resolves.toBe(36.5);
+      ).resolves.toEqual({
+        subtotal: 36.5,
+        discount: 6.5,
+        taxable: 30,
+        vatAmount: 3.9,
+        totalAmount: 33.9,
+      });
+
+      expect(purchaseOrderRepo.update).toHaveBeenCalledWith(
+        PURCHASE_ORDER_ID,
+        { totalAmount: 33.9 },
+        undefined,
+      );
+    });
+
+    it("rejects a discount larger than the subtotal", async () => {
+      const { service, purchaseOrderRepo, purchaseOrderItemRepo } =
+        buildService();
+      purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        discount: 100,
+        VAT: 13,
+      });
+      purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
+        { quantity: 1, purchasePrice: 10 },
+      ]);
+
+      await expect(
+        service.recalculateTotals(PURCHASE_ORDER_ID),
+      ).rejects.toMatchObject({
+        message: "Discount exceeds subtotal",
+        statusCode: 400,
+      });
+      expect(purchaseOrderRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("createPurchaseOrder", () => {
+    const baseOrder = {
+      supplierId: "507f1f77bcf86cd799439081",
+      orderDate: new Date("2026-01-01"),
+      invoiceNumber: "INV-1",
+      invoiceFile: "",
+      discount: 6.5,
+      VAT: 13,
+      items: [
+        { medicineId: MEDICINE_ID, quantity: 2, purchasePrice: 10 },
+        { medicineId: OTHER_MEDICINE_ID, quantity: 3, purchasePrice: 5.5 },
+      ],
+    };
+
+    it("always starts pending and persists a VAT/discount-aware total", async () => {
+      const { service, supplierRepo, purchaseOrderRepo } = buildService();
+      supplierRepo.findById.mockResolvedValue({ _id: "supplier-1" });
+      purchaseOrderRepo.create.mockResolvedValue({
+        _id: { toString: () => PURCHASE_ORDER_ID },
+      });
+
+      await service.createPurchaseOrder({
+        ...baseOrder,
+        status: "received",
+      } as never);
+
+      expect(purchaseOrderRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "pending",
+          totalAmount: 33.9,
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("rejects a discount larger than the subtotal", async () => {
+      const { service, supplierRepo, purchaseOrderRepo } = buildService();
+      supplierRepo.findById.mockResolvedValue({ _id: "supplier-1" });
+
+      await expect(
+        service.createPurchaseOrder({
+          ...baseOrder,
+          discount: 100,
+        } as never),
+      ).rejects.toMatchObject({
+        message: "Discount exceeds subtotal",
+        statusCode: 400,
+      });
+      expect(purchaseOrderRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deletePurchaseOrder", () => {
+    it("blocks deletion of a received order", async () => {
+      const { service, purchaseOrderRepo, batchService } = buildService();
+      purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "received",
+      });
+
+      await expect(
+        service.deletePurchaseOrder(PURCHASE_ORDER_ID),
+      ).rejects.toMatchObject({
+        message: "Received purchase orders cannot be deleted",
+        statusCode: 409,
+      });
+      expect(batchService.hasBatchesForPurchaseOrder).not.toHaveBeenCalled();
+      expect(purchaseOrderRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("blocks deletion when batches already reference the order", async () => {
+      const { service, purchaseOrderRepo, batchService } = buildService();
+      purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "approved",
+      });
+      batchService.hasBatchesForPurchaseOrder.mockResolvedValue(true);
+
+      await expect(
+        service.deletePurchaseOrder(PURCHASE_ORDER_ID),
+      ).rejects.toMatchObject({
+        message: "Cannot delete a purchase order with received batches",
+        statusCode: 409,
+      });
+      expect(purchaseOrderRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("cascades item deletion for a deletable order", async () => {
+      const { service, purchaseOrderRepo, purchaseOrderItemRepo } =
+        buildService();
+      purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "pending",
+      });
+      purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
+        { _id: { toString: () => "item-1" } },
+        { _id: { toString: () => "item-2" } },
+      ]);
+      purchaseOrderRepo.delete.mockResolvedValue({ _id: PURCHASE_ORDER_ID });
+
+      await service.deletePurchaseOrder(PURCHASE_ORDER_ID);
+
+      expect(purchaseOrderItemRepo.delete).toHaveBeenCalledWith(
+        "item-1",
+        expect.anything(),
+      );
+      expect(purchaseOrderItemRepo.delete).toHaveBeenCalledWith(
+        "item-2",
+        expect.anything(),
+      );
+      expect(purchaseOrderRepo.delete).toHaveBeenCalledWith(
+        PURCHASE_ORDER_ID,
+        expect.anything(),
+      );
+    });
+  });
+
+  describe("updatePurchaseOrderItem", () => {
+    it("persists recalculated totals after an item update", async () => {
+      const { service, purchaseOrderRepo, purchaseOrderItemRepo } =
+        buildService();
+      purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "pending",
+        discount: 0,
+        VAT: 13,
+      });
+      purchaseOrderItemRepo.findById.mockResolvedValue({
+        _id: { toString: () => "item-1" },
+        purchaseOrderId: { toString: () => PURCHASE_ORDER_ID },
+      });
+      purchaseOrderItemRepo.update.mockResolvedValue({ _id: "item-1" });
+      purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
+        { quantity: 2, purchasePrice: 10 },
+      ]);
+
+      await service.updatePurchaseOrderItem(
+        PURCHASE_ORDER_ID,
+        "item-1",
+        { quantity: 2 },
+      );
+
+      expect(purchaseOrderRepo.update).toHaveBeenCalledWith(
+        PURCHASE_ORDER_ID,
+        { totalAmount: 22.6 },
+        expect.anything(),
+      );
     });
   });
 

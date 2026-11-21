@@ -113,22 +113,6 @@ export class InventoryRepo {
     return result?.total ?? 0;
   }
 
-  async getInventoryHealth(session?: mongoose.ClientSession): Promise<{
-    totalValue: number;
-    lowStockCount: number;
-    outOfStockCount: number;
-    expiringSoonCount: number;
-  }> {
-    const [totalValue, lowStockCount, outOfStockCount, expiringSoonCount] =
-      await Promise.all([
-        this.getTotalInventoryValue(session),
-        this.getLowStockCount(session),
-        this.getOutOfStockCount(session),
-        this.getExpiringSoonCount(30, session),
-      ]);
-    return { totalValue, lowStockCount, outOfStockCount, expiringSoonCount };
-  }
-
   async getLowStockCount(session?: mongoose.ClientSession): Promise<number> {
     const query = this.inventoryModel.aggregate([
       {
@@ -164,22 +148,6 @@ export class InventoryRepo {
   async getOutOfStockCount(session?: mongoose.ClientSession): Promise<number> {
     return this.inventoryModel
       .countDocuments({ availableStock: { $lte: 0 } })
-      .session(session ?? null)
-      .exec();
-  }
-
-  async getExpiringSoonCount(
-    days: number,
-    session?: mongoose.ClientSession,
-  ): Promise<number> {
-    const now = new Date();
-    const futureDate = new Date();
-    futureDate.setDate(now.getDate() + days);
-    return this.inventoryModel
-      .countDocuments({
-        "batches.expiryDate": { $gte: now, $lte: futureDate },
-        "batches.quantityRemaining": { $gt: 0 },
-      })
       .session(session ?? null)
       .exec();
   }
