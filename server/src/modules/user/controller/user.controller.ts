@@ -1,9 +1,20 @@
 import type { NextFunction, Request, Response } from "express";
+import { AppError } from "../../../shared/error.ts";
+import type { UserRole } from "../model/user.model.js";
+import type { ChangeUserRoleDto } from "../schema/user.schema.ts";
 import type { UserService } from "../service/user.service.js";
 import { toPublicUser } from "../utils/publicUser.ts";
 
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  private actorRole(req: Request): string {
+    const role = req.user?.role;
+    if (!role) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    return role;
+  }
 
   async createUser(
     req: Request,
@@ -11,8 +22,10 @@ export class UserController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const userData = req.body;
-      const newUser = await this.userService.createUser(userData);
+      const newUser = await this.userService.createUser(
+        req.body,
+        this.actorRole(req),
+      );
       res.status(201).json(toPublicUser(newUser));
     } catch (error) {
       next(error);
@@ -44,8 +57,11 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
-      const userData = req.body;
-      const updatedUser = await this.userService.updateUser(userId, userData);
+      const updatedUser = await this.userService.updateUser(
+        userId,
+        req.body,
+        this.actorRole(req),
+      );
       if (!updatedUser) {
         res.status(404).json({ message: "User not found" });
         return;
@@ -63,8 +79,10 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
-      const role = req.body.role as string;
-      const deletedUser = await this.userService.deleteUser(userId, role);
+      const deletedUser = await this.userService.deleteUser(
+        userId,
+        this.actorRole(req),
+      );
       if (!deletedUser) {
         res.status(404).json({ message: "User not found" });
         return;
@@ -94,10 +112,7 @@ export class UserController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const role = req.params.role as
-        | "owner"
-        | "pharmacist"
-        | "inventory_manager";
+      const role = req.params.role as UserRole;
       const users = await this.userService.getUsersByRole(role);
       res.status(200).json(users.map((user) => toPublicUser(user)));
     } catch (error) {
@@ -151,11 +166,8 @@ export class UserController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const role = req.params.role as
-        | "owner"
-        | "pharmacist"
-        | "inventory_manager";
-      const isActive = req.query.isActive === "true";
+      const role = req.params.role as UserRole;
+      const isActive = req.params.isActive === "true";
       const users = await this.userService.getUsersByRoleAndStatus(
         role,
         isActive,
@@ -172,10 +184,7 @@ export class UserController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const role = req.params.role as
-        | "owner"
-        | "pharmacist"
-        | "inventory_manager";
+      const role = req.params.role as UserRole;
       const date = new Date(req.params.date as string);
       const users = await this.userService.getUsersByRoleAndLastLogin(
         role,
@@ -186,31 +195,14 @@ export class UserController {
       next(error);
     }
   }
+
   async getUsersByStatusAndLastLogin(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
-      const isActive = req.query.isActive === "true";
-      const date = new Date(req.params.date as string);
-      const users = await this.userService.getUsersByStatusAndLastLogin(
-        isActive,
-        date,
-      );
-      res.status(200).json(users.map((user) => toPublicUser(user)));
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async findByStatusAndLastLogin(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
-    try {
-      const isActive = req.query.isActive === "true";
+      const isActive = req.params.isActive === "true";
       const date = new Date(req.params.date as string);
       const users = await this.userService.getUsersByStatusAndLastLogin(
         isActive,
@@ -229,8 +221,34 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
-      await this.userService.toggleUserActivation(userId);
+      await this.userService.toggleUserActivation(
+        userId,
+        this.actorRole(req),
+      );
       res.status(200).json({ message: "User activation toggled successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async changeRole(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const userId = req.params.id as string;
+      const { role } = req.body as ChangeUserRoleDto;
+      const updatedUser = await this.userService.changeRole(
+        userId,
+        role,
+        this.actorRole(req),
+      );
+      if (!updatedUser) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
+      res.status(200).json(toPublicUser(updatedUser));
     } catch (error) {
       next(error);
     }

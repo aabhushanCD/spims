@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+
+export const medicineSearchQuerySchema = z.object({
+  query: z
+    .string()
+    .trim()
+    .min(1, "Search query is required")
+    .max(100, "Search query must be at most 100 characters"),
+});
+
 export const createMedicineSchema = z.object({
   medicineName: z
     .string()
@@ -13,11 +23,11 @@ export const createMedicineSchema = z.object({
     .max(500, "Description must be at most 500 characters")
     .optional(),
 
-  categoryId: z.string().min(1, "Category is required"),
+  categoryId: objectIdSchema,
 
-  brandId: z.string().min(1, "Brand is required"),
+  brandId: objectIdSchema,
 
-  genericNameId: z.string().min(1, "Generic name is required"),
+  genericNameId: objectIdSchema,
 
   manufacturer: z
     .string()
@@ -31,7 +41,7 @@ export const createMedicineSchema = z.object({
     .max(50, "Barcode must be at most 50 characters")
     .optional(),
 
-  unitId: z.string().min(1, "Unit is required"),
+  unitId: objectIdSchema,
 
   dosageForm: z
     .string()

@@ -1,22 +1,23 @@
 import { z } from "zod";
 
+import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  stockMovementTypeSchema,
+  stockReferenceTypeSchema,
+} from "./stockMovement.schema.ts";
+
 export const createInventoryMovementSchema = z.object({
-  medicineId: z.string().min(1, "Medicine ID is required"),
-  batchId: z.string().min(1).optional(),
-  quantity: z.number().min(1, "Quantity must be greater than 0"),
-  movementType: z.enum([
-    "PURCHASE",
-    "SALE",
-    "RETURN",
-    "ADJUSTMENT",
-    "EXPIRED",
-    "RESERVE",
-    "RELEASE",
-  ]),
-  referenceId: z.string().min(1, "Reference ID is required"),
-  referenceType: z.string().optional().default("SYSTEM"),
-  performedBy: z.string().min(1, "Performed by is required"),
-  remarks: z.string().optional().default(""),
+  medicineId: objectIdSchema,
+  batchId: objectIdSchema.optional(),
+  quantity: z
+    .number()
+    .int("Quantity must be a whole number")
+    .positive("Quantity must be greater than 0"),
+  movementType: stockMovementTypeSchema,
+  referenceId: objectIdSchema,
+  referenceType: stockReferenceTypeSchema.optional().default("SYSTEM"),
+  performedBy: objectIdSchema,
+  remarks: z.string().trim().max(500).optional().default(""),
 });
 
 export type CreateInventoryMovementDto = z.infer<

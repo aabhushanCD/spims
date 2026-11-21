@@ -1,20 +1,32 @@
 import bcrypt from "bcrypt";
 
 import { AppError } from "../../../shared/error.js";
-import type { IUser } from "../model/user.model.js";
+import type { IUser, UserRole } from "../model/user.model.js";
 import type { UserRepository } from "../repo/user.repo.js";
 import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
 
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
 
-  async createUser(userData: CreateUserDto): Promise<IUser> {
-    if (
-      userData.role &&
-      !["inventory_manager", "owner", "pharmacist"].includes(userData.role)
-    ) {
-      throw AppError.unauthorized("Invalid role specified");
+  private assertOwner(actorRole: string): void {
+    if (actorRole !== "owner") {
+      throw AppError.forbidden("Only owners can manage users");
     }
+  }
+
+  private assertValidRole(role: string): void {
+    if (!["inventory_manager", "owner", "pharmacist"].includes(role)) {
+      throw AppError.badRequest("Invalid role specified");
+    }
+  }
+
+  async createUser(
+    userData: CreateUserDto,
+    actorRole: string,
+  ): Promise<IUser> {
+    this.assertOwner(actorRole);
+    this.assertValidRole(userData.role);
+
     const existingUser = await this.userRepository.findByEmail(userData.email);
     if (existingUser) {
       throw AppError.conflict("Email already exists");
@@ -36,20 +48,20 @@ export class UserService {
     return await this.userRepository.findById(id);
   }
 
-  async updateUser(id: string, userData: UpdateUserDto): Promise<IUser | null> {
+  async updateUser(
+    id: string,
+    userData: UpdateUserDto,
+    actorRole: string,
+  ): Promise<IUser | null> {
+    this.assertOwner(actorRole);
     if (!id) {
       throw AppError.badRequest("User ID is required");
     }
 
     const updateData = { ...userData };
 
-    if (
-      updateData.role &&
-      !["inventory_manager", "owner", "pharmacist"].includes(
-        updateData.role,
-      )
-    ) {
-      throw AppError.badRequest("Invalid role specified");
+    if (updateData.role) {
+      this.assertValidRole(updateData.role);
     }
 
     if (updateData.password) {
@@ -59,23 +71,38 @@ export class UserService {
     return await this.userRepository.update(id, updateData);
   }
 
-  async deleteUser(id: string, role: string): Promise<IUser | null> {
+  async deleteUser(id: string, actorRole: string): Promise<IUser | null> {
+    this.assertOwner(actorRole);
     if (!id) {
       throw AppError.badRequest("User ID is required");
     }
-    if (role !== "owner") {
-      throw AppError.unauthorized("Only owners can delete users");
-    }
     return await this.userRepository.delete(id);
+  }
+
+  async changeRole(
+    id: string,
+    role: UserRole,
+    actorRole: string,
+  ): Promise<IUser | null> {
+    this.assertOwner(actorRole);
+    if (!id) {
+      throw AppError.badRequest("User ID is required");
+    }
+    this.assertValidRole(role);
+
+    const user = await this.userRepository.findById(id);
+    if (!user) {
+      throw AppError.notFound("User not found");
+    }
+
+    return await this.userRepository.update(id, { role });
   }
 
   async getAllUsers(): Promise<IUser[]> {
     return await this.userRepository.findAll();
   }
 
-  async getUsersByRole(
-    role: "owner" | "pharmacist" | "inventory_manager",
-  ): Promise<IUser[]> {
+  async getUsersByRole(role: UserRole): Promise<IUser[]> {
     return await this.userRepository.findByRole(role);
   }
 
@@ -93,7 +120,13 @@ export class UserService {
   ): Promise<IUser[]> {
     return await this.userRepository.findByStatusAndLastLogin(isActive, date);
   }
-  async toggleUserActivation(userId: string): Promise<void> {
+
+  async toggleUserActivation(
+    userId: string,
+    actorRole: string,
+  ): Promise<void> {
+    this.assertOwner(actorRole);
+
     const user = await this.userRepository.findById(userId);
     if (!user) {
       throw AppError.notFound("User not found");
@@ -102,14 +135,14 @@ export class UserService {
   }
 
   async getUsersByRoleAndLastLogin(
-    role: "owner" | "pharmacist" | "inventory_manager",
+    role: UserRole,
     date: Date,
   ): Promise<IUser[]> {
     return await this.userRepository.findByRoleAndLastLogin(role, date);
   }
 
   async getUsersByRoleAndStatus(
-    role: "owner" | "pharmacist" | "inventory_manager",
+    role: UserRole,
     isActive: boolean,
   ): Promise<IUser[]> {
     return await this.userRepository.findByRoleAndStatus(role, isActive);

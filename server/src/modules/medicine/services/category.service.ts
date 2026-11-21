@@ -1,6 +1,7 @@
 import { AppError } from "../../../shared/error.js";
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.js";
 import type { ICategory } from "../models/category.model.js";
+import type { MedicineRepo } from "../repo/medicine.repo.js";
 import type { CategoryRepo } from "../repo/category.repo.js";
 import type {
   CreateCategoryDto,
@@ -10,6 +11,7 @@ import type {
 export class CategoryService {
   constructor(
     private readonly categoryRepo:CategoryRepo,
+    private readonly medicineRepo: MedicineRepo,
     private readonly appError: typeof AppError,
   ) {}
 
@@ -56,6 +58,12 @@ export class CategoryService {
 
   async deleteCategory(id: string): Promise<ICategory | null> {
     await this.getCategoryById(id);
+    const usage = await this.medicineRepo.countByCategoryId(id);
+    if (usage > 0) {
+      throw this.appError.conflict(
+        "Cannot delete a category referenced by medicines",
+      );
+    }
     return this.categoryRepo.delete(id);
   }
 }

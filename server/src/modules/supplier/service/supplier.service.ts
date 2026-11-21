@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import type { AppError } from "../../../shared/error.js";
+import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.js";
 import type { SupplierRepo } from "../repo/supplier.repo.js";
 import type {
   CreateSupplierDto,
@@ -9,6 +10,7 @@ import type {
 export class SupplierService {
   constructor(
     private readonly supplierRepo: SupplierRepo,
+    private readonly purchaseOrderRepo: PurchaseOrderRepo,
     private readonly appError: typeof AppError,
   ) {}
 
@@ -93,6 +95,14 @@ export class SupplierService {
     const existingSupplier = await this.supplierRepo.findById(id);
     if (!existingSupplier) {
       throw this.appError.notFound("Supplier not found");
+    }
+
+    const openPurchaseOrders =
+      await this.purchaseOrderRepo.countOpenBySupplier(id);
+    if (openPurchaseOrders > 0) {
+      throw this.appError.conflict(
+        "Cannot delete a supplier with open purchase orders",
+      );
     }
 
     return this.supplierRepo.delete(id);

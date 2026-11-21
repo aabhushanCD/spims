@@ -80,7 +80,8 @@ Notification query/param validation uses `parseOrThrow`, which throws `AppError.
 
 | Situation | Example source |
 |---|---|
-| Zod body validation | any validated route |
+| Zod body/params/query validation | routes using `validate*` |
+| Malformed ObjectId | param schemas, or the global `CastError` mapper |
 | Invalid notification body, ObjectId, cursor, or `force` value | notification routes (`validate` + `parseOrThrow`) |
 | Invalid discount | `SalesService.createSale` |
 | Cart empty | `SalesService.createSale` |
@@ -125,9 +126,9 @@ Duplicates (email, barcode, brand name, supplier email/phone) and stock conflict
 
 Any uncaught exception, including:
 
-- Mongoose `CastError` for malformed ObjectIds.
+- Mongoose `CastError` that bypasses route param validation (the global mapper turns known `CastError`s into `400`).
 - Mongoose `ValidationError` (enum mismatch, failed validator).
-- Missing required fields on unvalidated endpoints.
+- Missing required fields on routes that still lack a schema.
 - MongoDB transaction errors (for example, standalone server without replica set).
 - Repository bugs (for example `getTotalStock` misuse does not throw, but undefined lookups can).
 
@@ -137,14 +138,15 @@ The client receives only `Internal Server Error`; details are in the server cons
 
 | Cause | Result |
 |---|---|
-| Invalid ObjectId in path/body | `CastError` → 500 |
+| Invalid ObjectId in a validated path/body | `400` from `validateParams`/`validate` |
+| Invalid ObjectId that reaches Mongoose | `CastError` → global mapper → `400` |
 | Enum value outside schema | `ValidationError` → 500 (on `save()`) |
 | Required field missing on an unvalidated route | `ValidationError` → 500 |
 | Duplicate key | `MongoServerError` code 11000 → 500 unless the service pre-checks (most do) |
 | `findByIdAndUpdate` with invalid fields | Unknown fields dropped; validators skipped |
 | Transaction on standalone MongoDB | `MongoServerError` → 500 |
 
-This is why several endpoints return 500 rather than 400 for bad input: no ObjectId or query validation is applied.
+Phase 3 added ObjectId validation to every route that takes an id, plus a global `CastError` safety net, so malformed ids no longer produce a 500 on those paths.
 
 ## 6. Error-handling patterns in controllers
 
@@ -153,7 +155,7 @@ This is why several endpoints return 500 rather than 400 for bad input: no Objec
 | `try { ... } catch (e) { next(e) }` | auth, users, medicines, catalog, suppliers, purchases, sales |
 | Local `asyncHandler` wrapper | inventory, batches, returns, sale items, notifications, dashboard, smart reorders |
 | Manual checks with direct `res.status(...)` | users (404s), batch controller (400s) |
-| `parseOrThrow` for params/query | notifications |
+| `parseOrThrow` for params/query/internal DTOs | notifications, inventory movements |
 | No check | several list endpoints; failure becomes 500 |
 
 Express 5 would forward rejected async handlers automatically, but the code does not rely on that because every async controller either catches or is wrapped.

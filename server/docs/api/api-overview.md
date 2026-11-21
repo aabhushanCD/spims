@@ -41,30 +41,29 @@ Three roles exist: `owner`, `pharmacist`, `inventory_manager`.
 | `/smart-reorders/generate*` | `owner`, `inventory_manager` (additional check) |
 | `DELETE /smart-reorders/:id` | `owner` (additional check) |
 
-Because almost every router allows all three roles, authorization is effectively authentication-only for most business operations. A pharmacist can create purchases, delete sales, or manage suppliers.
+Because almost every router allows all three roles, authorization is effectively authentication-only for most business operations. A pharmacist can create purchases, delete sales, or manage suppliers. User writes are the exception: `POST`, `PUT`, `DELETE`, role changes, and activation toggles require `owner`.
 
 ## 5. Request validation
 
-Validation is implemented with Zod and applied by `validate(schema)` middleware. It parses **only `req.body`**, replaces the body with the parsed value, and returns `400` on failure.
+Validation is implemented with Zod. `validate(schema)` parses the body, `validateParams(schema)` parses route params, and `validateQuery(schema)` parses the query string. Each replaces the request value with the parsed result and returns `400` with `{ success: false, errors }` on failure.
 
-| Module | Create | Update | Delete/actions |
-|---|---|---|---|
-| auth | register, login, verify email, resend verification, forgot/reset password | refresh, logout, logout-all, revoke session | — |
-| medicines | yes | yes | — |
-| brands/categories/generic names/units | yes | yes | — |
-| suppliers | yes | yes | — |
-| purchases | create, add item, update item | — | — |
-| sales | create | **no** | — |
-| returns | schema exists but **not wired** | **no** | — |
-| inventory | schema exists but **not wired** | **no** | **no** |
-| batches | **no** | **no** | **no** |
-| notifications | yes (Zod body; `parseOrThrow` for params/query) | preferences (Zod body) | dispatch/retry/get detail: `owner`/`pharmacist` |
-| smart reorders | **no** | — | — |
+| Module | Create | Update | Params / query | Delete/actions |
+|---|---|---|---|---|
+| auth | register, login, verify email, resend verification, forgot/reset password | refresh, logout, logout-all, revoke session | session id | — |
+| users | create | update, role change | user/role/status/date ids | delete, toggle activation |
+| medicines | yes | yes | id, search query | id |
+| brands/categories/generic names/units | yes | yes | id | id |
+| suppliers | yes | yes | id | id |
+| purchases | create, add item, update item, receive | — | purchase/item/supplier ids | receive, item delete |
+| sales | create | update | sale/sale-item ids | delete |
+| returns | create | reason update | return id | — |
+| inventory | create, increase/decrease/reserve/release/sync | update | id, medicine id, search query | delete |
+| batches | create | update | id, medicine id, low-stock threshold | deduct/increase/adjust/dispose/delete |
+| notifications | yes (Zod body; `parseOrThrow` for params/query) | preferences (Zod body) | notification/user ids, pagination | dispatch/retry/get detail: `owner`/`pharmacist` |
+| smart reorders | — | — | id, medicine id | approve/reject/delete |
+| dashboard | — | — | — | — |
 
-Params and query strings are not validated by the shared body middleware.
-Notification routes validate params/query in the controller with
-`parseOrThrow`; a few other controllers validate numeric query parameters
-manually (`threshold`, `quantity`, `limit`, `year`).
+Malformed ObjectIds are normally rejected by param schemas. The global error handler also maps a Mongoose `CastError` to `400` as a safety net.
 
 ## 6. Response envelopes
 
@@ -127,13 +126,15 @@ these filtering options exist:
 No `page`, `pageSize`, `sort`, or `order` parameters exist. Notification
 endpoints use `cursor` + `limit` instead.
 
-## 9. Route ordering caveats
+## 9. Route ordering
 
-| Path | Issue |
+User routes are registered static-first: `/active`, `/inactive`, the role/status/date filters, `/last-login/:date`, `/`, then `/:id`. This keeps `GET /users/active` reachable and avoids `getUserById("active")`.
+
+| Path | Status |
 |---|---|
-| `GET /users/active` | Registered after `GET /users/:id`, so it is captured by `getUserById("active")` and is effectively unreachable |
-| `GET /users/status/:isActive/last-login/:date` | Registered twice; the second handler (`findByStatusAndLastLogin`) is unreachable |
-| `GET /users/:id/inactive` | Returns inactive users and ignores `:id` |
+| `GET /users/active` | Fixed; registered before `GET /users/:id` |
+| `GET /users/inactive` | Fixed; replaces the misleading `/:id/inactive` route |
+| `GET /users/status/:isActive/last-login/:date` | Fixed; registered once |
 | `GET /purchases/supplier/:supplierId` | Works because it is two segments after the base; do not confuse with `GET /purchases/:id` |
 | `GET /batches/expired/awaiting-disposal` | Defined before `/:id`, so it resolves correctly |
 | `POST /batches/mark-expired` | Defined before `POST /:id/...`, resolves correctly |

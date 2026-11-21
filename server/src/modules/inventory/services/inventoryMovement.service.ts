@@ -1,11 +1,15 @@
 import mongoose, { Types } from "mongoose";
 import type { AppError } from "../../../shared/error.ts";
+import { parseOrThrow } from "../../../shared/utils/parseOrThrow.ts";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { MedicineRepo } from "../../medicine/repo/medicine.repo.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 import type { IInventoryMovement } from "../model/inventoryMovement.model.ts";
 import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
-import type { CreateInventoryMovementDto } from "../schema/inventoryMovement.schema.ts";
+import {
+  createInventoryMovementSchema,
+  type CreateInventoryMovementDto,
+} from "../schema/inventoryMovement.schema.ts";
 import type { StockReferenceType } from "../types/stockMovement.type.ts";
 
 export class InventoryMovementService {
@@ -21,20 +25,24 @@ export class InventoryMovementService {
     movementData: CreateInventoryMovementDto,
     session?: mongoose.ClientSession,
   ) {
-    const medicineId = movementData.medicineId.toString();
-    const userId = movementData.performedBy.toString();
+    const validated = parseOrThrow(
+      createInventoryMovementSchema,
+      movementData,
+    );
+    const medicineId = validated.medicineId.toString();
+    const userId = validated.performedBy.toString();
     const medicine = await this.medicineRepo.findById(medicineId);
     const referenceType: StockReferenceType =
-      (movementData.referenceType as StockReferenceType) || "SYSTEM";
+      (validated.referenceType as StockReferenceType) || "SYSTEM";
     if (!medicine) {
       throw this.appError.notFound("Medicine not found");
     }
 
-    const batch = movementData.batchId
-      ? await this.batchRepo.findById(movementData.batchId.toString(), session)
+    const batch = validated.batchId
+      ? await this.batchRepo.findById(validated.batchId.toString(), session)
       : null;
 
-    if (movementData.batchId && !batch) {
+    if (validated.batchId && !batch) {
       throw this.appError.notFound("Batch not found");
     }
     if (batch && batch.medicineId.toString() !== medicineId) {
@@ -49,12 +57,12 @@ export class InventoryMovementService {
     }
     const movementRecord: Partial<IInventoryMovement> = {
       medicineId: medicine._id,
-      movementType: movementData.movementType,
-      quantity: movementData.quantity,
-      referenceId: new Types.ObjectId(movementData.referenceId),
+      movementType: validated.movementType,
+      quantity: validated.quantity,
+      referenceId: new Types.ObjectId(validated.referenceId),
       referenceType,
       performedBy: user._id,
-      remarks: movementData.remarks,
+      remarks: validated.remarks,
     };
     if (batch) {
       movementRecord.batchId = batch._id;

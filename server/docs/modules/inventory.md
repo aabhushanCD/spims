@@ -41,7 +41,7 @@ modules/inventory/
 
 ## 4. Routes
 
-Base: `/api/inventory`, roles: all three. No Zod middleware.
+Base: `/api/inventory`, roles: all three. Body, param, and query schemas are applied per route.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -120,15 +120,16 @@ See [Inventory data model](../database/inventory-data-model.md).
 
 ## 8. Validation
 
-- `createInventorySchema` and `createInventoryMovementSchema` exist but are **not wired**.
+- `createInventorySchema`, operation schemas, and param/query schemas are wired to the routes.
+- `createInventorySchema` is strict: client-supplied `currentStock`/`availableStock` are rejected because stock is derived from batches.
+- `createInventoryMovementSchema` validates the internal movement DTO at the service boundary, including ObjectIds and the nine-value `referenceType` enum.
 - Controller checks cover movement type, `performedBy`, positive quantities, and required `batchId` on increase/decrease.
 - `StockMutationService` validates batch ownership, upper bounds, and session ownership.
-- No ObjectId validation.
-- No quantity validation on `POST /inventory` for client-supplied `currentStock`/`availableStock`, because those fields are ignored.
+- Every id-bearing route validates ObjectIds before the controller; the global `CastError` mapper is a safety net.
 
 ## 9. Middleware
 
-`verifyToken` + `authorize` at the mount. Nothing else.
+`verifyToken` + `authorize` at the mount, plus per-route body/param/query validation.
 
 ## 10. Business rules
 
@@ -195,7 +196,7 @@ flowchart TB
 | Decrease always logged `SALE` | Fixed (respects `EXPIRED`/`ADJUSTMENT` context) | — |
 | Inventory/batch drift on manual operations | Fixed for wired mutations; expiry flagging still needs a sync | Phase 2 |
 | Duplicate inventory rows possible | Fixed (unique index; dedupe before deploy) | — |
-| No validation middleware | Still open | Phase 3 |
+| No validation middleware | Already fixed (body/params/query and movement DTO schemas) | — |
 | `StockAdjustment` unreachable | Needs decision | Phase 6 |
 | Movement read endpoints absent | Still open | Phase 5 |
 | No stocktake/bulk adjustment workflow | Needs decision | Phase 6 |

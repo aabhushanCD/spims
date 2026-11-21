@@ -6,6 +6,17 @@ import type {
 } from "express";
 import { AppError } from "../error.ts";
 
+function isCastError(
+  error: unknown,
+): error is Error & { name: "CastError"; path?: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "CastError"
+  );
+}
+
 export const errorHandler: ErrorRequestHandler = (
   err: Error,
   req: Request,
@@ -17,6 +28,14 @@ export const errorHandler: ErrorRequestHandler = (
       success: false,
       message: err.message,
       ...(err.code ? { code: err.code } : {}),
+    });
+  }
+
+  if (isCastError(err)) {
+    const field = err.path || "identifier";
+    return res.status(400).json({
+      success: false,
+      message: `Invalid ${field}`,
     });
   }
 

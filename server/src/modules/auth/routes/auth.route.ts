@@ -5,13 +5,17 @@ import express, {
 } from "express";
 
 import { authController } from "../../../app/container.ts";
-import { validate } from "../../../shared/middleware/validate.middleware.js";
+import {
+  validate,
+  validateParams,
+} from "../../../shared/middleware/validate.middleware.js";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import {
   createRateLimiter,
   ipAndEmailKey,
 } from "../../../shared/middleware/rateLimit.middleware.ts";
 import { verifyOrigin } from "../../../shared/middleware/verifyOrigin.middleware.ts";
+import { objectIdParamSchema } from "../../../shared/schema/objectId.schema.ts";
 import { emailSchema } from "../schema/email.schema.ts";
 import { loginSchema } from "../schema/login.schema.ts";
 import { registerSchema } from "../schema/register.schema.ts";
@@ -175,6 +179,7 @@ router.get(
 router.delete(
   "/sessions/:id",
   verifyToken,
+  validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {
     authController.revokeSession(req, res, next);
   },

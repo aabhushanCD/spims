@@ -160,7 +160,7 @@ Notes:
 ## 10. Validation
 
 - `suggestedQuantity > 0` and `confidenceScore` 0–1 in the unused `createRecommendation` method.
-- HTTP routes have no Zod validation.
+- HTTP routes validate ObjectId params; generate actions accept no body.
 - `threshold`/`targetStock` are ignored.
 - Medicine existence is checked; supplier existence is checked.
 

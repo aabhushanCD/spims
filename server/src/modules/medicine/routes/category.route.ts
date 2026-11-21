@@ -6,11 +6,15 @@ import express, {
 
 const router = express.Router();
 
-import { validate } from "../../../shared/middleware/validate.middleware.js";
+import {
+  validate,
+  validateParams,
+} from "../../../shared/middleware/validate.middleware.js";
 import {
   createCategorySchema,
   updateCategorySchema,
 } from "../schema/category.schema.js";
+import { objectIdParamSchema } from "../../../shared/schema/objectId.schema.ts";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import { categoryController } from "../../../app/container.ts";
 
@@ -26,6 +30,7 @@ router.post(
 router.get(
   "/:id",
   verifyToken,
+  validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {
     categoryController.getCategoryById(req, res, next);
   },
@@ -41,6 +46,7 @@ router.get(
 
 router.put(
   "/:id",
+  validateParams(objectIdParamSchema),
   validate(updateCategorySchema),
   verifyToken,
   (req: Request, res: Response, next: NextFunction) => {
@@ -51,6 +57,7 @@ router.put(
 router.delete(
   "/:id",
   verifyToken,
+  validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {
     categoryController.deleteCategory(req, res, next);
   },

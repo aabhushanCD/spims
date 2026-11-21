@@ -7,6 +7,7 @@ import type {
 import type { BrandService } from "./brand.service.js";
 import type { CategoryService } from "./category.service.js";
 import type { GenericNameService } from "./genericName.service.js";
+import type { UnitService } from "./unit.service.js";
 
 export class MedicineService {
   constructor(
@@ -15,6 +16,7 @@ export class MedicineService {
     private readonly genericNameService: GenericNameService,
     private readonly brandService: BrandService,
     private readonly categoryService: CategoryService,
+    private readonly unitService: UnitService,
   ) {}
 
   async createMedicine(medicineData: CreateMedicineDto) {
@@ -23,6 +25,7 @@ export class MedicineService {
       medicineData.genericNameId,
     );
     await this.brandService.getBrandById(medicineData.brandId);
+    await this.unitService.getUnitById(medicineData.unitId);
 
     if (medicineData.barcode) {
       const existing = await this.medicineRepo.findByBarcode(
@@ -79,6 +82,10 @@ export class MedicineService {
       await this.genericNameService.getGenericNameById(
         updateData.genericNameId?.toString(),
       );
+    }
+
+    if (updateData.unitId) {
+      await this.unitService.getUnitById(updateData.unitId.toString());
     }
 
     if (updateData.barcode) {

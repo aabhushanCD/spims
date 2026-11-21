@@ -7,12 +7,12 @@ import type { PurchaseOrderRepo } from "../repo/purchaseOrder.repo.ts";
 import type { PurchaseOrderItemRepo } from "../repo/purchaseOrderItem.repo.ts";
 import type { CreatePurchaseOrderDto } from "../schema/purchaseOrder.schema.ts";
 import type {
-  CreatePurchaseOrderItemDto,
+  CreatePurchaseOrderItemInput,
   UpdatePurchaseOrderItemDto,
 } from "../schema/purchaseOrderItem.schema.ts";
 
 import type { BatchService } from "../../batch/service/batch.service.ts";
-import type { ReceivePurchaseOrderDto } from "../schema/receivePurchaseOrder.type.ts";
+import type { ReceivePurchaseOrderDto } from "../schema/receivePurchaseOrder.schema.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 
 export class PurchaseOrderService {
@@ -37,19 +37,25 @@ export class PurchaseOrderService {
           throw this.appError.notFound("Supplier not found");
         }
 
-        const { items, ...purchaseOrderData } = data;
+        const {
+          items,
+          expectedDeliveryDate,
+          receivedDate,
+          ...purchaseOrderData
+        } = data;
         const totalAmount = items.reduce(
           (sum, item) => sum + item.quantity * item.purchasePrice,
           0,
         );
 
-        const purchaseOrderPayload = {
+        const purchaseOrderPayload: Partial<IPurchaseOrder> = {
           ...purchaseOrderData,
           supplierId: new Types.ObjectId(data.supplierId),
           totalAmount,
-          ...(purchaseOrderData.orderDate !== undefined
-            ? { orderDate: purchaseOrderData.orderDate }
+          ...(expectedDeliveryDate !== undefined
+            ? { expectedDeliveryDate }
             : {}),
+          ...(receivedDate !== undefined ? { receivedDate } : {}),
         };
 
         purchaseOrder = await this.purchaseOrderRepo.create(
@@ -176,7 +182,7 @@ export class PurchaseOrderService {
 
   async addPurchaseOrderItem(
     purchaseOrderId: string,
-    data: CreatePurchaseOrderItemDto,
+    data: CreatePurchaseOrderItemInput,
   ) {
     const purchaseOrder =
       await this.purchaseOrderRepo.findById(purchaseOrderId);

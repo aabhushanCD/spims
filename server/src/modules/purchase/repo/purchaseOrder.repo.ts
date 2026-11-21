@@ -56,6 +56,15 @@ export class PurchaseOrderRepo {
     return await this.purchaseOrderModel.find({ supplierId }).exec();
   }
 
+  async countOpenBySupplier(supplierId: string): Promise<number> {
+    return this.purchaseOrderModel
+      .countDocuments({
+        supplierId,
+        status: { $in: ["pending", "approved"] },
+      })
+      .exec();
+  }
+
   async update(
     id: string,
     updateData: Partial<IPurchaseOrder>,

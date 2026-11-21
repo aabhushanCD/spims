@@ -28,7 +28,7 @@ modules/batch/
 
 ## 4. Routes
 
-Base: `/api/batches`, roles: all three. No Zod middleware.
+Base: `/api/batches`, roles: all three. Body, param, and query schemas are applied per route.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -97,18 +97,21 @@ The HTTP update path enforces the same rules explicitly because `findByIdAndUpda
 
 ## 8. Validation
 
-`modules/batch/schema/batch.schema.ts` exists but is not imported by the router. Request checks cover:
+`modules/batch/schema/batch.schema.ts` is wired to every batch route. Request checks cover:
 
-- positive `quantity` on deduct/increase;
-- non-negative `quantity` on adjust;
-- non-negative `threshold`;
+- ObjectId params and body ids;
+- coerced manufacturing/expiry dates;
+- positive whole-number create quantities and non-negative update quantities;
+- positive `quantity` on deduct/increase, non-negative integer on adjust;
+- non-negative `threshold` query with a default of 10;
+- movement metadata (`referenceId`, `referenceType`, `remarks`);
 - authenticated user on create/update/deduct/increase/adjust/disposal;
-- immutable fields rejected on update;
-- date ordering and quantity bounds.
+- immutable fields rejected by the service on update;
+- date ordering and quantity bounds in `BatchService`.
 
 ## 9. Middleware
 
-`verifyToken` + `authorize` at `/api/batches`. No module-specific middleware.
+`verifyToken` + `authorize` at `/api/batches`, plus per-route body/param/query validation.
 
 ## 10. Business rules
 
@@ -207,7 +210,7 @@ sequenceDiagram
 | No partial receiving/batch split | Needs decision | Phase 6 |
 | No batch merge/transfer | Needs decision | Phase 6 |
 | No transaction around disposal | Fixed | — |
-| No request validation | Still open | Phase 3 |
+| No request validation | Already fixed (body/params/query schemas) | — |
 | Deletion allowed with stock | Fixed (409 when stock remains) | — |
 | Zero-stock batch can be deleted while sale items/movements reference it | Still open | Phase 5/6 |
 | `markExpiredBatches` does not sync aggregates | Known limitation; next mutation/sync corrects it | Phase 5 |
