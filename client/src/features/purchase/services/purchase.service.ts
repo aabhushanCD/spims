@@ -16,8 +16,10 @@ const createPurchaseOrder = async (
 };
 
 const getPurchaseOrders = async (): Promise<PurchaseListItem[]> => {
-  const response = await api.get<ApiResponse<PurchaseListItem[]>>("/purchases");
-  return response.data.data;
+  const response = await api.get<
+    ApiResponse<{ items: PurchaseListItem[]; nextCursor: string | null }>
+  >("/purchases?limit=100");
+  return response.data.data.items;
 };
 
 const getPurchaseOrderById = async (id: string): Promise<PurchaseDetails> => {

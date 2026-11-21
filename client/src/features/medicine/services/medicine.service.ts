@@ -4,9 +4,12 @@ import type { Medicine } from "../types/medicine.types";
 import type { MedicineFormData } from "../schema/medicine.schema";
 
 const getMedicines = async (): Promise<Medicine[]> => {
-  const response = await api.get("/medicines");
+  const response = await api.get<{
+    success: boolean;
+    data: { items: Medicine[]; nextCursor: string | null };
+  }>("/medicines?limit=100");
 
-  return response.data;
+  return response.data.data.items;
 };
 
 const createMedicine = async (data: MedicineFormData) => {
