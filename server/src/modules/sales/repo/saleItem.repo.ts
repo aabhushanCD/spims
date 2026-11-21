@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { roundCurrency } from "../../../shared/finance/money.ts";
 import type { ISalesItem } from "../model/salesItem.model.ts";
 import type SaleItem from "../model/salesItem.model.ts";
 export class SaleItemRepo {
@@ -133,10 +134,45 @@ export class SaleItemRepo {
     const results = await this.saleItemModel
       .aggregate([
         {
+          $lookup: {
+            from: "sales",
+            localField: "salesId",
+            foreignField: "_id",
+            as: "sale",
+          },
+        },
+        { $unwind: "$sale" },
+        // Cancelled sales never count; returned units are excluded below.
+        { $match: { "sale.status": { $ne: "CANCELLED" } } },
+        {
+          $addFields: {
+            netQuantity: {
+              $subtract: [
+                "$quantity",
+                { $ifNull: ["$returnedQuantity", 0] },
+              ],
+            },
+          },
+        },
+        { $match: { netQuantity: { $gt: 0 } } },
+        {
           $group: {
             _id: "$medicineId",
-            totalQuantitySold: { $sum: "$quantity" },
-            totalRevenue: { $sum: "$totalPrice" },
+            totalQuantitySold: { $sum: "$netQuantity" },
+            totalRevenue: {
+              $sum: {
+                $cond: [
+                  { $gt: ["$quantity", 0] },
+                  {
+                    $multiply: [
+                      "$totalPrice",
+                      { $divide: ["$netQuantity", "$quantity"] },
+                    ],
+                  },
+                  0,
+                ],
+              },
+            },
           },
         },
         {
@@ -178,6 +214,140 @@ export class SaleItemRepo {
       totalQuantitySold: item.totalQuantitySold,
       totalRevenue: item.totalRevenue,
     }));
+  }
+
+  /**
+   * Cost of goods sold for sales in a half-open period.
+   *
+   * Cost is reversed only for GOOD returns, because their stock re-enters
+   * sellable inventory. DAMAGED/EXPIRED/OPENED units were written off, so
+   * their cost stays in COGS. The per-item `purchasePrice` snapshot keeps
+   * historical cost stable if the batch is later edited; legacy items fall
+   * back to the batch price.
+   */
+  async getCogsInRange(
+    startDate: Date,
+    endExclusive: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
+    const [result] = await this.saleItemModel
+      .aggregate([
+        {
+          $lookup: {
+            from: "sales",
+            localField: "salesId",
+            foreignField: "_id",
+            as: "sale",
+          },
+        },
+        { $unwind: "$sale" },
+        {
+          $match: {
+            "sale.status": { $ne: "CANCELLED" },
+            "sale.saleDate": { $gte: startDate, $lt: endExclusive },
+          },
+        },
+        {
+          $lookup: {
+            from: "returns",
+            let: { saleItemId: "$_id" },
+            pipeline: [
+              { $match: { status: "COMPLETED" } },
+              { $unwind: "$returnItems" },
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$returnItems.saleItemId", "$$saleItemId"] },
+                      { $eq: ["$returnItems.condition", "GOOD"] },
+                    ],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  quantity: { $sum: "$returnItems.quantity" },
+                },
+              },
+            ],
+            as: "restoredReturns",
+          },
+        },
+        {
+          $addFields: {
+            restoredQuantity: {
+              $ifNull: [
+                { $arrayElemAt: ["$restoredReturns.quantity", 0] },
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $addFields: {
+            netQuantity: {
+              $cond: [
+                {
+                  $gt: [
+                    {
+                      $subtract: ["$quantity", "$restoredQuantity"],
+                    },
+                    0,
+                  ],
+                },
+                { $subtract: ["$quantity", "$restoredQuantity"] },
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "batches",
+            localField: "batchId",
+            foreignField: "_id",
+            as: "batch",
+          },
+        },
+        {
+          $unwind: {
+            path: "$batch",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            cogs: {
+              $sum: {
+                $multiply: [
+                  "$netQuantity",
+                  {
+                    $ifNull: [
+                      "$purchasePrice",
+                      { $ifNull: ["$batch.purchasePrice", 0] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .session(session ?? null);
+
+    return roundCurrency(result?.cogs ?? 0);
+  }
+
+  /** True when any sale item references the batch. */
+  async existsByBatchId(
+    batchId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<boolean> {
+    const query = this.saleItemModel.exists({ batchId });
+    const exists = session ? await query.session(session) : await query;
+    return !!exists;
   }
   async getDailySalesForMedicine(
     medicineId: string,

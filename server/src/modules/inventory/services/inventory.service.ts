@@ -311,6 +311,7 @@ export class InventoryService {
         medicineId,
         quantity: sellQty,
         unitPrice: batch.sellingPrice,
+        purchasePrice: batch.purchasePrice,
       });
 
       remaining -= sellQty;

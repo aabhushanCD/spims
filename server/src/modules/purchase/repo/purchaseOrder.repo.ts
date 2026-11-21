@@ -91,16 +91,18 @@ export class PurchaseOrderRepo {
     return await this.purchaseOrderModel.findByIdAndDelete(id).exec();
   }
 
-  async getTotalPurchases(session?: mongoose.ClientSession): Promise<number> {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  /** Non-cancelled purchase commitments ordered in a half-open period. */
+  async getTotalPurchasesInRange(
+    startDate: Date,
+    endExclusive: Date,
+    session?: mongoose.ClientSession,
+  ): Promise<number> {
     const [result] = await this.purchaseOrderModel
       .aggregate([
         {
           $match: {
             status: { $ne: "cancelled" },
-            createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+            orderDate: { $gte: startDate, $lt: endExclusive },
           },
         },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },

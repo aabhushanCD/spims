@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ReturnService, type CreateReturnDto } from "./return.service.ts";
+
 import { AppError } from "../../../shared/error.ts";
+import { ReturnService, type CreateReturnDto } from "./return.service.ts";
 
 const MEDICINE_ID = "507f1f77bcf86cd799439011";
 const BATCH_ID = "507f1f77bcf86cd799439021";
@@ -42,6 +43,28 @@ function buildDto(overrides: Partial<CreateReturnDto> = {}): CreateReturnDto {
   };
 }
 
+function buildApprovedReturn(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    _id: { toString: () => RETURN_ID },
+    salesId: { toString: () => SALE_ID },
+    returnNumber: "RET-000001",
+    status: "APPROVED",
+    returnItems: [
+      {
+        saleItemId: { toString: () => SALE_ITEM_ID },
+        medicineId: { toString: () => MEDICINE_ID },
+        batchId: { toString: () => BATCH_ID },
+        quantity: 3,
+        condition: "GOOD",
+        remarks: "Box opened",
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function buildService() {
   const session = {
     withTransaction: vi.fn(async (callback: () => Promise<void>) => callback()),
@@ -54,11 +77,18 @@ function buildService() {
   const returnRepo = {
     create: vi.fn().mockResolvedValue({
       _id: { toString: () => RETURN_ID },
+      status: "PENDING",
     }),
-    update: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({
+      _id: { toString: () => RETURN_ID },
+      status: "COMPLETED",
+    }),
     findById: vi.fn().mockResolvedValue({ _id: RETURN_ID }),
-    findAll: vi.fn(),
-    delete: vi.fn(),
+    findByIdRaw: vi.fn().mockResolvedValue(buildApprovedReturn()),
+    findAll: vi.fn().mockResolvedValue([]),
+    transitionStatus: vi.fn().mockResolvedValue({ _id: RETURN_ID }),
+    sumOutstandingBySaleItemIds: vi.fn().mockResolvedValue([]),
+    hasActiveBySale: vi.fn().mockResolvedValue(false),
   };
   const saleItemRepo = {
     findBySalesId: vi.fn().mockResolvedValue([buildSaleItem()]),
@@ -90,11 +120,13 @@ function buildService() {
 
   return {
     service,
+    session,
     connection,
     returnRepo,
     saleItemRepo,
     salesRepo,
     inventoryService,
+    counterRepo,
   };
 }
 
@@ -103,210 +135,564 @@ describe("ReturnService", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects an empty return before opening a transaction", async () => {
-    const { service, connection } = buildService();
+  describe("createReturn", () => {
+    it("rejects an empty return before opening a transaction", async () => {
+      const { service, connection } = buildService();
 
-    await expect(
-      service.createReturn(buildDto({ items: [] })),
-    ).rejects.toMatchObject({
-      message: "Return must contain at least one item",
-      statusCode: 400,
+      await expect(
+        service.createReturn(buildDto({ items: [] })),
+      ).rejects.toMatchObject({
+        message: "Return must contain at least one item",
+        statusCode: 400,
+      });
+      expect(connection.startSession).not.toHaveBeenCalled();
     });
-    expect(connection.startSession).not.toHaveBeenCalled();
-  });
 
-  it("rejects a return for an unknown sale", async () => {
-    const { service, salesRepo } = buildService();
-    salesRepo.findById.mockResolvedValue(null);
+    it("rejects a return for an unknown sale", async () => {
+      const { service, salesRepo } = buildService();
+      salesRepo.findById.mockResolvedValue(null);
 
-    await expect(service.createReturn(buildDto())).rejects.toMatchObject({
-      message: "Sale not found",
-      statusCode: 404,
+      await expect(service.createReturn(buildDto())).rejects.toMatchObject({
+        message: "Sale not found",
+        statusCode: 404,
+      });
     });
-  });
 
-  it("rejects a return date before the sale date", async () => {
-    const { service } = buildService();
+    it("rejects a return date before the sale date", async () => {
+      const { service } = buildService();
 
-    await expect(
-      service.createReturn(buildDto({ returnDate: "2025-12-31T10:00:00Z" })),
-    ).rejects.toMatchObject({
-      message: "Return date cannot be before sale date",
-      statusCode: 400,
+      await expect(
+        service.createReturn(buildDto({ returnDate: "2025-12-31T10:00:00Z" })),
+      ).rejects.toMatchObject({
+        message: "Return date cannot be before sale date",
+        statusCode: 400,
+      });
     });
-  });
 
-  it("rejects returning more than the unreturned quantity", async () => {
-    const { service, inventoryService } = buildService();
+    it("rejects a sale item that does not belong to the sale", async () => {
+      const { service } = buildService();
 
-    await expect(
-      service.createReturn(
+      await expect(
+        service.createReturn(
+          buildDto({
+            items: [
+              {
+                saleItemId: "507f1f77bcf86cd799439999",
+                quantity: 1,
+                condition: "GOOD",
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({
+        message: "Invalid Sale Item",
+        statusCode: 400,
+      });
+    });
+
+    it("subtracts outstanding pending/approved quantities", async () => {
+      const { service, returnRepo, inventoryService } = buildService();
+      returnRepo.sumOutstandingBySaleItemIds.mockResolvedValue([
+        { saleItemId: SALE_ITEM_ID, quantity: 6 },
+      ]);
+
+      await expect(service.createReturn(buildDto())).rejects.toMatchObject({
+        message: "Only 2 items can be returned.",
+        statusCode: 400,
+      });
+      expect(inventoryService.returnMedicine).not.toHaveBeenCalled();
+    });
+
+    it("persists a PENDING quote with VAT without moving stock", async () => {
+      const { service, returnRepo, inventoryService, saleItemRepo, salesRepo } =
+        buildService();
+
+      await service.createReturn(buildDto());
+
+      expect(inventoryService.returnMedicine).not.toHaveBeenCalled();
+      expect(saleItemRepo.update).not.toHaveBeenCalled();
+      expect(salesRepo.update).not.toHaveBeenCalled();
+      expect(returnRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          returnNumber: "RET-000001",
+          status: "PENDING",
+          // 3 * 100 = 300, line discount share 15 => net 285, VAT 37.05
+          refundAmount: 322.05,
+          returnItems: [
+            expect.objectContaining({
+              saleItemId: expect.anything(),
+              quantity: 3,
+              unitPrice: 100,
+              discount: 15,
+              VAT: 37.05,
+              refundAmount: 322.05,
+              condition: "GOOD",
+            }),
+          ],
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("apportions an invoice-level discount into the refund", async () => {
+      const { service, returnRepo, saleItemRepo, salesRepo } = buildService();
+      const otherItemId = "507f1f77bcf86cd799439052";
+
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        buildSaleItem({
+          quantity: 3,
+          returnedQuantity: 0,
+          unitPrice: 100,
+          discount: 0,
+        }),
+        buildSaleItem({
+          _id: { toString: () => otherItemId },
+          quantity: 2,
+          returnedQuantity: 0,
+          unitPrice: 50,
+          discount: 0,
+        }),
+      ]);
+      // Sale: subtotal 400, invoice discount 25, taxable 375, VAT 48.75,
+      // total 423.75. The two refunds below sum to exactly 423.75.
+      salesRepo.findById.mockResolvedValue({
+        _id: { toString: () => SALE_ID },
+        saleDate,
+        discount: 25,
+      });
+
+      await service.createReturn(
+        buildDto({
+          items: [
+            { saleItemId: SALE_ITEM_ID, quantity: 3, condition: "GOOD" },
+            { saleItemId: otherItemId, quantity: 2, condition: "GOOD" },
+          ],
+        }),
+      );
+
+      const payload = returnRepo.create.mock.calls[0]?.[0] as {
+        refundAmount: number;
+        returnItems: Array<{
+          discount: number;
+          VAT: number;
+          refundAmount: number;
+        }>;
+      };
+
+      expect(payload.returnItems[0]).toMatchObject({
+        discount: 18.75,
+        VAT: 36.56,
+        refundAmount: 317.81,
+      });
+      expect(payload.returnItems[1]).toMatchObject({
+        discount: 6.25,
+        VAT: 12.19,
+        refundAmount: 105.94,
+      });
+      expect(payload.refundAmount).toBe(423.75);
+    });
+
+    it("persists per-line remarks", async () => {
+      const { service, returnRepo } = buildService();
+
+      await service.createReturn(
         buildDto({
           items: [
             {
               saleItemId: SALE_ITEM_ID,
-              quantity: 9,
+              quantity: 1,
               condition: "GOOD",
+              remarks: "Seal intact",
             },
           ],
         }),
-      ),
-    ).rejects.toMatchObject({
-      message: "Only 8 items can be returned.",
-      statusCode: 400,
+      );
+
+      expect(returnRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          returnItems: [
+            expect.objectContaining({ remarks: "Seal intact" }),
+          ],
+        }),
+        expect.anything(),
+      );
     });
-    expect(inventoryService.returnMedicine).not.toHaveBeenCalled();
-  });
 
-  it("rejects a sale item that does not belong to the sale", async () => {
-    const { service } = buildService();
+    it("counts multiple condition lines cumulatively against the same item", async () => {
+      const { service } = buildService();
 
-    await expect(
-      service.createReturn(
+      await expect(
+        service.createReturn(
+          buildDto({
+            items: [
+              {
+                saleItemId: SALE_ITEM_ID,
+                quantity: 5,
+                condition: "GOOD",
+              },
+              {
+                saleItemId: SALE_ITEM_ID,
+                quantity: 5,
+                condition: "DAMAGED",
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({
+        message: "Only 3 items can be returned.",
+        statusCode: 400,
+      });
+    });
+
+    it("merges duplicate lines for the same condition only", async () => {
+      const { service, returnRepo } = buildService();
+
+      await service.createReturn(
         buildDto({
           items: [
             {
-              saleItemId: "507f1f77bcf86cd799439999",
+              saleItemId: SALE_ITEM_ID,
               quantity: 1,
               condition: "GOOD",
             },
+            {
+              saleItemId: SALE_ITEM_ID,
+              quantity: 2,
+              condition: "GOOD",
+            },
+            {
+              saleItemId: SALE_ITEM_ID,
+              quantity: 1,
+              condition: "DAMAGED",
+            },
           ],
         }),
-      ),
-    ).rejects.toMatchObject({
-      message: "Invalid Sale Item",
-      statusCode: 400,
+      );
+
+      const payload = returnRepo.create.mock.calls[0]?.[0] as {
+        returnItems: Array<{ quantity: number; condition: string }>;
+      };
+
+      expect(payload.returnItems).toHaveLength(2);
+      expect(payload.returnItems).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ quantity: 3, condition: "GOOD" }),
+          expect.objectContaining({ quantity: 1, condition: "DAMAGED" }),
+        ]),
+      );
+    });
+
+    it("ends the session after creation and on failure", async () => {
+      const success = buildService();
+      await success.service.createReturn(buildDto());
+      expect(success.session.endSession).toHaveBeenCalledTimes(1);
+
+      const failure = buildService();
+      failure.salesRepo.findById.mockResolvedValue(null);
+      await expect(failure.service.createReturn(buildDto())).rejects.toThrow(
+        "Sale not found",
+      );
+      expect(failure.session.endSession).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("calculates the refund net of the original line discount", async () => {
-    const { service, returnRepo, saleItemRepo, salesRepo, inventoryService } =
-      buildService();
+  describe("status transitions", () => {
+    it("approves, rejects, and cancels pending returns", async () => {
+      const { service, returnRepo } = buildService();
 
-    await service.createReturn(buildDto());
+      await service.approveReturn(RETURN_ID);
+      expect(returnRepo.transitionStatus).toHaveBeenCalledWith(
+        RETURN_ID,
+        "PENDING",
+        "APPROVED",
+      );
 
-    // 3 units * 100 = 300, minus (50 discount / 10 units) * 3 = 15
-    expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
-      MEDICINE_ID,
-      BATCH_ID,
-      3,
-      "GOOD",
-      expect.objectContaining({
-        referenceId: RETURN_ID,
-        referenceType: "SALES_RETURN",
-        movementType: "RETURN",
-        performedBy: USER_ID,
-      }),
-      expect.anything(),
-    );
-    expect(returnRepo.update).toHaveBeenCalledWith(
-      RETURN_ID,
-      expect.objectContaining({
-        refundAmount: 285,
+      await service.rejectReturn(RETURN_ID);
+      expect(returnRepo.transitionStatus).toHaveBeenCalledWith(
+        RETURN_ID,
+        "PENDING",
+        "REJECTED",
+      );
+
+      await service.cancelReturn(RETURN_ID);
+      expect(returnRepo.transitionStatus).toHaveBeenCalledWith(
+        RETURN_ID,
+        "PENDING",
+        "CANCELLED",
+      );
+    });
+
+    it("rejects an invalid transition with 409", async () => {
+      const { service, returnRepo } = buildService();
+      returnRepo.transitionStatus.mockResolvedValue(null);
+      returnRepo.findByIdRaw.mockResolvedValue({
+        _id: RETURN_ID,
         status: "COMPLETED",
-        returnItems: [
-          expect.objectContaining({
-            saleItemId: expect.anything(),
-            quantity: 3,
-            refundAmount: 285,
-            condition: "GOOD",
-          }),
-        ],
-      }),
-      expect.anything(),
-    );
-    expect(saleItemRepo.update).toHaveBeenCalledWith(
-      SALE_ITEM_ID,
-      { returnedQuantity: 5 },
-      expect.anything(),
-    );
-    expect(salesRepo.update).toHaveBeenCalledWith(
-      SALE_ID,
-      { status: "PARTIALLY_RETURNED" },
-      expect.anything(),
-    );
+      });
+
+      await expect(service.approveReturn(RETURN_ID)).rejects.toMatchObject({
+        message: "Only pending returns can be approved",
+        statusCode: 409,
+      });
+    });
+
+    it("returns 404 when the return does not exist", async () => {
+      const { service, returnRepo } = buildService();
+      returnRepo.transitionStatus.mockResolvedValue(null);
+      returnRepo.findByIdRaw.mockResolvedValue(null);
+
+      await expect(service.rejectReturn(RETURN_ID)).rejects.toMatchObject({
+        message: "Return not found",
+        statusCode: 404,
+      });
+    });
+
+    it("only updates the reason while pending", async () => {
+      const { service, returnRepo } = buildService();
+      returnRepo.findByIdRaw.mockResolvedValue({
+        _id: RETURN_ID,
+        status: "PENDING",
+      });
+
+      await service.updateReturn(RETURN_ID, { returnReason: "Wrong item" });
+      expect(returnRepo.update).toHaveBeenCalledWith(RETURN_ID, {
+        returnReason: "Wrong item",
+      });
+    });
+
+    it("locks the reason after approval", async () => {
+      const { service, returnRepo } = buildService();
+      returnRepo.findByIdRaw.mockResolvedValue({
+        _id: RETURN_ID,
+        status: "APPROVED",
+      });
+
+      await expect(
+        service.updateReturn(RETURN_ID, { returnReason: "Wrong item" }),
+      ).rejects.toMatchObject({
+        message: "Only pending returns can be updated",
+        statusCode: 409,
+      });
+      expect(returnRepo.update).not.toHaveBeenCalled();
+    });
   });
 
-  it("marks the sale as fully returned when all quantities are returned", async () => {
-    const { service, saleItemRepo, salesRepo } = buildService();
-    saleItemRepo.findBySalesId.mockResolvedValue([
-      buildSaleItem({ returnedQuantity: 7 }),
-    ]);
+  describe("completeReturn", () => {
+    it("applies stock, refund, sale item, and sale status in one transaction", async () => {
+      const { service, returnRepo, saleItemRepo, salesRepo, inventoryService } =
+        buildService();
 
-    await service.createReturn(buildDto());
+      const result = await service.completeReturn(RETURN_ID, USER_ID);
 
-    expect(salesRepo.update).toHaveBeenCalledWith(
-      SALE_ID,
-      { status: "RETURNED" },
-      expect.anything(),
-    );
-  });
+      expect(inventoryService.returnMedicine).toHaveBeenCalledTimes(1);
+      expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
+        MEDICINE_ID,
+        BATCH_ID,
+        3,
+        "GOOD",
+        expect.objectContaining({
+          referenceId: RETURN_ID,
+          referenceType: "SALES_RETURN",
+          movementType: "RETURN",
+          performedBy: USER_ID,
+          remarks: "Return RET-000001: Box opened",
+        }),
+        expect.anything(),
+      );
 
-  it("merges duplicate return lines into a single stock movement", async () => {
-    const { service, inventoryService } = buildService();
+      expect(saleItemRepo.update).toHaveBeenCalledWith(
+        SALE_ITEM_ID,
+        { returnedQuantity: 5 },
+        expect.anything(),
+      );
 
-    await service.createReturn(
-      buildDto({
-        items: [
-          { saleItemId: SALE_ITEM_ID, quantity: 1, condition: "GOOD" },
-          { saleItemId: SALE_ITEM_ID, quantity: 2, condition: "GOOD" },
-        ],
-      }),
-    );
+      expect(returnRepo.update).toHaveBeenCalledWith(
+        RETURN_ID,
+        expect.objectContaining({
+          status: "COMPLETED",
+          refundAmount: 322.05,
+          returnItems: [
+            expect.objectContaining({
+              quantity: 3,
+              discount: 15,
+              VAT: 37.05,
+              refundAmount: 322.05,
+              condition: "GOOD",
+              remarks: "Box opened",
+            }),
+          ],
+        }),
+        expect.anything(),
+      );
 
-    expect(inventoryService.returnMedicine).toHaveBeenCalledTimes(1);
-    expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
-      MEDICINE_ID,
-      BATCH_ID,
-      3,
-      "GOOD",
-      expect.anything(),
-      expect.anything(),
-    );
-  });
+      expect(salesRepo.update).toHaveBeenCalledWith(
+        SALE_ID,
+        { status: "PARTIALLY_RETURNED" },
+        expect.anything(),
+      );
+      expect(result).toMatchObject({ status: "COMPLETED" });
+    });
 
-  it("attributes the movement to the authenticated performer, not the body field", async () => {
-    const { service, inventoryService } = buildService();
+    it("writes one movement per line and keeps conditions separate", async () => {
+      const { service, returnRepo, inventoryService, saleItemRepo } =
+        buildService();
+      returnRepo.findByIdRaw.mockResolvedValue(
+        buildApprovedReturn({
+          returnItems: [
+            {
+              saleItemId: { toString: () => SALE_ITEM_ID },
+              medicineId: { toString: () => MEDICINE_ID },
+              batchId: { toString: () => BATCH_ID },
+              quantity: 1,
+              condition: "GOOD",
+            },
+            {
+              saleItemId: { toString: () => SALE_ITEM_ID },
+              medicineId: { toString: () => MEDICINE_ID },
+              batchId: { toString: () => BATCH_ID },
+              quantity: 2,
+              condition: "DAMAGED",
+            },
+          ],
+        }),
+      );
 
-    await service.createReturn(
-      buildDto({
-        returnedBy: "507f1f77bcf86cd799439099",
-        performedBy: USER_ID,
-      }),
-    );
+      await service.completeReturn(RETURN_ID, USER_ID);
 
-    expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
-      MEDICINE_ID,
-      BATCH_ID,
-      3,
-      "GOOD",
-      expect.objectContaining({ performedBy: USER_ID }),
-      expect.anything(),
-    );
-  });
+      expect(inventoryService.returnMedicine).toHaveBeenCalledTimes(2);
+      expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
+        MEDICINE_ID,
+        BATCH_ID,
+        2,
+        "DAMAGED",
+        expect.anything(),
+        expect.anything(),
+      );
+      // 2 already returned + 1 GOOD + 2 DAMAGED = 5; the second write
+      // accumulates on top of the first.
+      expect(saleItemRepo.update).toHaveBeenCalledTimes(2);
+      expect(saleItemRepo.update).toHaveBeenLastCalledWith(
+        SALE_ITEM_ID,
+        { returnedQuantity: 5 },
+        expect.anything(),
+      );
+    });
 
-  it("passes the return condition through to inventory", async () => {
-    const { service, inventoryService } = buildService();
+    it("counts multiple condition lines cumulatively at completion", async () => {
+      const { service, returnRepo, salesRepo, inventoryService } =
+        buildService();
+      returnRepo.findByIdRaw.mockResolvedValue(
+        buildApprovedReturn({
+          returnItems: [
+            {
+              saleItemId: { toString: () => SALE_ITEM_ID },
+              medicineId: { toString: () => MEDICINE_ID },
+              batchId: { toString: () => BATCH_ID },
+              quantity: 5,
+              condition: "GOOD",
+            },
+            {
+              saleItemId: { toString: () => SALE_ITEM_ID },
+              medicineId: { toString: () => MEDICINE_ID },
+              batchId: { toString: () => BATCH_ID },
+              quantity: 5,
+              condition: "DAMAGED",
+            },
+          ],
+        }),
+      );
 
-    await service.createReturn(
-      buildDto({
-        items: [
-          {
-            saleItemId: SALE_ITEM_ID,
-            quantity: 1,
-            condition: "DAMAGED",
-          },
-        ],
-      }),
-    );
+      await expect(
+        service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({
+        message: "Only 3 items can be returned.",
+        statusCode: 400,
+      });
+      // The first line was attempted; the transaction would roll it back.
+      expect(inventoryService.returnMedicine).toHaveBeenCalledTimes(1);
+      expect(returnRepo.update).not.toHaveBeenCalled();
+      expect(salesRepo.update).not.toHaveBeenCalled();
+    });
 
-    expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
-      MEDICINE_ID,
-      BATCH_ID,
-      1,
-      "DAMAGED",
-      expect.anything(),
-      expect.anything(),
-    );
+    it("marks the sale fully returned when every unit is back", async () => {
+      const { service, saleItemRepo, salesRepo } = buildService();
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        buildSaleItem({ returnedQuantity: 7 }),
+      ]);
+
+      await service.completeReturn(RETURN_ID, USER_ID);
+
+      expect(salesRepo.update).toHaveBeenCalledWith(
+        SALE_ID,
+        { status: "RETURNED" },
+        expect.anything(),
+      );
+    });
+
+    it("requires an APPROVED return", async () => {
+      const { service, returnRepo, inventoryService } = buildService();
+      returnRepo.findByIdRaw.mockResolvedValue(
+        buildApprovedReturn({ status: "PENDING" }),
+      );
+
+      await expect(
+        service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({
+        message: "Only approved returns can be completed",
+        statusCode: 409,
+      });
+      expect(inventoryService.returnMedicine).not.toHaveBeenCalled();
+    });
+
+    it("re-validates quantities before touching stock", async () => {
+      const { service, saleItemRepo, inventoryService } = buildService();
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        buildSaleItem({ returnedQuantity: 8 }),
+      ]);
+
+      await expect(
+        service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({
+        message: "Only 2 items can be returned.",
+        statusCode: 400,
+      });
+      expect(inventoryService.returnMedicine).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unknown return or sale", async () => {
+      const unknownReturn = buildService();
+      unknownReturn.returnRepo.findByIdRaw.mockResolvedValue(null);
+      await expect(
+        unknownReturn.service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({ message: "Return not found", statusCode: 404 });
+
+      const unknownSale = buildService();
+      unknownSale.salesRepo.findById.mockResolvedValue(null);
+      await expect(
+        unknownSale.service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({ message: "Sale not found", statusCode: 404 });
+    });
+
+    it("requires an authenticated performer", async () => {
+      const { service, connection } = buildService();
+
+      await expect(
+        service.completeReturn(RETURN_ID, ""),
+      ).rejects.toMatchObject({ statusCode: 401 });
+      expect(connection.startSession).not.toHaveBeenCalled();
+    });
+
+    it("ends the session after completion and on failure", async () => {
+      const success = buildService();
+      await success.service.completeReturn(RETURN_ID, USER_ID);
+      expect(success.session.endSession).toHaveBeenCalledTimes(1);
+
+      const failure = buildService();
+      failure.returnRepo.findByIdRaw.mockResolvedValue(null);
+      await expect(
+        failure.service.completeReturn(RETURN_ID, USER_ID),
+      ).rejects.toThrow("Return not found");
+      expect(failure.session.endSession).toHaveBeenCalledTimes(1);
+    });
   });
 });

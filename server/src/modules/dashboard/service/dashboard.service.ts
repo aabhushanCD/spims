@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { InventoryRepo } from "../../inventory/repo/inventory.repo.ts";
 import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.ts";
+import type { ReturnRepo } from "../../sales/repo/return.repo.ts";
 import type { SalesRepo } from "../../sales/repo/sales.repo.ts";
 import type { SaleItemRepo } from "../../sales/repo/saleItem.repo.ts";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
@@ -12,8 +13,16 @@ import type { SmartReorderService } from "../../smartReorder/services/smartReord
 import type { InventoryMovementService } from "../../inventory/services/inventoryMovement.service.ts";
 import type { BackgroundJobService } from "../../backgroundJobs/service/background.service.ts";
 import { getCache, setCache } from "../../../shared/provider/redis.provider.ts";
+import { getReportingTimeZone } from "../../../config/reporting.config.ts";
+import { roundCurrency } from "../../../shared/finance/money.ts";
+import {
+  getCurrentMonthRange,
+  getPreviousMonthRange,
+  getYearRange,
+  getZonedParts,
+} from "../../../shared/utils/reportingPeriod.ts";
 
-const SUMMARY_CACHE_TTL_SECONDS = 60; // 2 min — dashboard data should feel fresh, unlike the 12h reorder cache
+const SUMMARY_CACHE_TTL_SECONDS = 60;
 
 export class DashboardService {
   constructor(
@@ -28,11 +37,15 @@ export class DashboardService {
     private readonly inventoryMovementService: InventoryMovementService,
     private readonly backgroundJobService: BackgroundJobService,
     private readonly notificationRecipientRepo: NotificationRecipientRepo,
+    private readonly returnRepo: ReturnRepo,
   ) {}
 
-  async getSummary() {
+  async getSummary(now: Date = new Date(), timeZone = getReportingTimeZone()) {
+    const range = getCurrentMonthRange(now, timeZone);
+    const year = getZonedParts(now, timeZone).year;
+
     const [
-      totalSales,
+      salesTotals,
       totalPurchases,
       totalInventoryValue,
       totalMedicineBatches,
@@ -42,19 +55,22 @@ export class DashboardService {
       expiringSoonCount,
       revenueTrend,
     ] = await Promise.all([
-      this.salesRepo.getTotalSales(),
-      this.purchaseRepo.getTotalPurchases(),
+      this.salesRepo.getSalesTotalsInRange(range.start, range.endExclusive),
+      this.purchaseRepo.getTotalPurchasesInRange(
+        range.start,
+        range.endExclusive,
+      ),
       this.inventoryRepo.getTotalInventoryValue(),
       this.medicineBatchRepo.getTotalMedicineBatches(),
       this.supplierRepo.getTotalSuppliers("active"),
       this.inventoryRepo.getLowStockCount(),
       this.inventoryRepo.getOutOfStockCount(),
       this.medicineBatchRepo.getExpiringSoonCount(30),
-      this.getRevenueTrend(new Date().getFullYear()),
+      this.getRevenueTrend(year, now, timeZone),
     ]);
 
     return {
-      totalSales,
+      totalSales: salesTotals.gross,
       totalPurchases,
       totalInventoryValue,
       totalMedicineBatches,
@@ -84,8 +100,6 @@ export class DashboardService {
       totalSuggestedUnits,
       // NOTE: total suggested spend (units * price) intentionally omitted —
       // no reliable per-unit cost is attached to a recommendation today.
-      // Would need to join against the medicine's latest purchase price.
-      // Flag if you want that added.
     };
   }
 
@@ -127,8 +141,18 @@ export class DashboardService {
     };
   }
 
-  async getRevenueTrend(year: number = new Date().getFullYear()) {
-    return await this.salesRepo.getSalesByMonth(12, year);
+  async getRevenueTrend(
+    year?: number,
+    now: Date = new Date(),
+    timeZone = getReportingTimeZone(),
+  ) {
+    const targetYear = year ?? getZonedParts(now, timeZone).year;
+    return await this.salesRepo.getSalesByMonth({
+      year: targetYear,
+      months: 12,
+      timeZone,
+      now,
+    });
   }
 
   async getNotificationSummary() {
@@ -144,34 +168,66 @@ export class DashboardService {
     };
   }
 
-  async getProfitSummary() {
-    const [totalSales, totalPurchases] = await Promise.all([
-      this.salesRepo.getTotalSales(),
-      this.purchaseRepo.getTotalPurchases(),
+  /**
+   * COGS-based gross profit for the current month.
+   *
+   * netRevenue = (gross sales − sales VAT) − (refunds − refund VAT)
+   * grossProfit = netRevenue − COGS
+   */
+  async getProfitSummary(
+    now: Date = new Date(),
+    timeZone = getReportingTimeZone(),
+  ) {
+    const range = getCurrentMonthRange(now, timeZone);
+
+    const [sales, totalPurchases, refunds, cogs] = await Promise.all([
+      this.salesRepo.getSalesTotalsInRange(range.start, range.endExclusive),
+      this.purchaseRepo.getTotalPurchasesInRange(
+        range.start,
+        range.endExclusive,
+      ),
+      this.returnRepo.getRefundTotalsInRange(
+        range.start,
+        range.endExclusive,
+      ),
+      this.saleItemRepo.getCogsInRange(range.start, range.endExclusive),
     ]);
-    const grossProfit = totalSales - totalPurchases;
+
+    const netRefunds = roundCurrency(refunds.grossRefunds - refunds.refundVat);
+    const netRevenue = roundCurrency(sales.gross - sales.vat - netRefunds);
+    const grossProfit = roundCurrency(netRevenue - cogs);
     const marginPercent =
-      totalSales > 0 ? Math.round((grossProfit / totalSales) * 1000) / 10 : 0;
-    return { totalSales, totalPurchases, grossProfit, marginPercent };
+      netRevenue > 0
+        ? Math.round((grossProfit / netRevenue) * 1000) / 10
+        : 0;
+
+    return {
+      totalSales: sales.gross,
+      totalPurchases,
+      netRevenue,
+      cogs,
+      grossProfit,
+      marginPercent,
+    };
   }
 
   // This month vs last month, with % change — standard dashboard trend indicator.
-  async getSalesComparison() {
-    const now = new Date();
-    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      0,
-      23,
-      59,
-      59,
-    );
+  async getSalesComparison(
+    now: Date = new Date(),
+    timeZone = getReportingTimeZone(),
+  ) {
+    const thisRange = getCurrentMonthRange(now, timeZone);
+    const lastRange = getPreviousMonthRange(now, timeZone);
 
     const [thisMonth, lastMonth] = await Promise.all([
-      this.salesRepo.getTotalSalesInRange(startOfThisMonth, now),
-      this.salesRepo.getTotalSalesInRange(startOfLastMonth, endOfLastMonth),
+      this.salesRepo.getTotalSalesInRange(
+        thisRange.start,
+        thisRange.endExclusive,
+      ),
+      this.salesRepo.getTotalSalesInRange(
+        lastRange.start,
+        lastRange.endExclusive,
+      ),
     ]);
 
     const percentChange =
@@ -194,40 +250,70 @@ export class DashboardService {
     };
   }
 
-  async getSalesAnalytics(year: number, session?: mongoose.ClientSession) {
-    const totalSales = await this.salesRepo.getTotalSales(session);
-    const salesByMonth = await this.salesRepo.getSalesByMonth(
-      12,
+  async getSalesAnalytics(
+    year: number,
+    session?: mongoose.ClientSession,
+  ) {
+    const now = new Date();
+    const timeZone = getReportingTimeZone();
+    const range = getYearRange(year, timeZone);
+
+    const [totals, salesByMonth] = await Promise.all([
+      this.salesRepo.getSalesTotalsInRange(
+        range.start,
+        range.endExclusive,
+        session,
+      ),
+      this.salesRepo.getSalesByMonth({
+        year,
+        months: 12,
+        timeZone,
+        now,
+        ...(session ? { session } : {}),
+      }),
+    ]);
+
+    return {
       year,
-      session,
-    );
-    return { totalSales, salesByMonth };
+      totalSales: totals.gross,
+      totalVat: totals.vat,
+      salesByMonth,
+    };
   }
 
   async getPurchaseAnalytics(session?: mongoose.ClientSession) {
-    const totalPurchases = await this.purchaseRepo.getTotalPurchases(session);
-    const purchasesByStatus =
-      await this.purchaseRepo.getPurchasesByStatus(session);
+    const now = new Date();
+    const timeZone = getReportingTimeZone();
+    const range = getCurrentMonthRange(now, timeZone);
+
+    const [totalPurchases, purchasesByStatus] = await Promise.all([
+      this.purchaseRepo.getTotalPurchasesInRange(
+        range.start,
+        range.endExclusive,
+        session,
+      ),
+      this.purchaseRepo.getPurchasesByStatus(session),
+    ]);
     return { totalPurchases, purchasesByStatus };
   }
 
   async getInventoryAnalytics(session?: mongoose.ClientSession) {
-    const [
-      totalValue,
-      inventoryHealth,
-      lowStockCount,
-      outOfStockCount,
-      expiringSoonCount,
-    ] = await Promise.all([
-      this.inventoryRepo.getTotalInventoryValue(session),
-      this.inventoryRepo.getInventoryHealth(session),
-      this.inventoryRepo.getLowStockCount(session),
-      this.inventoryRepo.getOutOfStockCount(session),
-      this.medicineBatchRepo.getExpiringSoonCount(30, session),
-    ]);
+    const [totalValue, lowStockCount, outOfStockCount, expiringSoonCount] =
+      await Promise.all([
+        this.inventoryRepo.getTotalInventoryValue(session),
+        this.inventoryRepo.getLowStockCount(session),
+        this.inventoryRepo.getOutOfStockCount(session),
+        this.medicineBatchRepo.getExpiringSoonCount(30, session),
+      ]);
+
     return {
       totalValue,
-      inventoryHealth,
+      inventoryHealth: {
+        totalValue,
+        lowStockCount,
+        outOfStockCount,
+        expiringSoonCount,
+      },
       lowStockCount,
       outOfStockCount,
       expiringSoonCount,

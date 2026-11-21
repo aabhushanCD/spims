@@ -17,12 +17,11 @@ export const createPurchaseOrderSchema = z.object({
     .default(0),
   invoiceFile: z.string().trim().default(""),
   receivedDate: z.coerce.date().optional(),
-  status: z
-    .enum(["pending", "approved", "received", "cancelled"])
-    .default("pending"),
+  // status is intentionally not accepted: every new order starts as pending.
   VAT: z
     .number()
-    .nonnegative("VAT must be greater than or equal to zero")
+    .min(0, "VAT must be greater than or equal to zero")
+    .max(100, "VAT cannot exceed 100")
     .default(13),
   items: z
     .array(

@@ -19,45 +19,74 @@ export class PurchaseOrderItemRepo {
       purchaseOrderItemData,
     );
     if (session) {
-      await purchaseOrderItem.save({ session });
+      return await purchaseOrderItem.save({ session });
     }
     return await purchaseOrderItem.save();
   }
 
-  async findById(id: string): Promise<IPurchaseOrderItem | null> {
+  async findById(
+    id: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrderItem | null> {
+    if (session) {
+      return await this.purchaseOrderItemModel
+        .findById(id)
+        .session(session)
+        .exec();
+    }
     return await this.purchaseOrderItemModel.findById(id).exec();
   }
 
   async findByPurchaseOrderId(
     purchaseOrderId: string,
+    session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem[]> {
-    return await this.purchaseOrderItemModel
+    const query = this.purchaseOrderItemModel
       .find({ purchaseOrderId })
       .populate("medicineId")
-      .lean()
-      .exec();
+      .lean();
+
+    return session ? query.session(session).exec() : query.exec();
   }
   
   
   async findByPurchaseOrderAndMedicine(
     purchaseOrderId: string,
     medicineId: string,
+    session?: mongoose.ClientSession,
   ) {
-    return await this.purchaseOrderItemModel
+    const query = this.purchaseOrderItemModel
       .findOne({ purchaseOrderId, medicineId })
-      .lean()
-      .exec();
+      .lean();
+
+    return session ? query.session(session).exec() : query.exec();
   }
   async update(
     id: string,
     updateData: UpdatePurchaseOrderItemDto,
+    session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem | null> {
+    if (session) {
+      return await this.purchaseOrderItemModel
+        .findByIdAndUpdate(id, updateData, { new: true })
+        .session(session)
+        .exec();
+    }
     return await this.purchaseOrderItemModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
   }
 
-  async delete(id: string): Promise<IPurchaseOrderItem | null> {
+  async delete(
+    id: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IPurchaseOrderItem | null> {
+    if (session) {
+      return await this.purchaseOrderItemModel
+        .findByIdAndDelete(id)
+        .session(session)
+        .exec();
+    }
     return await this.purchaseOrderItemModel.findByIdAndDelete(id).exec();
   }
 }

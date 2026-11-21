@@ -163,6 +163,7 @@ const medicineService = new MedicineService(
 
 const medicineBatchService = new BatchService(
   medicineBatchRepo,
+  saleItemRepo,
   purchaseOrderRepo,
   stockMutationService,
   AppError,
@@ -196,7 +197,12 @@ const returnService = new ReturnService(
   counterRepo,
   mongoose.connection,
 );
-const saleItemService = new SaleItemService(saleItemRepo, AppError);
+const saleItemService = new SaleItemService(
+  saleItemRepo,
+  saleRepo,
+  AppError,
+  mongoose.connection,
+);
 
 const saleService = new SalesService(
   saleRepo,
@@ -204,6 +210,7 @@ const saleService = new SalesService(
   inventoryService,
   medicineBatchRepo,
   counterRepo,
+  returnRepo,
   AppError,
   mongoose.connection,
 );
@@ -236,6 +243,7 @@ const dashboardService = new DashboardService(
   inventoryMovementService,
   backgroundJobService,
   notificationRecipientRepo,
+  returnRepo,
 );
 // controllers
 const authController = new AuthController(authService);

@@ -61,6 +61,9 @@ function buildService() {
   const counterRepo = {
     generateInvoiceNumber: vi.fn().mockResolvedValue("INV-000001"),
   };
+  const returnRepo = {
+    hasActiveBySale: vi.fn().mockResolvedValue(false),
+  };
 
   const service = new SalesService(
     salesRepo as never,
@@ -68,6 +71,7 @@ function buildService() {
     inventoryService as never,
     batchRepo as never,
     counterRepo as never,
+    returnRepo as never,
     AppError,
     connection as never,
   );
@@ -80,6 +84,7 @@ function buildService() {
     saleItemRepo,
     inventoryService,
     counterRepo,
+    returnRepo,
   };
 }
 
@@ -110,6 +115,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 5,
           unitPrice: 100,
+          purchasePrice: 60,
         },
       ]);
 
@@ -164,6 +170,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 2,
           unitPrice: 100,
+          purchasePrice: 60,
         },
         {
           batchId: BATCH_2_ID,
@@ -171,6 +178,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 1,
           unitPrice: 50,
+          purchasePrice: 30,
         },
       ]);
 
@@ -198,6 +206,17 @@ describe("SalesService", () => {
         expect.objectContaining({ discount: 5, totalPrice: 45 }),
         expect.anything(),
       );
+      // Cost is snapshotted onto the sale item for stable historical COGS.
+      expect(saleItemRepo.create).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ purchasePrice: 60 }),
+        expect.anything(),
+      );
+      expect(saleItemRepo.create).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ purchasePrice: 30 }),
+        expect.anything(),
+      );
 
       // subtotal 250, line discount 25, invoice discount 10
       // taxable 215, VAT 13% = 27.95, total = 242.95
@@ -222,6 +241,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 1,
           unitPrice: 99.99,
+          purchasePrice: 70,
         },
       ]);
 
@@ -243,6 +263,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 1,
           unitPrice: 100,
+          purchasePrice: 60,
         },
       ]);
 
@@ -254,8 +275,41 @@ describe("SalesService", () => {
       });
     });
 
-    it("rejects an invoice discount larger than the subtotal", async () => {
+    it("rejects an invoice discount larger than the discounted subtotal", async () => {
       const { service, inventoryService } = buildService();
+      inventoryService.sellMedicine.mockResolvedValue([
+        {
+          batchId: BATCH_ID,
+          batchNumber: "B-1",
+          medicineId: MEDICINE_ID,
+          quantity: 2,
+          unitPrice: 100,
+          purchasePrice: 60,
+        },
+      ]);
+
+      await expect(
+        service.createSale(
+          buildDto({
+            discount: 181,
+            items: [
+              {
+                batchId: BATCH_ID,
+                medicineId: MEDICINE_ID,
+                quantity: 2,
+                discountPercentage: 10,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({
+        message: "Discount exceeds the discounted subtotal",
+        statusCode: 400,
+      });
+    });
+
+    it("allows an invoice discount equal to the discounted subtotal", async () => {
+      const { service, inventoryService, salesRepo } = buildService();
       inventoryService.sellMedicine.mockResolvedValue([
         {
           batchId: BATCH_ID,
@@ -263,15 +317,17 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 1,
           unitPrice: 100,
+          purchasePrice: 60,
         },
       ]);
 
-      await expect(
-        service.createSale(buildDto({ discount: 101 })),
-      ).rejects.toMatchObject({
-        message: "Discount exceeds subtotal",
-        statusCode: 400,
-      });
+      await service.createSale(buildDto({ discount: 100 }));
+
+      expect(salesRepo.update).toHaveBeenCalledWith(
+        SALE_ID,
+        expect.objectContaining({ subTotal: 100, totalAmount: 0, VAT: 0 }),
+        expect.anything(),
+      );
     });
 
     it("propagates stock allocation failures from the inventory service", async () => {
@@ -296,6 +352,7 @@ describe("SalesService", () => {
           medicineId: MEDICINE_ID,
           quantity: 1,
           unitPrice: 100,
+          purchasePrice: 60,
         },
       ]);
 
@@ -353,6 +410,23 @@ describe("SalesService", () => {
         expect.anything(),
       );
       expect(salesRepo.delete).toHaveBeenCalledWith(SALE_ID, expect.anything());
+    });
+
+    it("refuses to delete a sale that has returns", async () => {
+      const { service, salesRepo, returnRepo, inventoryService } =
+        buildService();
+      salesRepo.findById.mockResolvedValue({
+        _id: SALE_ID,
+        invoiceNumber: "INV-000001",
+      });
+      returnRepo.hasActiveBySale.mockResolvedValue(true);
+
+      await expect(service.deleteSale(SALE_ID, USER_ID)).rejects.toMatchObject({
+        message: "Cannot delete a sale with returns; reverse the return first",
+        statusCode: 409,
+      });
+      expect(inventoryService.increaseStock).not.toHaveBeenCalled();
+      expect(salesRepo.delete).not.toHaveBeenCalled();
     });
 
     it("does not restore stock for a fully returned line", async () => {

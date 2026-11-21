@@ -42,6 +42,42 @@ describe("purchase schemas", () => {
     expect(parsed.VAT).toBe(13);
   });
 
+  it("ignores a client-supplied status", () => {
+    const parsed = createPurchaseOrderSchema.parse({
+      supplierId: SUPPLIER_ID,
+      orderDate: "2026-01-01",
+      invoiceNumber: "INV-1",
+      status: "received",
+      items: [
+        {
+          medicineId: MEDICINE_ID,
+          quantity: 2,
+          purchasePrice: 10,
+        },
+      ],
+    });
+
+    expect(parsed).not.toHaveProperty("status");
+  });
+
+  it("caps purchase VAT at 100", () => {
+    expect(() =>
+      createPurchaseOrderSchema.parse({
+        supplierId: SUPPLIER_ID,
+        orderDate: "2026-01-01",
+        invoiceNumber: "INV-1",
+        VAT: 101,
+        items: [
+          {
+            medicineId: MEDICINE_ID,
+            quantity: 2,
+            purchasePrice: 10,
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
   it("requires at least one purchase order item", () => {
     expect(() =>
       createPurchaseOrderSchema.parse({

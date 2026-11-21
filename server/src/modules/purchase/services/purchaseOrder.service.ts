@@ -14,6 +14,10 @@ import type {
 import type { BatchService } from "../../batch/service/batch.service.ts";
 import type { ReceivePurchaseOrderDto } from "../schema/receivePurchaseOrder.schema.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
+import {
+  computePurchaseTotals,
+  type PurchaseTotals,
+} from "../utils/purchaseTotals.ts";
 
 export class PurchaseOrderService {
   constructor(
@@ -25,6 +29,45 @@ export class PurchaseOrderService {
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
   ) {}
+
+  private async runInSession<T>(
+    session: mongoose.ClientSession | undefined,
+    callback: (activeSession: mongoose.ClientSession) => Promise<T>,
+  ): Promise<T> {
+    if (session) {
+      return callback(session);
+    }
+
+    const ownedSession = await this.connection.startSession();
+    try {
+      let result!: T;
+      await ownedSession.withTransaction(async () => {
+        result = await callback(ownedSession);
+      });
+      return result;
+    } finally {
+      await ownedSession.endSession();
+    }
+  }
+
+  private computeTotals(
+    items: Array<{ quantity: number; purchasePrice: number }>,
+    discount: number,
+    vatPercent: number,
+  ): PurchaseTotals {
+    if (discount < 0) {
+      throw this.appError.badRequest("Discount cannot be negative");
+    }
+    if (vatPercent < 0 || vatPercent > 100) {
+      throw this.appError.badRequest("VAT must be between 0 and 100");
+    }
+
+    const totals = computePurchaseTotals({ items, discount, vatPercent });
+    if (totals.discount > totals.subtotal) {
+      throw this.appError.badRequest("Discount exceeds subtotal");
+    }
+    return totals;
+  }
 
   async createPurchaseOrder(data: CreatePurchaseOrderDto) {
     const session = await this.connection.startSession();
@@ -43,15 +86,18 @@ export class PurchaseOrderService {
           receivedDate,
           ...purchaseOrderData
         } = data;
-        const totalAmount = items.reduce(
-          (sum, item) => sum + item.quantity * item.purchasePrice,
-          0,
+        const totals = this.computeTotals(
+          items,
+          data.discount ?? 0,
+          data.VAT ?? 13,
         );
 
         const purchaseOrderPayload: Partial<IPurchaseOrder> = {
           ...purchaseOrderData,
           supplierId: new Types.ObjectId(data.supplierId),
-          totalAmount,
+          // A client-supplied status must never bypass approve/receive.
+          status: "pending",
+          totalAmount: totals.totalAmount,
           ...(expectedDeliveryDate !== undefined
             ? { expectedDeliveryDate }
             : {}),
@@ -158,12 +204,44 @@ export class PurchaseOrderService {
     };
   }
   async deletePurchaseOrder(id: string) {
-    const existing = await this.purchaseOrderRepo.findById(id);
+    const session = await this.connection.startSession();
 
-    if (!existing) {
-      throw this.appError.notFound("Purchase order not found");
+    try {
+      let deleted = null;
+
+      await session.withTransaction(async () => {
+        const existing = await this.purchaseOrderRepo.findById(id, session);
+
+        if (!existing) {
+          throw this.appError.notFound("Purchase order not found");
+        }
+        if (existing.status === "received") {
+          throw this.appError.conflict(
+            "Received purchase orders cannot be deleted",
+          );
+        }
+        if (await this.batchService.hasBatchesForPurchaseOrder(id)) {
+          throw this.appError.conflict(
+            "Cannot delete a purchase order with received batches",
+          );
+        }
+
+        const items =
+          await this.purchaseOrderItemRepo.findByPurchaseOrderId(id, session);
+        for (const item of items) {
+          await this.purchaseOrderItemRepo.delete(
+            item._id.toString(),
+            session,
+          );
+        }
+
+        deleted = await this.purchaseOrderRepo.delete(id, session);
+      });
+
+      return deleted;
+    } finally {
+      await session.endSession();
     }
-    return this.purchaseOrderRepo.delete(id);
   }
 
   async cancelPurchaseOrder(id: string) {
@@ -184,35 +262,44 @@ export class PurchaseOrderService {
     purchaseOrderId: string,
     data: CreatePurchaseOrderItemInput,
   ) {
-    const purchaseOrder =
-      await this.purchaseOrderRepo.findById(purchaseOrderId);
-
-    if (!purchaseOrder) {
-      throw this.appError.notFound("Purchase order not found");
-    }
-
-    const existing =
-      await this.purchaseOrderItemRepo.findByPurchaseOrderAndMedicine(
+    return this.runInSession(undefined, async (session) => {
+      const purchaseOrder = await this.purchaseOrderRepo.findById(
         purchaseOrderId,
-        data.medicineId,
+        session,
       );
-    if (existing) {
-      throw this.appError.badRequest(
-        "Medicine already exists in the purchase order",
-      );
-    }
 
-    if (purchaseOrder.status !== "pending") {
-      throw this.appError.badRequest(
-        "Items can only be added to pending purchase orders",
-      );
-    }
+      if (!purchaseOrder) {
+        throw this.appError.notFound("Purchase order not found");
+      }
 
-    await this.purchaseOrderItemRepo.create({
-      ...data,
-      purchaseOrderId: purchaseOrder._id.toString(),
+      const existing =
+        await this.purchaseOrderItemRepo.findByPurchaseOrderAndMedicine(
+          purchaseOrderId,
+          data.medicineId,
+          session,
+        );
+      if (existing) {
+        throw this.appError.badRequest(
+          "Medicine already exists in the purchase order",
+        );
+      }
+
+      if (purchaseOrder.status !== "pending") {
+        throw this.appError.badRequest(
+          "Items can only be added to pending purchase orders",
+        );
+      }
+
+      const created = await this.purchaseOrderItemRepo.create(
+        {
+          ...data,
+          purchaseOrderId: purchaseOrder._id.toString(),
+        },
+        session,
+      );
+      await this.recalculateTotals(purchaseOrderId, session);
+      return created;
     });
-    await this.recalculateTotals(purchaseOrderId);
   }
 
   async updatePurchaseOrderItem(
@@ -220,75 +307,117 @@ export class PurchaseOrderService {
     itemId: string,
     data: UpdatePurchaseOrderItemDto,
   ) {
-    const purchaseOrder =
-      await this.purchaseOrderRepo.findById(purchaseOrderId);
-
-    if (!purchaseOrder) {
-      throw this.appError.notFound("Purchase order not found");
-    }
-
-    if (purchaseOrder.status !== "pending") {
-      throw this.appError.badRequest(
-        "Items can only be updated in pending purchase orders",
+    return this.runInSession(undefined, async (session) => {
+      const purchaseOrder = await this.purchaseOrderRepo.findById(
+        purchaseOrderId,
+        session,
       );
-    }
-    const existingItem = await this.purchaseOrderItemRepo.findById(itemId);
 
-    if (!existingItem) {
-      throw this.appError.notFound("Purchase order item not found");
-    }
+      if (!purchaseOrder) {
+        throw this.appError.notFound("Purchase order not found");
+      }
 
-    if (existingItem.purchaseOrderId.toString() !== purchaseOrderId) {
-      throw this.appError.badRequest(
-        "Purchase order item does not belong to the specified purchase order",
+      if (purchaseOrder.status !== "pending") {
+        throw this.appError.badRequest(
+          "Items can only be updated in pending purchase orders",
+        );
+      }
+      const existingItem = await this.purchaseOrderItemRepo.findById(
+        itemId,
+        session,
       );
-    }
 
-    return this.purchaseOrderItemRepo.update(itemId, data);
+      if (!existingItem) {
+        throw this.appError.notFound("Purchase order item not found");
+      }
+
+      if (existingItem.purchaseOrderId.toString() !== purchaseOrderId) {
+        throw this.appError.badRequest(
+          "Purchase order item does not belong to the specified purchase order",
+        );
+      }
+
+      const updated = await this.purchaseOrderItemRepo.update(
+        itemId,
+        data,
+        session,
+      );
+      await this.recalculateTotals(purchaseOrderId, session);
+      return updated;
+    });
   }
 
   async removePurchaseOrderItem(purchaseOrderId: string, itemId: string) {
-    const purchaseOrder =
-      await this.purchaseOrderRepo.findById(purchaseOrderId);
-
-    if (!purchaseOrder) {
-      throw this.appError.notFound("Purchase order not found");
-    }
-    if (purchaseOrder.status !== "pending") {
-      throw this.appError.badRequest(
-        "Only pending purchase orders can be modified",
+    return this.runInSession(undefined, async (session) => {
+      const purchaseOrder = await this.purchaseOrderRepo.findById(
+        purchaseOrderId,
+        session,
       );
-    }
 
-    const existingItem = await this.purchaseOrderItemRepo.findById(itemId);
+      if (!purchaseOrder) {
+        throw this.appError.notFound("Purchase order not found");
+      }
+      if (purchaseOrder.status !== "pending") {
+        throw this.appError.badRequest(
+          "Only pending purchase orders can be modified",
+        );
+      }
 
-    if (!existingItem) {
-      throw this.appError.notFound("Purchase order item not found");
-    }
-
-    if (existingItem.purchaseOrderId.toString() !== purchaseOrderId) {
-      throw this.appError.badRequest(
-        "Purchase order item does not belong to the specified purchase order",
+      const existingItem = await this.purchaseOrderItemRepo.findById(
+        itemId,
+        session,
       );
-    }
-    await this.purchaseOrderItemRepo.delete(itemId);
-    await this.recalculateTotals(purchaseOrderId);
+
+      if (!existingItem) {
+        throw this.appError.notFound("Purchase order item not found");
+      }
+
+      if (existingItem.purchaseOrderId.toString() !== purchaseOrderId) {
+        throw this.appError.badRequest(
+          "Purchase order item does not belong to the specified purchase order",
+        );
+      }
+      await this.purchaseOrderItemRepo.delete(itemId, session);
+      await this.recalculateTotals(purchaseOrderId, session);
+      return existingItem;
+    });
   }
 
-  async recalculateTotals(purchaseOrderId: string) {
-    const purchaseOrder =
-      await this.purchaseOrderRepo.findById(purchaseOrderId);
+  async recalculateTotals(
+    purchaseOrderId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<PurchaseTotals> {
+    const purchaseOrder = await this.purchaseOrderRepo.findById(
+      purchaseOrderId,
+      session,
+    );
 
     if (!purchaseOrder) {
       throw this.appError.notFound("Purchase order not found");
     }
-    const items =
-      await this.purchaseOrderItemRepo.findByPurchaseOrderId(purchaseOrderId);
-
-    return items.reduce(
-      (sum, item) => sum + item.quantity * item.purchasePrice,
-      0,
+    const items = await this.purchaseOrderItemRepo.findByPurchaseOrderId(
+      purchaseOrderId,
+      session,
     );
+
+    const totals = this.computeTotals(
+      items,
+      purchaseOrder.discount,
+      purchaseOrder.VAT,
+    );
+
+    const updated = await this.purchaseOrderRepo.update(
+      purchaseOrderId,
+      { totalAmount: totals.totalAmount },
+      session,
+    );
+    if (!updated) {
+      throw this.appError.conflict(
+        "Purchase order changed while recalculating totals",
+      );
+    }
+
+    return totals;
   }
 
   async approvePurchaseOrder(purchaseOrderId: string) {
@@ -347,6 +476,7 @@ export class PurchaseOrderService {
         const purchaseOrderItems =
           await this.purchaseOrderItemRepo.findByPurchaseOrderId(
             purchaseOrderId,
+            session,
           );
         if (!purchaseOrderItems.length) {
           throw this.appError.badRequest(

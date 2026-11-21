@@ -69,6 +69,7 @@ describe("InventoryService", () => {
           medicineId: { toString: () => MEDICINE_ID },
           quantityRemaining: 5,
           sellingPrice: 10,
+          purchasePrice: 8,
         },
         {
           _id: { toString: () => BATCH_2_ID },
@@ -76,6 +77,7 @@ describe("InventoryService", () => {
           medicineId: { toString: () => MEDICINE_ID },
           quantityRemaining: 20,
           sellingPrice: 12,
+          purchasePrice: 9,
         },
       ]);
 
@@ -92,6 +94,7 @@ describe("InventoryService", () => {
           medicineId: MEDICINE_ID,
           quantity: 5,
           unitPrice: 10,
+          purchasePrice: 8,
         },
         {
           batchId: BATCH_2_ID,
@@ -99,6 +102,7 @@ describe("InventoryService", () => {
           medicineId: MEDICINE_ID,
           quantity: 7,
           unitPrice: 12,
+          purchasePrice: 9,
         },
       ]);
       expect(stockMutation.decreaseBatchStock).toHaveBeenCalledTimes(2);
