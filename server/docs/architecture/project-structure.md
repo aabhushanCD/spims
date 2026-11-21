@@ -16,7 +16,7 @@ server/
 └── src/
 ```
 
-There is no `docs/` folder before this documentation set, no test fixtures, no seed scripts, and no migration directory.
+There is no `docs/` folder before this documentation set, no test fixtures, and no migration directory. Operational one-off scripts live in `src/scripts/` and are run with `tsx`.
 
 ## 2. `src/` tree
 
@@ -53,6 +53,10 @@ src/
 │   ├── dashboard/
 │   ├── backgroundJobs/
 │   └── worker/
+├── scripts/
+│   ├── dedupeInventories.ts        # one-off duplicate aggregate cleanup
+│   ├── dedupeNotificationRecipients.ts
+│   └── backfillNotificationRecipientTimestamps.ts
 ├── shared/
 │   ├── error.ts                    # AppError + static factories
 │   ├── middleware/
@@ -94,7 +98,7 @@ Modules that deviate:
 |---|---|
 | `auth` | No model/repo of its own; reuses `user` repository. Has `controller`, `routes`, `schema`, `services`, and a test. |
 | `user` | No Zod validation middleware wired to routes, despite `schema/user.schema.ts` existing. |
-| `inventory` | Has `model/` (singular folder) with three schemas, `services/` with three services, but `StockAdjustmentService` is never wired. |
+| `inventory` | Has `model/` (singular folder) with three schemas, `services/` with `InventoryService`, `StockMutationService`, and `InventoryMovementService`, plus `types/stockMovement.type.ts`. `StockAdjustmentService` is never wired. |
 | `batch` | Model folder is `model/`; service folder is `service/`; controller is `controller/`. |
 | `sales` | Contains four models (`Sales`, `SalesItem`, `Return`, `Counter`), three services, three controllers, and three routers. |
 | `backgroundJobs` | No controller/routes. Contains model, repo, service, and three jobs. Filename typo: `backgroud.model.ts`. |
@@ -220,6 +224,16 @@ flowchart TB
 | `.github/workflows/main.yml` | Backend and client `npm ci` + `npm run build --if-present` on Node 22 |
 | Root `README.md` | Marketing/overview document; several feature claims are ahead of the implementation |
 | Root `SECURITY.md` | Policy document; some Docker/NGINX claims are still ahead of the repository |
+
+## 9. Operational scripts
+
+| Script | npm command | Purpose |
+|---|---|---|
+| `src/scripts/dedupeInventories.ts` | `npm run inventory:dedupe` | Merge duplicate `inventories.medicineId` rows and reconcile them from batch truth before the unique index deploys |
+| `src/scripts/dedupeNotificationRecipients.ts` | `npm run notification:dedupe` | Merge duplicate notification recipient rows |
+| `src/scripts/backfillNotificationRecipientTimestamps.ts` | `npm run notification:backfill` | Backfill legacy recipient timestamps |
+
+`inventory:dedupe` accepts `--dry-run` and `--sync-indexes`.
 
 ## Related documents
 

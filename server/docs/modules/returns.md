@@ -133,16 +133,14 @@ refund             = lineTotal - discountPerUnit * quantity
 
 | Condition | Batch `quantityRemaining` | Aggregate stock | Movement records |
 |---|---|---|---|
-| `GOOD` | Not restored | Increased by `increaseStock` | One `RETURN` with `referenceType: "SALES_RETURN"` |
-| `DAMAGED` | Increased | Recomputed from batches | Two `RETURN` records |
-| `EXPIRED` | Increased | Recomputed | Two `RETURN` records |
-| `OPENED` | Increased | Recomputed | Two `RETURN` records |
+| `GOOD` | Restored | Recomputed from batches | One `RETURN` with `referenceType: "SALES_RETURN"` |
+| `DAMAGED` | Unchanged (write-off) | Unchanged | One `RETURN` |
+| `EXPIRED` | Unchanged (write-off) | Unchanged | One `RETURN` |
+| `OPENED` | Unchanged (write-off) | Unchanged | One `RETURN` |
 
-This is the opposite of typical pharmacy rules: damaged/expired/opened items are returned to sellable batch stock, while good items are added only to the aggregate and will be lost on the next sync.
+Damaged, expired, and opened items are not returned to sellable stock. Each return line produces exactly one movement.
 
-### Expected GOOD-path failure
-
-Resolved: the `referenceType` enum now includes `SALES_RETURN`, so GOOD returns no longer abort on movement validation. The remaining condition semantics, VAT, and duplicate-movement defects are Phase 4 work.
+The movement is attributed to the authenticated `performedBy` value, not the body-supplied `returnedBy` field. The remaining Phase 4 work is VAT refunds, persisted `returnItems.VAT`, a unique `returnNumber` index, and the approval/status flow.
 
 ## 11. Dependencies
 
@@ -183,9 +181,9 @@ No VAT is added. The return is stored as `COMPLETED` with `refundAmount: 95`.
 | Purchase/supplier returns | Needs decision | Phase 6 |
 | Return approval/rejection flow (statuses exist but are unreachable) | Needs decision (implement or remove) | Phase 4 |
 | VAT refund | Still open | Phase 4 |
-| DAMAGED/EXPIRED/OPENED still restock sellable stock | Still open | Phase 4 |
-| GOOD return restores the aggregate but not the original batch | Still open | Phase 4 |
-| Damaged/expired/opened returns write duplicate movement rows | Still open | Phase 4 |
+| DAMAGED/EXPIRED/OPENED still restock sellable stock | Fixed (write-off only) | — |
+| GOOD return restores the aggregate but not the original batch | Fixed (restores the original batch and syncs) | — |
+| Damaged/expired/opened returns write duplicate movement rows | Fixed (one movement per return line) | — |
 | `returnItems.VAT` is required by the schema but never written | Still open | Phase 4 |
 | `SALES_RETURN` enum mismatch | Already fixed (enum widened) | — |
 | Return schema not wired | Still open | Phase 3 |

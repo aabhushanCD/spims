@@ -194,9 +194,9 @@ Source: `server/src/modules/inventory/model/inventory.model.ts`
 
 | Field | Type | Flags | Notes |
 |---|---|---|---|
-| `medicineId` | ObjectId → `Medicine` | R | **No unique index** |
-| `currentStock` | Number | R, D 0 | Intended to equal the sum of sellable batch quantities |
-| `reservedStock` | Number | R, D 0 | Never incremented by the reserve endpoint |
+| `medicineId` | ObjectId → `Medicine` | R, unique | One aggregate row per medicine |
+| `currentStock` | Number | R, D 0 | Equals the sum of sellable batch quantities after each mutation |
+| `reservedStock` | Number | R, D 0, min 0 | Maintained by reserve/release |
 | `availableStock` | Number | R, D 0 | Validator: `0 <= value <= currentStock - reservedStock` |
 | `lastUpdated` | Date | R, D now | |
 
@@ -209,7 +209,7 @@ Source: `server/src/modules/inventory/model/inventoryMovement.model.ts`
 | Field | Type | Flags |
 |---|---|---|
 | `medicineId` | ObjectId → `Medicine` | R |
-| `batchId` | ObjectId → `Batch` | O in schema, **required by service** |
+| `batchId` | ObjectId → `Batch` | O; omitted for aggregate-only movements |
 | `movementType` | String enum (7 values) | R |
 | `quantity` | Number | R, signed semantics not enforced |
 | `referenceId` | ObjectId | R |
@@ -399,7 +399,7 @@ No timestamps.
 | User | Return | 1:N | `returnedBy` |
 | User | InventoryMovement | 1:N | `performedBy` |
 | User | NotificationRecipient | 1:N | `userId` |
-| Medicine | Inventory | 1:1 intended | No unique index |
+| Medicine | Inventory | 1:1 | Unique index on `medicineId` |
 | Medicine | Batch | 1:N | `medicineId` |
 | Medicine | SalesItem | 1:N | `medicineId` |
 | Medicine | SmartReorder | 1:N | `medicineId` |
@@ -420,7 +420,7 @@ No timestamps.
 4. `Return.returnItems.VAT` is required but never written; the update path bypasses validators.
 5. `Batch.isActive` now allows positive stock for active batches; inactive batches still require zero.
 6. `PurchaseOrder.VAT` and `PurchaseOrder.discount` are stored but never applied to `totalAmount`.
-7. `InventoryMovement.batchId` is optional in the schema but mandatory in the service, creating a mismatch for any future writer that bypasses the service.
+7. `InventoryMovement.batchId` is optional in both the schema and the service; aggregate-only operations omit it.
 8. `Supplier.reliabilityScore` is never computed; smart reorder computes reliability on the fly instead.
 9. `Sales.status` includes `CANCELLED` and `PENDING`, but no code path sets either after creation.
 10. `User.refreshToken` is a legacy field and is unused; refresh sessions live in `authsessions`. `User.lastLogin` is maintained on login.

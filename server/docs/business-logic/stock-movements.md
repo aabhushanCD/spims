@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Every intended stock change should leave an `InventoryMovement` row. In practice, coverage is incomplete. This document defines the record, the movement types, and the gaps.
+Every stock change leaves an `InventoryMovement` row. Movements are an audit trail; they are never replayed to rebuild stock. Batch quantities are the physical truth.
 
 ## 2. Record
 
@@ -11,9 +11,9 @@ Every intended stock change should leave an `InventoryMovement` row. In practice
 | Field | Meaning |
 |---|---|
 | `medicineId` | Medicine affected |
-| `batchId` | Batch affected (required by the service, optional in schema) |
+| `batchId` | Batch affected; optional for aggregate-only operations |
 | `movementType` | `PURCHASE`, `SALE`, `RETURN`, `ADJUSTMENT`, `EXPIRED`, `RESERVE`, `RELEASE` |
-| `quantity` | Normally a positive magnitude; direction inferred from type. No schema constraint enforces this. |
+| `quantity` | Positive magnitude; direction inferred from type |
 | `referenceId` | Business document id (sale, return, purchase order, adjustment, batch) |
 | `referenceType` | `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, `SYSTEM` |
 | `performedBy` | User id |
@@ -26,50 +26,48 @@ Indexes: `{ medicineId, createdAt: -1 }`, `{ batchId }`, `{ movementType }`, `{ 
 
 | Type | Used for | Quantity semantics |
 |---|---|---|
-| `PURCHASE` | Goods receipt, manual increase | Units added |
-| `SALE` | Sale allocation; manual decrease when `SALE` is requested | Units removed |
-| `RETURN` | Sales return, sale deletion | Units restored (intent) |
-| `ADJUSTMENT` | Inventory update/delete with context | Absolute delta magnitude |
-| `EXPIRED` | Disposal and manual expired decreases | Units disposed |
+| `PURCHASE` | Goods receipt, manual batch increase | Units added |
+| `SALE` | Sale allocation | Units removed |
+| `RETURN` | Customer return, GOOD return restoration, sale deletion | Units restored or written off |
+| `ADJUSTMENT` | Batch adjustment, drift correction, inventory initialization | Absolute delta magnitude |
+| `EXPIRED` | Disposal | Units disposed |
 | `RESERVE` | Reservation | Units removed from availability |
 | `RELEASE` | Reservation release | Units returned to availability |
 
-There is no sign field. A consumer must join `movementType` with the operation to know whether stock went up or down. `RETURN` is ambiguous: it is used for both customer returns and sale deletions.
+There is no sign field. A consumer must join `movementType` with the operation to know whether stock went up or down. `RETURN` is ambiguous: it covers GOOD returns, non-GOOD write-offs, and sale deletion.
 
 ## 4. Reference types
 
 | Reference | Used by |
 |---|---|
 | `SALE` | Sales, sale deletion |
-| `RETURN` | Damaged/expired/opened returns, generic returns |
+| `RETURN` | Generic return flows |
 | `SALES_RETURN` | Sales-return parent documents |
 | `PURCHASE_ORDER` | Purchase receipts |
-| `PURCHASE` | Manual increases and inventory creation defaults |
-| `ADJUSTMENT` | Disposal, manual adjustments |
+| `PURCHASE` | Direct batch creation |
+| `ADJUSTMENT` | Disposal, batch adjustments, drift corrections |
 | `RESERVE` / `RELEASE` | Reservation and release movements |
 | `SYSTEM` | Fallback in `createMovement` when no type is supplied |
-
-All nine values are valid enum members, so GOOD returns no longer fail on the movement reference.
 
 ## 5. Coverage matrix
 
 | Operation | Movement written? | Notes |
 |---|---|---|
 | Sale | Yes, one per batch | `referenceId` = sale id |
-| Purchase receipt | Yes | On inventory creation: quantity = full total; on update: delta |
-| Return GOOD | Yes, one per return line | Reference type `SALES_RETURN`; batch restoration is still Phase 4 work |
-| Return DAMAGED/EXPIRED/OPENED | Yes, twice | Duplicate log per line (Phase 4) |
-| Sale deletion | Yes, one per sale item | Stock added to aggregate only |
-| Disposal | Yes, recorded as `EXPIRED` | Movement type follows the request |
-| Manual increase/decrease | Yes | Requires movement context |
-| Reserve/release | Yes | No `reservedStock` change |
-| Batch deduct/increase | **No** | |
-| Batch adjust | **No** | |
-| Batch delete | **No** | |
-| Batch create (direct) | **No** | |
-| Inventory create without context | **No** | |
-| Inventory delete without context | **No** | |
-| Purchase receiving failure | Rolls back | Transaction |
+| Purchase receipt | Yes, one per received batch | Recorded by `StockMutationService.receiveStock` |
+| Direct batch create | Yes, one per batch | Requires a movement context |
+| Return GOOD | Yes, one per return line | Restores the original batch |
+| Return DAMAGED/EXPIRED/OPENED | Yes, one per return line | Write-off; no stock restored |
+| Sale deletion | Yes, one per restored item | Quantity = `quantity - returnedQuantity` |
+| Disposal | Yes, one `EXPIRED` | Atomic with batch zero and aggregate sync |
+| Manual increase/decrease | Yes | Batch id required |
+| Reserve/release | Yes | Updates `reservedStock` and `availableStock` together |
+| Batch deduct/increase/adjust | Yes | Routed through `StockMutationService` |
+| Batch update with quantity change | Yes | One movement for the absolute delta |
+| Drift correction (`POST /inventory/:medicineId/sync`) | Yes, when the delta is non-zero | `ADJUSTMENT` |
+| Batch delete | No | No stock change (zero-stock batches only) |
+| Inventory delete | No | Blocked while stock or reservations exist |
+| Expiry flagging | No | Does not change quantity |
 
 ## 6. Example ledgers
 
@@ -84,13 +82,11 @@ Aggregate is synced once after both allocations.
 
 ### Purchase receipt of 100 units
 
-If inventory already exists:
-
 | Type | Batch | Quantity | Reference |
 |---|---|---|---|
 | PURCHASE | new batch | 100 | PO id |
 
-If inventory does not exist, `createInventory` logs one PURCHASE for the new total (which may include other batches).
+The batch is created with `quantityRemaining = quantityReceived`; one movement is written.
 
 ### GOOD return of 2 units
 
@@ -98,16 +94,15 @@ If inventory does not exist, `createInventory` logs one PURCHASE for the new tot
 |---|---|---|---|
 | RETURN | original batch | 2 | `SALES_RETURN` |
 
-No batch increment.
+The batch is restored and the aggregate is synced.
 
 ### DAMAGED return of 2 units
 
 | Type | Batch | Quantity | Reference type |
 |---|---|---|---|
-| RETURN | original batch | 2 | `RETURN` |
-| RETURN | original batch | 2 | `RETURN` |
+| RETURN | original batch | 2 | `SALES_RETURN` |
 
-The batch is incremented once. Two records are written for one physical event.
+The movement records the write-off. The batch and aggregate are unchanged.
 
 ### Disposal of 10 expired units
 
@@ -115,29 +110,18 @@ The batch is incremented once. Two records are written for one physical event.
 |---|---|---|---|
 | EXPIRED | batch | 10 | batch id |
 
-The movement type follows the request; disposal records `EXPIRED`.
+Batch, aggregate, and movement are committed in one transaction.
 
 ## 7. Audit gaps
 
-1. **Batch-level operations are invisible.** `POST /batches/:id/deduct`, `/increase`, and `/adjust` change stock without a movement.
-2. **Direct batch creation is invisible.** Only purchase receiving syncs inventory and logs a movement.
-3. **Duplicate return logs** inflate movement counts for damaged/expired/opened returns.
-4. **Aggregate-only operations** produce movements that do not correspond to a batch change, so a batch-level reconciliation will not match the ledger.
-5. **Sale deletion** logs `RETURN` against a deleted sale; `referenceId` points to a missing document.
-6. **Cancelled purchase orders** leave no movement, which is correct, but there is no record of the cancellation itself.
-7. **No movement for stock corrections** made through `PATCH /inventory/:id` unless a full context is supplied.
-8. **No user attribution** for batch endpoints; `performedBy` is required, so those paths cannot log even if desired.
+1. **Sale deletion references a deleted sale.** The movement remains, but `referenceId` points at a missing document.
+2. **No movement for expiry flagging.** The flag changes the sellable set without a movement; the next sync records the aggregate adjustment.
+3. **No movement for a deleted zero-stock batch.** Deletion itself does not change stock, but references from sale items may become dangling.
+4. **No reversal entries.** Corrections are new movements, not linked pairs.
 
 ## 8. Why the ledger cannot rebuild stock
 
-To rebuild stock from movements you would need:
-
-- a starting balance per batch (not recorded),
-- signed direction (not recorded),
-- every change recorded (not true),
-- no duplicates (not true for returns).
-
-Therefore movements are an audit aid only. The batch collection is the physical truth for sellable stock.
+To rebuild stock from movements you would need a starting balance per batch, signed direction, every change recorded, and no ambiguity. The ledger has none of those guarantees. The batch collection remains the physical truth for sellable stock.
 
 ## 9. Querying movements
 
@@ -146,7 +130,7 @@ There is no HTTP endpoint for movements. Options:
 | Need | Method |
 |---|---|
 | Recent activity | `GET /dashboard/recent-activity?limit=N` (populates medicine, batch, user) |
-| Per batch | not exposed; use `GET /batches/:id/history` (returns metadata, not movements) |
+| Per batch | not exposed; `GET /batches/:id/history` returns metadata, not movements |
 | Per medicine | not exposed |
 | Per reference | not exposed |
 
@@ -154,10 +138,10 @@ Repository helpers exist (`findAllByMedicineId`, `findAllByBatchId`, `findAllByR
 
 ## 10. Design observations
 
-- The movement service validates medicine, batch ownership, and user on every write, which is good, but it also requires a batch for aggregate-only operations, forcing callers to supply one.
-- The `referenceType` enum now covers every value passed by callers.
-- Movement `quantity` has no min/positive validator in the schema.
-- `InventoryMovementRepo.create` accepts any partial, so schema validation is the only guard.
+- `batchId` is optional in the model, schema, and movement service; aggregate-only operations omit it.
+- `StockMutationService` owns the movement boundary: batch methods sync without a context, then write exactly one movement.
+- `referenceType` is a shared union in `modules/inventory/types/stockMovement.type.ts`.
+- Movement `quantity` has no min/positive validator in the model schema, but `StockMutationService` rejects non-positive quantities.
 
 ## Related documents
 

@@ -34,7 +34,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
 | Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
-| Tests | Vitest | 22 test files, 223 tests |
+| Tests | Vitest | 24 test files, 253 tests |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -123,7 +123,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | WebSocket push | Implemented |
 | Swagger/OpenAPI | Not Implemented (unmounted stubs) |
 | Pagination | Not Implemented |
-| Automated tests | Partially Implemented — 22 files / 223 tests; no HTTP integration tests |
+| Automated tests | Partially Implemented — 24 files / 253 tests; no HTTP integration tests |
 
 ## Conventions used in this documentation
 
@@ -137,4 +137,4 @@ The backend uses a **modular layered architecture** with manual dependency injec
 
 ## Important caveat
 
-Several behaviors in the code are internally inconsistent or broken. Current examples: two stock sources that can drift and several operations that update only one; DAMAGED/EXPIRED/OPENED returns still restock sellable stock and GOOD returns do not restore the original batch; refunds omit VAT; purchase totals ignore VAT/discount; and invoice discounts are not clamped to the discounted subtotal. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents. They are not documented as intended behavior.
+Several behaviors in the code are still incomplete. Stock writes now run through one transactional path, but refunds omit VAT; purchase totals ignore VAT/discount; invoice discounts are not clamped to the discounted subtotal; and expiry flagging does not sync aggregates until the next mutation or sync call. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents. They are not documented as intended behavior.

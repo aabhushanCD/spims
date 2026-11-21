@@ -159,14 +159,14 @@ sequenceDiagram
 
 Behavior by condition:
 
-| Condition | Intended | Actual |
-|---|---|---|
-| GOOD | Restock batch | Aggregate only (batch not restored) |
-| DAMAGED | Write off | Batch restored |
-| EXPIRED | Write off | Batch restored |
-| OPENED | Write off | Batch restored |
+| Condition | Behavior |
+|---|---|
+| GOOD | Restores the original batch and syncs the aggregate |
+| DAMAGED | Writes off; no stock restored |
+| EXPIRED | Writes off; no stock restored |
+| OPENED | Writes off; no stock restored |
 
-The GOOD path's `referenceType` is now valid (`SALES_RETURN`); the remaining condition semantics are Phase 4 work. See [Returns](../modules/returns.md).
+Each line writes exactly one `RETURN` movement. The remaining Phase 4 work is VAT refunds, persisted `returnItems.VAT`, and the approval/status flow. See [Returns](../modules/returns.md).
 
 ## 5. Expiry and disposal
 
@@ -185,8 +185,8 @@ sequenceDiagram
   Staff->>API: POST /batches/:id/confirm-disposal
   API->>B: require isExpired + qty > 0
   B->>B: batch quantity = 0
-  B->>B: decrease aggregate by disposed qty
-  Note over B: movement is logged as EXPIRED (requested type preserved); no transaction
+  B->>B: sync aggregate from batches
+  Note over B: movement is logged as EXPIRED; all writes are in one transaction
 ```
 
 Timing:
@@ -280,11 +280,11 @@ Cron uses server-local time. There is no timezone configuration.
 
 | Operation | Why |
 |---|---|
-| Expiry disposal | Two writes, no session |
-| Batch adjust | Update + sync, no session |
-| Manual inventory increase/decrease | Update + movement, no session |
+| Expiry disposal | Fixed: batch + aggregate + movement in one transaction |
+| Batch adjust | Fixed: update + sync + movement in one transaction |
+| Manual inventory increase/decrease | Fixed: batch + aggregate + movement in one transaction |
 | Notification dispatch | Per-recipient updates, no transaction |
-| Batch deduct/increase | Single write, no movement |
+| Batch deduct/increase | Fixed: routed through `StockMutationService` with a movement |
 | Sale item price correction | No parent-total recomputation |
 
 ## Related documents
