@@ -1,82 +1,74 @@
-import mongoose, { Types } from "mongoose";
+import type mongoose from "mongoose";
+
+import type { IBatch } from "../../batch/model/medicineBatch.model.js";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.js";
-import type { IInventory } from "../model/inventory.model.js";
-import type { InventoryRepo } from "../repo/inventory.repo.js";
-import type { InventoryMovementService } from "./inventoryMovement.service.ts";
 import type { BatchAllocation } from "../../batch/types/batchAllocation.type.ts";
 import type { AppError } from "../../../shared/error.ts";
+import type { IInventory } from "../model/inventory.model.js";
+import type { InventoryRepo } from "../repo/inventory.repo.js";
+import type {
+  StockMovementCtx,
+  StockReferenceType,
+} from "../types/stockMovement.type.ts";
+import type { StockMutationService } from "./stockMutation.service.ts";
 
-interface ImovementCtx {
-  batchId: string;
-  referenceId: string;
-  movementType:
-    | "PURCHASE"
-    | "SALE"
-    | "RETURN"
-    | "ADJUSTMENT"
-    | "EXPIRED"
-    | "RESERVE"
-    | "RELEASE";
-  referenceType: string;
-  performedBy: string;
-  remarks: string;
+export type InventoryMovementCtx = Omit<StockMovementCtx, "medicineId">;
+
+interface CreateInventoryInput {
+  medicineId: string;
+  currentStock?: number | undefined;
+  reservedStock?: number | undefined;
+  availableStock?: number | undefined;
+  lastUpdated?: string | undefined;
 }
+
 export class InventoryService {
   constructor(
     private readonly inventoryRepo: InventoryRepo,
-    private readonly inventoryMovementService: InventoryMovementService,
     private readonly batchRepo: MedicineBatchRepo,
+    private readonly stockMutation: StockMutationService,
     private readonly appError: typeof AppError,
   ) {}
 
-  async createInventory(
-    inventoryData: {
-      medicineId: string;
-      currentStock: number;
-      reservedStock: number;
-      availableStock: number;
-      lastUpdated: string;
-    },
-    movementCtx?: ImovementCtx,
-    session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.create(
-      {
-        medicineId: new Types.ObjectId(inventoryData.medicineId),
-        currentStock: inventoryData.currentStock,
-        reservedStock: inventoryData.reservedStock,
-        availableStock: inventoryData.availableStock,
-        lastUpdated: new Date(inventoryData.lastUpdated),
-      },
-      session,
-    );
-
-    if (movementCtx && inventoryData.currentStock > 0) {
-      await this.inventoryMovementService.createMovement(
-        {
-          medicineId: inventoryData.medicineId,
-          batchId: movementCtx.batchId,
-          movementType: movementCtx.movementType ?? "PURCHASE",
-          quantity: inventoryData.currentStock,
-          referenceId: movementCtx.referenceId,
-          referenceType: movementCtx.referenceType ?? "PURCHASE",
-          performedBy: movementCtx.performedBy,
-          remarks: movementCtx.remarks,
-        },
-        session,
-      );
-    }
-
-    return inventory;
+  private withMedicine(
+    medicineId: string,
+    ctx: InventoryMovementCtx,
+  ): StockMovementCtx {
+    return { ...ctx, medicineId };
   }
+
+  private requireInventory(result: IInventory | null | undefined): IInventory {
+    if (!result) {
+      throw this.appError.conflict("Inventory record is unavailable");
+    }
+    return result;
+  }
+
+  async createInventory(
+    inventoryData: CreateInventoryInput,
+    movementCtx?: InventoryMovementCtx,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory> {
+    return this.stockMutation.initializeAggregate({
+      medicineId: inventoryData.medicineId,
+      reservedStock: inventoryData.reservedStock ?? 0,
+      ctx: movementCtx
+        ? this.withMedicine(inventoryData.medicineId, movementCtx)
+        : undefined,
+      session,
+    });
+  }
+
   async getAllInventories(
     session?: mongoose.ClientSession,
   ): Promise<IInventory[]> {
     return await this.inventoryRepo.findAll(session);
   }
+
   async searchMedicines(query: string) {
     return await this.inventoryRepo.searchMedicines(query);
   }
+
   async getInventoryById(id: string): Promise<IInventory | null> {
     return await this.inventoryRepo.findById(id);
   }
@@ -88,39 +80,67 @@ export class InventoryService {
   async increaseStock(
     medicineId: string,
     quantity: number,
-    movementCtx: ImovementCtx,
+    movementCtx: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.findByMedicineId(medicineId);
-    if (!inventory) {
-      throw this.appError.notFound(
-        "Inventory not found for the given medicineId",
-      );
+  ): Promise<IInventory> {
+    if (!movementCtx.batchId) {
+      throw this.appError.badRequest("batchId is required for stock changes");
     }
-
-    inventory.currentStock += quantity;
-    inventory.availableStock += quantity;
-    inventory.lastUpdated = new Date();
-    const update = await this.inventoryRepo.update(
-      inventory._id.toString(),
-      inventory,
+    const result = await this.stockMutation.increaseBatchStock({
+      medicineId,
+      batchId: movementCtx.batchId,
+      quantity,
+      ctx: this.withMedicine(medicineId, movementCtx),
       session,
-    );
+    });
+    return this.requireInventory(result.inventory);
+  }
 
-    await this.inventoryMovementService.createMovement(
-      {
-        medicineId: medicineId,
-        batchId: movementCtx.batchId,
-        movementType: movementCtx.movementType ?? "PURCHASE",
-        quantity: quantity,
-        referenceId: movementCtx.referenceId,
-        referenceType: movementCtx.referenceType ?? "PURCHASE",
-        performedBy: movementCtx.performedBy,
-        remarks: movementCtx.remarks,
-      },
+  async decreaseStock(
+    medicineId: string,
+    quantity: number,
+    movementCtx: InventoryMovementCtx,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory> {
+    if (!movementCtx.batchId) {
+      throw this.appError.badRequest("batchId is required for stock changes");
+    }
+    const result = await this.stockMutation.decreaseBatchStock({
+      medicineId,
+      batchId: movementCtx.batchId,
+      quantity,
+      ctx: this.withMedicine(medicineId, movementCtx),
       session,
-    );
-    return update;
+    });
+    return this.requireInventory(result.inventory);
+  }
+
+  async reserveStock(
+    medicineId: string,
+    quantity: number,
+    movementCtx: InventoryMovementCtx,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory> {
+    return await this.stockMutation.reserveStock({
+      medicineId,
+      quantity,
+      ctx: this.withMedicine(medicineId, movementCtx),
+      session,
+    });
+  }
+
+  async releaseReservedStock(
+    medicineId: string,
+    quantity: number,
+    movementCtx: InventoryMovementCtx,
+    session?: mongoose.ClientSession,
+  ): Promise<IInventory> {
+    return await this.stockMutation.releaseStock({
+      medicineId,
+      quantity,
+      ctx: this.withMedicine(medicineId, movementCtx),
+      session,
+    });
   }
 
   async returnMedicine(
@@ -128,306 +148,121 @@ export class InventoryService {
     batchId: string,
     quantity: number,
     condition: "GOOD" | "DAMAGED" | "EXPIRED" | "OPENED",
-    movementCtx: ImovementCtx,
+    movementCtx: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
+  ): Promise<IInventory | IBatch> {
     if (quantity <= 0) {
       throw this.appError.badRequest("Quantity must be greater than zero");
     }
 
     const batch = await this.batchRepo.findById(batchId, session);
-
     if (!batch) {
       throw this.appError.notFound("Batch not found");
     }
-
     if (batch.medicineId.toString() !== medicineId) {
       throw this.appError.badRequest("Batch does not belong to medicine");
     }
 
-    switch (condition) {
-      case "GOOD":
-        return await this.increaseStock(
-          medicineId,
-          quantity,
-          movementCtx,
-          session,
-        );
-      case "DAMAGED":
-      case "EXPIRED":
-      case "OPENED":
-        await this.inventoryMovementService.createMovement(
-          {
-            medicineId,
-            batchId,
-            quantity,
-
-            movementType: "RETURN",
-
-            referenceId: movementCtx.referenceId,
-
-            referenceType: "RETURN",
-
-            performedBy: movementCtx.performedBy,
-
-            remarks: `Returned (${condition})`,
-          },
-          session,
-        );
+    if (condition === "GOOD") {
+      const result = await this.stockMutation.increaseBatchStock({
+        medicineId,
+        batchId,
+        quantity,
+        ctx: this.withMedicine(medicineId, {
+          ...movementCtx,
+          batchId,
+          movementType: "RETURN",
+          referenceType: movementCtx.referenceType ?? "SALES_RETURN",
+        }),
+        session,
+      });
+      return this.requireInventory(result.inventory);
     }
-    const updatedBatch = await this.batchRepo.increaseBatchStock(
-      batchId,
+
+    await this.stockMutation.recordMovement(
+      {
+        ...this.withMedicine(medicineId, movementCtx),
+        batchId,
+        movementType: "RETURN",
+        referenceType: movementCtx.referenceType ?? "SALES_RETURN",
+        remarks:
+          movementCtx.remarks ??
+          `Returned (${condition}) — write-off; no stock restored`,
+      },
       quantity,
       session,
     );
 
-    if (!updatedBatch) {
-      throw this.appError.conflict("Unable to restore stock.");
-    }
-
-    await this.inventoryMovementService.createMovement(
-      {
-        medicineId,
-
-        batchId,
-
-        quantity,
-
-        movementType: "RETURN",
-
-        referenceId: movementCtx.referenceId,
-
-        referenceType: "RETURN",
-
-        performedBy: movementCtx.performedBy,
-
-        remarks: movementCtx.remarks ?? "Medicine Returned",
-      },
-      session,
-    );
-
-    await this.syncInventoryFromBatch(medicineId, undefined, session);
-
-    return updatedBatch;
-  }
-
-  async decreaseStock(
-    medicineId: string,
-    quantity: number,
-    movementCtx: ImovementCtx,
-    session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.findByMedicineId(
-      medicineId,
-      session,
-    );
-    if (!inventory) {
-      throw this.appError.notFound(
-        "Inventory not found for the given medicineId",
-      );
-    }
-    if (inventory.availableStock < quantity) {
-      throw this.appError.badRequest("Insufficient stock available");
-    }
-    inventory.currentStock -= quantity;
-    inventory.availableStock -= quantity;
-    inventory.lastUpdated = new Date();
-
-    const updated = await this.inventoryRepo.update(
-      inventory._id.toString(),
-      inventory,
-      session,
-    );
-
-    await this.inventoryMovementService.createMovement(
-      {
-        medicineId: medicineId,
-        batchId: movementCtx.batchId,
-        movementType: movementCtx.movementType ?? "SALE",
-        quantity: quantity,
-        referenceId: movementCtx.referenceId ?? "",
-        referenceType: movementCtx.referenceType ?? "SALE",
-        performedBy: movementCtx.performedBy,
-        remarks: movementCtx.remarks ?? "Stock issued",
-      },
-      session,
-    );
-
-    return updated;
-  }
-
-  async reserveStock(
-    medicineId: string,
-    quantity: number,
-    movementCtx: ImovementCtx,
-    session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.findByMedicineId(
-      medicineId,
-      session,
-    );
-    if (!inventory) {
-      throw this.appError.notFound(
-        "Inventory not found for the given medicineId",
-      );
-    }
-    if (inventory.availableStock < quantity) {
-      throw this.appError.badRequest("Insufficient stock available to reserve");
-    }
-    inventory.availableStock -= quantity;
-    inventory.lastUpdated = new Date();
-
-    const updated = await this.inventoryRepo.update(
-      inventory._id.toString(),
-      inventory,
-      session,
-    );
-
-    await this.inventoryMovementService.createMovement(
-      {
-        medicineId,
-        batchId: movementCtx.batchId,
-        movementType: movementCtx.movementType ?? "RESERVE",
-        quantity,
-        referenceId: movementCtx.referenceId,
-        referenceType: movementCtx.referenceType ?? "RESERVE",
-        performedBy: movementCtx.performedBy,
-        remarks: movementCtx.remarks,
-      },
-      session,
-    );
-
-    return updated;
-  }
-
-  async releaseReservedStock(
-    medicineId: string,
-    quantity: number,
-    movementCtx: ImovementCtx,
-    session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.findByMedicineId(
-      medicineId,
-      session,
-    );
-    if (!inventory) {
-      throw this.appError.notFound(
-        "Inventory not found for the given medicineId",
-      );
-    }
-    inventory.availableStock += quantity;
-    inventory.lastUpdated = new Date();
-    const updated = await this.inventoryRepo.update(
-      inventory._id.toString(),
-      inventory,
-      session,
-    );
-
-    await this.inventoryMovementService.createMovement(
-      {
-        medicineId,
-        batchId: movementCtx.batchId,
-        movementType: movementCtx.movementType ?? "RELEASE",
-        quantity,
-        referenceId: movementCtx.referenceId,
-        referenceType: movementCtx.referenceType ?? "RELEASE",
-        performedBy: movementCtx.performedBy,
-        remarks: movementCtx.remarks,
-      },
-      session,
-    );
-
-    return updated;
+    return batch;
   }
 
   async syncInventoryFromBatch(
     medicineId: string,
-    movementCtx?: ImovementCtx,
+    movementCtx?: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
-    const inventory = await this.inventoryRepo.findByMedicineId(
-      medicineId,
+  ): Promise<IInventory> {
+    return await this.stockMutation.syncAggregate(medicineId, {
+      ctx: movementCtx
+        ? this.withMedicine(medicineId, movementCtx)
+        : undefined,
       session,
-    );
-
-    const totalStock = await this.batchRepo.getTotalStock(medicineId, session);
-
-    if (!inventory) {
-      const inventoryData = {
-        medicineId: medicineId.toString(),
-        currentStock: totalStock,
-        reservedStock: 0,
-        availableStock: totalStock - 0,
-        lastUpdated: new Date().toISOString(),
-      };
-
-      const inventory = await this.createInventory(
-        inventoryData,
-        movementCtx,
-        session,
-      );
-      return inventory;
-    }
-
-    const currentStock = totalStock;
-    const availableStock = currentStock - inventory.reservedStock;
-
-    const updated = await this.updateInventory(
-      inventory._id.toString(),
-      {
-        currentStock,
-        availableStock,
-        lastUpdated: new Date(),
-      },
-      movementCtx,
-      session,
-    );
-
-    return {
-      ...updated,
-      availableStock,
-    };
+    });
   }
 
   async updateInventory(
     id: string,
     updateData: Partial<IInventory>,
-    movementCtx?: ImovementCtx,
+    _movementCtx?: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
-    const before = movementCtx
-      ? await this.inventoryRepo.findById(id, session)
-      : null;
-    const updated = await this.inventoryRepo.update(id, updateData, session);
-    if (movementCtx && before && typeof updateData.currentStock === "number") {
-      const delta = updateData.currentStock - before.currentStock;
-      if (delta !== 0) {
-        await this.inventoryMovementService.createMovement(
-          {
-            medicineId: before.medicineId.toString(),
-            batchId: movementCtx.batchId,
-            movementType: movementCtx.movementType ?? "ADJUSTMENT",
-            quantity: Math.abs(delta),
-            referenceId: movementCtx.referenceId,
-            referenceType: movementCtx.referenceType ?? "ADJUSTMENT",
-            performedBy: movementCtx.performedBy,
-            remarks:
-              movementCtx.remarks ??
-              `Manual inventory adjustment of (${delta > 0 ? "+" : ""}${delta})`,
-          },
-          session,
+  ): Promise<IInventory | null> {
+    const allowedFields = new Set(["reservedStock", "lastUpdated"]);
+    for (const key of Object.keys(updateData)) {
+      if (!allowedFields.has(key)) {
+        throw this.appError.badRequest(
+          `Field ${key} cannot be updated directly; stock is derived from batches`,
         );
       }
     }
-    return updated;
+
+    const inventory = await this.inventoryRepo.findById(id, session);
+    if (!inventory) {
+      return null;
+    }
+
+    const totalStock = await this.batchRepo.getTotalStock(
+      inventory.medicineId.toString(),
+      session,
+    );
+    const reservedStock = updateData.reservedStock ?? inventory.reservedStock;
+    if (!Number.isInteger(reservedStock) || reservedStock < 0) {
+      throw this.appError.badRequest(
+        "reservedStock must be a non-negative whole number",
+      );
+    }
+    if (reservedStock > totalStock) {
+      throw this.appError.badRequest(
+        "reservedStock cannot exceed available batch stock",
+      );
+    }
+
+    return await this.inventoryRepo.update(
+      id,
+      {
+        reservedStock,
+        currentStock: totalStock,
+        availableStock: totalStock - reservedStock,
+        lastUpdated: updateData.lastUpdated ?? new Date(),
+      },
+      session,
+    );
   }
 
   async sellMedicine(
     medicineId: string,
     requestedQuantity: number,
-    movementCtx: ImovementCtx,
+    movementCtx: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
+  ): Promise<BatchAllocation[]> {
     if (requestedQuantity <= 0) {
       throw this.appError.badRequest("Quantity must be greater than zero");
     }
@@ -447,93 +282,68 @@ export class InventoryService {
     if (totalAvailable < requestedQuantity) {
       throw this.appError.badRequest(`Only ${totalAvailable} units available.`);
     }
-    const allocations: BatchAllocation[] = [];
 
+    const allocations: BatchAllocation[] = [];
     let remaining = requestedQuantity;
 
     for (const batch of batches) {
       if (remaining <= 0) break;
 
+      const batchId = batch._id.toString();
       const sellQty = Math.min(batch.quantityRemaining, remaining);
-
-      const updated = await this.batchRepo.deductBatchStock(
-        batch._id.toString(),
-        sellQty,
+      await this.stockMutation.decreaseBatchStock({
+        medicineId,
+        batchId,
+        quantity: sellQty,
+        sync: false,
+        ctx: this.withMedicine(medicineId, {
+          ...movementCtx,
+          batchId,
+          movementType: "SALE",
+          referenceType: "SALE" as StockReferenceType,
+        }),
         session,
-      );
-
-      if (!updated) {
-        throw this.appError.conflict(
-          `Stock changed while processing sale for batch ${batch.batchNumber}`,
-        );
-      }
+      });
 
       allocations.push({
-        batchId: batch._id.toString(),
+        batchId,
         batchNumber: batch.batchNumber,
         medicineId,
         quantity: sellQty,
         unitPrice: batch.sellingPrice,
       });
 
-      await this.inventoryMovementService.createMovement(
-        {
-          medicineId,
-
-          batchId: batch._id.toString(),
-
-          quantity: sellQty,
-
-          movementType: "SALE",
-
-          referenceId: movementCtx.referenceId,
-
-          referenceType: "SALE",
-
-          performedBy: movementCtx.performedBy,
-
-          remarks: movementCtx.remarks ?? "Medicine Sold",
-        },
-        session,
-      );
-
       remaining -= sellQty;
     }
+
     if (remaining > 0) {
       throw this.appError.conflict("Stock changed while processing sale.");
     }
-    await this.syncInventoryFromBatch(medicineId, undefined, session);
+    await this.stockMutation.syncAggregate(medicineId, { session });
 
     return allocations;
   }
 
   async deleteInventory(
     id: string,
-    movementCtx?: ImovementCtx,
+    _movementCtx?: InventoryMovementCtx,
     session?: mongoose.ClientSession,
-  ) {
-    const before = movementCtx
-      ? await this.inventoryRepo.findById(id, session)
-      : null;
+  ): Promise<IInventory | null> {
+    const inventory = await this.inventoryRepo.findById(id, session);
+    if (!inventory) {
+      return null;
+    }
 
-    const deleted = await this.inventoryRepo.delete(id, session);
-
-    if (movementCtx && before && before.currentStock > 0) {
-      await this.inventoryMovementService.createMovement(
-        {
-          medicineId: before.medicineId.toString(),
-          batchId: movementCtx.batchId,
-          movementType: "ADJUSTMENT",
-          quantity: before.currentStock,
-          referenceId: movementCtx.referenceId,
-          referenceType: movementCtx.referenceType ?? "ADJUSTMENT",
-          performedBy: movementCtx.performedBy,
-          remarks: movementCtx.remarks ?? "Inventory record deleted",
-        },
-        session,
+    const totalStock = await this.batchRepo.getTotalStock(
+      inventory.medicineId.toString(),
+      session,
+    );
+    if (inventory.currentStock > 0 || inventory.reservedStock > 0 || totalStock > 0) {
+      throw this.appError.conflict(
+        "Cannot delete inventory with stock or reservations",
       );
     }
 
-    return deleted;
+    return await this.inventoryRepo.delete(id, session);
   }
 }

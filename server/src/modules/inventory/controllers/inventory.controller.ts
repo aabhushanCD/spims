@@ -12,56 +12,36 @@ export class InventoryController {
 
   // POST /inventory
   createInventory = asyncHandler(async (req: Request, res: Response) => {
-    const {
-      medicineId,
-      currentStock,
-      reservedStock,
-      availableStock,
-      lastUpdated,
-    }: {
+    const { medicineId, reservedStock }: {
       medicineId: string;
-      currentStock: number;
-      reservedStock: number;
-      availableStock: number;
-      lastUpdated: string;
+      reservedStock?: number;
     } = req.body;
-
+    const performedBy = req.user?.userId;
     const {
       batchId,
       referenceId,
       referenceType,
       remarks,
       movementType,
-    }: {
-      batchId: string;
-      referenceId: string;
-      referenceType: string;
-      remarks: string;
-      movementType:
-        | "PURCHASE"
-        | "SALE"
-        | "RETURN"
-        | "ADJUSTMENT"
-        | "EXPIRED"
-        | "RESERVE"
-        | "RELEASE";
     } = req.body;
-    const performedBy = req.user?.userId as string;
 
-    const movementCtx =
-      referenceId && referenceType
-        ? {
-            batchId,
-            referenceId,
-            referenceType,
-            performedBy,
-            remarks,
-            movementType,
-          }
-        : undefined;
+    let movementCtx;
+    if (referenceId && referenceType) {
+      if (!performedBy) {
+        throw AppError.unauthorized("Authenticated user required");
+      }
+      movementCtx = {
+        batchId,
+        referenceId,
+        referenceType,
+        performedBy,
+        remarks,
+        movementType: movementType ?? "ADJUSTMENT",
+      };
+    }
 
     const inventory = await this.inventoryService.createInventory(
-      { medicineId, currentStock, reservedStock, availableStock, lastUpdated },
+      { medicineId, reservedStock },
       movementCtx,
     );
 
@@ -116,10 +96,17 @@ export class InventoryController {
       movementType,
       remarks,
     } = req.body;
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
 
     if (!performedBy)
       throw AppError.unauthorized("Authenticated user required");
+    if (!batchId) throw AppError.badRequest("batchId is required");
+    if (!referenceId || !referenceType) {
+      throw AppError.badRequest("referenceId and referenceType are required");
+    }
+    if (typeof quantity !== "number" || quantity <= 0) {
+      throw AppError.badRequest("quantity must be a positive number");
+    }
     if (!["PURCHASE", "RETURN"].includes(movementType)) {
       throw AppError.badRequest(
         "movementType must be PURCHASE or RETURN for a stock increase",
@@ -154,10 +141,17 @@ export class InventoryController {
       movementType,
       remarks,
     } = req.body;
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
 
     if (!performedBy)
       throw AppError.unauthorized("Authenticated user required");
+    if (!batchId) throw AppError.badRequest("batchId is required");
+    if (!referenceId || !referenceType) {
+      throw AppError.badRequest("referenceId and referenceType are required");
+    }
+    if (typeof quantity !== "number" || quantity <= 0) {
+      throw AppError.badRequest("quantity must be a positive number");
+    }
     if (!["SALE", "EXPIRED", "ADJUSTMENT"].includes(movementType)) {
       throw AppError.badRequest(
         "movementType must be SALE, EXPIRED, or ADJUSTMENT for a stock decrease",
@@ -185,9 +179,15 @@ export class InventoryController {
   reserveStock = asyncHandler(async (req: Request, res: Response) => {
     const { medicineId } = req.params as { medicineId: string };
     const { quantity, batchId, referenceId, referenceType, remarks } = req.body;
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
     if (!performedBy)
       throw AppError.unauthorized("Authenticated user required");
+    if (typeof quantity !== "number" || quantity <= 0) {
+      throw AppError.badRequest("quantity must be a positive number");
+    }
+    if (!referenceId || !referenceType) {
+      throw AppError.badRequest("referenceId and referenceType are required");
+    }
 
     const inventory = await this.inventoryService.reserveStock(
       medicineId as string,
@@ -210,9 +210,15 @@ export class InventoryController {
   releaseReservedStock = asyncHandler(async (req: Request, res: Response) => {
     const { medicineId } = req.params as { medicineId: string };
     const { quantity, batchId, referenceId, referenceType, remarks } = req.body;
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
     if (!performedBy)
       throw AppError.unauthorized("Authenticated user required");
+    if (typeof quantity !== "number" || quantity <= 0) {
+      throw AppError.badRequest("quantity must be a positive number");
+    }
+    if (!referenceId || !referenceType) {
+      throw AppError.badRequest("referenceId and referenceType are required");
+    }
 
     const inventory = await this.inventoryService.releaseReservedStock(
       medicineId as string,
@@ -233,8 +239,20 @@ export class InventoryController {
   // POST /inventory/:medicineId/sync
   syncInventoryFromBatch = asyncHandler(async (req: Request, res: Response) => {
     const { medicineId } = req.params as { medicineId: string };
-    const inventory =
-      await this.inventoryService.syncInventoryFromBatch(medicineId);
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const inventory = await this.inventoryService.syncInventoryFromBatch(
+      medicineId,
+      {
+        referenceId: medicineId,
+        referenceType: "ADJUSTMENT",
+        movementType: "ADJUSTMENT",
+        performedBy,
+        remarks: req.body?.remarks ?? "Aggregate reconciled from batches",
+      },
+    );
     res.status(200).json({ success: true, data: inventory });
   });
 
@@ -249,15 +267,18 @@ export class InventoryController {
       movementType,
       ...updateData
     } = req.body;
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
 
+    if (referenceId && referenceType && !performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
     const movementCtx =
       referenceId && referenceType
         ? {
             batchId,
             referenceId,
             referenceType,
-            performedBy,
+            performedBy: performedBy!,
             remarks,
             movementType,
           }
@@ -277,15 +298,18 @@ export class InventoryController {
   deleteInventory = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const { batchId, referenceId, referenceType, remarks } = req.body ?? {};
-    const performedBy = req.user?.userId as string;
+    const performedBy = req.user?.userId;
 
+    if (referenceId && referenceType && !performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
     const movementCtx =
       referenceId && referenceType
         ? {
             batchId,
             referenceId,
             referenceType,
-            performedBy,
+            performedBy: performedBy!,
             remarks,
             movementType: "ADJUSTMENT" as const,
           }

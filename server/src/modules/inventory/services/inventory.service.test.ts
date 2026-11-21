@@ -5,12 +5,13 @@ import { AppError } from "../../../shared/error.ts";
 const MEDICINE_ID = "507f1f77bcf86cd799439011";
 const OTHER_MEDICINE_ID = "507f1f77bcf86cd799439012";
 const BATCH_ID = "507f1f77bcf86cd799439021";
+const BATCH_2_ID = "507f1f77bcf86cd799439022";
 const USER_ID = "507f1f77bcf86cd799439031";
 
 const movementContext = {
   batchId: BATCH_ID,
   referenceId: "507f1f77bcf86cd799439041",
-  referenceType: "SALE",
+  referenceType: "SALE" as const,
   movementType: "SALE" as const,
   performedBy: USER_ID,
   remarks: "test movement",
@@ -27,26 +28,30 @@ function buildService() {
     searchMedicines: vi.fn(),
   };
 
-  const movementService = {
-    createMovement: vi.fn(),
-  };
-
   const batchRepo = {
     findSellableBatches: vi.fn(),
-    deductBatchStock: vi.fn(),
     findById: vi.fn(),
-    increaseBatchStock: vi.fn(),
     getTotalStock: vi.fn(),
+  };
+
+  const stockMutation = {
+    decreaseBatchStock: vi.fn().mockResolvedValue({ batch: {} }),
+    increaseBatchStock: vi.fn().mockResolvedValue({ batch: {}, inventory: {} }),
+    recordMovement: vi.fn(),
+    syncAggregate: vi.fn().mockResolvedValue({}),
+    initializeAggregate: vi.fn().mockResolvedValue({}),
+    reserveStock: vi.fn().mockResolvedValue({}),
+    releaseStock: vi.fn().mockResolvedValue({}),
   };
 
   const service = new InventoryService(
     inventoryRepo as never,
-    movementService as never,
     batchRepo as never,
+    stockMutation as never,
     AppError,
   );
 
-  return { service, inventoryRepo, movementService, batchRepo };
+  return { service, inventoryRepo, batchRepo, stockMutation };
 }
 
 describe("InventoryService", () => {
@@ -55,34 +60,24 @@ describe("InventoryService", () => {
   });
 
   describe("sellMedicine (FEFO allocation)", () => {
-    it("allocates across batches in the order supplied by the FEFO query", async () => {
-      const { service, batchRepo, movementService } = buildService();
-      vi.spyOn(service, "syncInventoryFromBatch").mockResolvedValue(
-        {} as never,
-      );
-
+    it("mutates each batch without syncing, then syncs once", async () => {
+      const { service, batchRepo, stockMutation } = buildService();
       batchRepo.findSellableBatches.mockResolvedValue([
         {
-          _id: { toString: () => "batch-early" },
+          _id: { toString: () => BATCH_ID },
           batchNumber: "EARLY",
           medicineId: { toString: () => MEDICINE_ID },
           quantityRemaining: 5,
           sellingPrice: 10,
         },
         {
-          _id: { toString: () => "batch-late" },
+          _id: { toString: () => BATCH_2_ID },
           batchNumber: "LATE",
           medicineId: { toString: () => MEDICINE_ID },
           quantityRemaining: 20,
           sellingPrice: 12,
         },
       ]);
-      batchRepo.deductBatchStock.mockImplementation(
-        async (batchId: string, quantity: number) => ({
-          _id: batchId,
-          quantityRemaining: quantity,
-        }),
-      );
 
       const allocations = await service.sellMedicine(
         MEDICINE_ID,
@@ -90,79 +85,39 @@ describe("InventoryService", () => {
         movementContext,
       );
 
-      expect(batchRepo.findSellableBatches).toHaveBeenCalledWith(
-        MEDICINE_ID,
-        undefined,
-      );
       expect(allocations).toEqual([
         {
-          batchId: "batch-early",
+          batchId: BATCH_ID,
           batchNumber: "EARLY",
           medicineId: MEDICINE_ID,
           quantity: 5,
           unitPrice: 10,
         },
         {
-          batchId: "batch-late",
+          batchId: BATCH_2_ID,
           batchNumber: "LATE",
           medicineId: MEDICINE_ID,
           quantity: 7,
           unitPrice: 12,
         },
       ]);
-      expect(batchRepo.deductBatchStock).toHaveBeenNthCalledWith(
-        1,
-        "batch-early",
-        5,
-        undefined,
-      );
-      expect(batchRepo.deductBatchStock).toHaveBeenNthCalledWith(
-        2,
-        "batch-late",
-        7,
-        undefined,
-      );
-      expect(movementService.createMovement).toHaveBeenCalledTimes(2);
-      expect(movementService.createMovement).toHaveBeenNthCalledWith(
+      expect(stockMutation.decreaseBatchStock).toHaveBeenCalledTimes(2);
+      expect(stockMutation.decreaseBatchStock).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          medicineId: MEDICINE_ID,
-          batchId: "batch-early",
-          movementType: "SALE",
+          batchId: BATCH_ID,
           quantity: 5,
+          sync: false,
         }),
-        undefined,
       );
-    });
-
-    it("uses a single batch when it covers the full request", async () => {
-      const { service, batchRepo } = buildService();
-      vi.spyOn(service, "syncInventoryFromBatch").mockResolvedValue(
-        {} as never,
-      );
-      batchRepo.findSellableBatches.mockResolvedValue([
-        {
-          _id: { toString: () => "batch-1" },
-          batchNumber: "B-1",
-          quantityRemaining: 10,
-          sellingPrice: 25,
-        },
-      ]);
-      batchRepo.deductBatchStock.mockResolvedValue({ _id: "batch-1" });
-
-      const allocations = await service.sellMedicine(
-        MEDICINE_ID,
-        4,
-        movementContext,
-      );
-
-      expect(allocations).toHaveLength(1);
-      expect(allocations[0]?.quantity).toBe(4);
-      expect(allocations[0]?.unitPrice).toBe(25);
+      expect(stockMutation.syncAggregate).toHaveBeenCalledTimes(1);
+      expect(stockMutation.syncAggregate).toHaveBeenCalledWith(MEDICINE_ID, {
+        session: undefined,
+      });
     });
 
     it("rejects out-of-stock medicines", async () => {
-      const { service, batchRepo } = buildService();
+      const { service, batchRepo, stockMutation } = buildService();
       batchRepo.findSellableBatches.mockResolvedValue([]);
 
       await expect(
@@ -171,21 +126,7 @@ describe("InventoryService", () => {
         message: "Medicine is out of stock",
         statusCode: 400,
       });
-    });
-
-    it("rejects a request larger than total sellable stock", async () => {
-      const { service, batchRepo, movementService } = buildService();
-      batchRepo.findSellableBatches.mockResolvedValue([
-        { _id: { toString: () => "batch-1" }, quantityRemaining: 2 },
-      ]);
-
-      await expect(
-        service.sellMedicine(MEDICINE_ID, 5, movementContext),
-      ).rejects.toMatchObject({
-        message: "Only 2 units available.",
-        statusCode: 400,
-      });
-      expect(movementService.createMovement).not.toHaveBeenCalled();
+      expect(stockMutation.decreaseBatchStock).not.toHaveBeenCalled();
     });
 
     it("rejects non-positive quantities before touching storage", async () => {
@@ -199,34 +140,11 @@ describe("InventoryService", () => {
       });
       expect(batchRepo.findSellableBatches).not.toHaveBeenCalled();
     });
-
-    it("fails with a conflict when concurrent stock deduction loses the race", async () => {
-      const { service, batchRepo } = buildService();
-      batchRepo.findSellableBatches.mockResolvedValue([
-        {
-          _id: { toString: () => "batch-1" },
-          batchNumber: "B-1",
-          quantityRemaining: 10,
-          sellingPrice: 10,
-        },
-      ]);
-      batchRepo.deductBatchStock.mockResolvedValue(null);
-
-      await expect(
-        service.sellMedicine(MEDICINE_ID, 5, movementContext),
-      ).rejects.toMatchObject({
-        message: "Stock changed while processing sale for batch B-1",
-        statusCode: 409,
-      });
-    });
   });
 
   describe("returnMedicine", () => {
-    it("restores sellable stock for GOOD returns", async () => {
-      const { service, batchRepo } = buildService();
-      const increaseStock = vi
-        .spyOn(service, "increaseStock")
-        .mockResolvedValue({} as never);
+    it("restores the batch for GOOD returns through the mutation service", async () => {
+      const { service, batchRepo, stockMutation } = buildService();
       batchRepo.findById.mockResolvedValue({
         _id: BATCH_ID,
         medicineId: { toString: () => MEDICINE_ID },
@@ -240,26 +158,22 @@ describe("InventoryService", () => {
         movementContext,
       );
 
-      expect(increaseStock).toHaveBeenCalledWith(
-        MEDICINE_ID,
-        3,
-        movementContext,
-        undefined,
+      expect(stockMutation.increaseBatchStock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicineId: MEDICINE_ID,
+          batchId: BATCH_ID,
+          quantity: 3,
+        }),
       );
-      expect(batchRepo.increaseBatchStock).not.toHaveBeenCalled();
+      expect(stockMutation.recordMovement).not.toHaveBeenCalled();
     });
 
-    it("does not return damaged stock to sellable inventory", async () => {
-      const { service, batchRepo, movementService } = buildService();
-      const increaseStock = vi.spyOn(service, "increaseStock");
-      const sync = vi
-        .spyOn(service, "syncInventoryFromBatch")
-        .mockResolvedValue({} as never);
+    it("writes one write-off movement and no stock change for damaged returns", async () => {
+      const { service, batchRepo, stockMutation } = buildService();
       batchRepo.findById.mockResolvedValue({
         _id: BATCH_ID,
         medicineId: { toString: () => MEDICINE_ID },
       });
-      batchRepo.increaseBatchStock.mockResolvedValue({ _id: BATCH_ID });
 
       await service.returnMedicine(
         MEDICINE_ID,
@@ -269,38 +183,18 @@ describe("InventoryService", () => {
         movementContext,
       );
 
-      expect(increaseStock).not.toHaveBeenCalled();
-      expect(batchRepo.increaseBatchStock).toHaveBeenCalledWith(
-        BATCH_ID,
+      expect(stockMutation.increaseBatchStock).not.toHaveBeenCalled();
+      expect(stockMutation.decreaseBatchStock).not.toHaveBeenCalled();
+      expect(stockMutation.recordMovement).toHaveBeenCalledTimes(1);
+      expect(stockMutation.recordMovement).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicineId: MEDICINE_ID,
+          batchId: BATCH_ID,
+          movementType: "RETURN",
+        }),
         2,
         undefined,
       );
-      expect(movementService.createMovement).toHaveBeenCalledTimes(2);
-      expect(movementService.createMovement).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          remarks: "test movement",
-          movementType: "RETURN",
-        }),
-        undefined,
-      );
-      expect(sync).toHaveBeenCalledWith(MEDICINE_ID, undefined, undefined);
-    });
-
-    it("rejects non-positive return quantities", async () => {
-      const { service } = buildService();
-
-      await expect(
-        service.returnMedicine(
-          MEDICINE_ID,
-          BATCH_ID,
-          0,
-          "GOOD",
-          movementContext,
-        ),
-      ).rejects.toMatchObject({
-        message: "Quantity must be greater than zero",
-        statusCode: 400,
-      });
     });
 
     it("rejects an unknown batch", async () => {
@@ -315,10 +209,7 @@ describe("InventoryService", () => {
           "GOOD",
           movementContext,
         ),
-      ).rejects.toMatchObject({
-        message: "Batch not found",
-        statusCode: 404,
-      });
+      ).rejects.toMatchObject({ message: "Batch not found", statusCode: 404 });
     });
 
     it("rejects a batch that belongs to another medicine", async () => {
@@ -344,117 +235,94 @@ describe("InventoryService", () => {
   });
 
   describe("aggregate stock operations", () => {
-    it("increases current and available stock together", async () => {
-      const { service, inventoryRepo, movementService } = buildService();
-      inventoryRepo.findByMedicineId.mockResolvedValue({
-        _id: "inv-1",
-        currentStock: 10,
-        availableStock: 8,
-        reservedStock: 2,
-      });
-      inventoryRepo.update.mockImplementation(async (_id, data) => data);
-
-      await service.increaseStock(MEDICINE_ID, 5, movementContext);
-
-      expect(inventoryRepo.update).toHaveBeenCalledWith(
-        "inv-1",
-        expect.objectContaining({
-          currentStock: 15,
-          availableStock: 13,
-        }),
-        undefined,
-      );
-      expect(movementService.createMovement).toHaveBeenCalledWith(
-        expect.objectContaining({ movementType: "SALE", quantity: 5 }),
-        undefined,
-      );
-    });
-
-    it("rejects deductions above available stock", async () => {
-      const { service, inventoryRepo } = buildService();
-      inventoryRepo.findByMedicineId.mockResolvedValue({
-        _id: "inv-1",
-        currentStock: 10,
-        availableStock: 3,
-        reservedStock: 7,
-      });
+    it("requires batchId for increases", async () => {
+      const { service, stockMutation } = buildService();
+      const { batchId: _batchId, ...ctxWithoutBatch } = movementContext;
 
       await expect(
-        service.decreaseStock(MEDICINE_ID, 4, movementContext),
+        service.increaseStock(MEDICINE_ID, 5, ctxWithoutBatch),
       ).rejects.toMatchObject({
-        message: "Insufficient stock available",
+        message: "batchId is required for stock changes",
         statusCode: 400,
       });
+      expect(stockMutation.increaseBatchStock).not.toHaveBeenCalled();
     });
 
-    it("labels a deduction with the requested movement type", async () => {
-      const { service, inventoryRepo, movementService } = buildService();
-      inventoryRepo.findByMedicineId.mockResolvedValue({
-        _id: "inv-1",
-        currentStock: 10,
-        availableStock: 10,
-        reservedStock: 0,
-      });
-      inventoryRepo.update.mockImplementation(async (_id, data) => data);
+    it("delegates reservation accounting with the session attached", async () => {
+      const { service, stockMutation } = buildService();
+      const session = { id: "session" } as never;
 
-      await service.decreaseStock(MEDICINE_ID, 4, {
-        ...movementContext,
-        movementType: "EXPIRED",
-        referenceType: "ADJUSTMENT",
-      });
+      await service.reserveStock(MEDICINE_ID, 4, movementContext, session);
 
-      expect(movementService.createMovement).toHaveBeenCalledWith(
+      expect(stockMutation.reserveStock).toHaveBeenCalledWith(
         expect.objectContaining({
-          movementType: "EXPIRED",
-          referenceType: "ADJUSTMENT",
+          medicineId: MEDICINE_ID,
           quantity: 4,
         }),
-        undefined,
       );
     });
 
-    it("reserves stock without changing current stock", async () => {
-      const { service, inventoryRepo } = buildService();
-      inventoryRepo.findByMedicineId.mockResolvedValue({
-        _id: "inv-1",
-        currentStock: 10,
-        availableStock: 10,
-        reservedStock: 0,
-      });
-      inventoryRepo.update.mockImplementation(async (_id, data) => data);
-
-      await service.reserveStock(MEDICINE_ID, 4, movementContext);
-
-      expect(inventoryRepo.update).toHaveBeenCalledWith(
-        "inv-1",
-        expect.objectContaining({
-          currentStock: 10,
-          availableStock: 6,
-        }),
-        undefined,
-      );
-    });
-
-    it("releases reserved stock back to available stock", async () => {
-      const { service, inventoryRepo } = buildService();
-      inventoryRepo.findByMedicineId.mockResolvedValue({
-        _id: "inv-1",
-        currentStock: 10,
-        availableStock: 4,
-        reservedStock: 6,
-      });
-      inventoryRepo.update.mockImplementation(async (_id, data) => data);
+    it("delegates release accounting", async () => {
+      const { service, stockMutation } = buildService();
 
       await service.releaseReservedStock(MEDICINE_ID, 3, {
         ...movementContext,
         movementType: "RELEASE",
       });
 
-      expect(inventoryRepo.update).toHaveBeenCalledWith(
-        "inv-1",
-        expect.objectContaining({ availableStock: 7 }),
-        undefined,
+      expect(stockMutation.releaseStock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicineId: MEDICINE_ID,
+          quantity: 3,
+        }),
       );
+    });
+
+    it("derives current stock from batches when creating inventory", async () => {
+      const { service, stockMutation } = buildService();
+
+      await service.createInventory({
+        medicineId: MEDICINE_ID,
+        currentStock: 999,
+        availableStock: 999,
+        reservedStock: 2,
+      });
+
+      expect(stockMutation.initializeAggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicineId: MEDICINE_ID,
+          reservedStock: 2,
+        }),
+      );
+    });
+
+    it("rejects direct currentStock updates", async () => {
+      const { service } = buildService();
+
+      await expect(
+        service.updateInventory("inv-1", { currentStock: 10 }),
+      ).rejects.toMatchObject({
+        message:
+          "Field currentStock cannot be updated directly; stock is derived from batches",
+        statusCode: 400,
+      });
+    });
+
+    it("blocks deletion while the inventory holds stock", async () => {
+      const { service, inventoryRepo, batchRepo } = buildService();
+      inventoryRepo.findById.mockResolvedValue({
+        _id: "inv-1",
+        medicineId: { toString: () => MEDICINE_ID },
+        currentStock: 4,
+        reservedStock: 0,
+      });
+      batchRepo.getTotalStock.mockResolvedValue(4);
+
+      await expect(service.deleteInventory("inv-1")).rejects.toMatchObject({
+        message: "Cannot delete inventory with stock or reservations",
+        statusCode: 409,
+      });
+      expect(inventoryRepo.delete).not.toHaveBeenCalled();
     });
   });
 });

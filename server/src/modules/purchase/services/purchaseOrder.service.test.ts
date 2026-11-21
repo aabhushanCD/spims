@@ -4,8 +4,15 @@ import { AppError } from "../../../shared/error.ts";
 
 const PURCHASE_ORDER_ID = "507f1f77bcf86cd799439071";
 const MEDICINE_ID = "507f1f77bcf86cd799439011";
+const USER_ID = "507f1f77bcf86cd799439031";
 
 function buildService() {
+  const session = {
+    withTransaction: vi.fn(async (callback: () => Promise<void>) => callback()),
+    endSession: vi.fn(),
+  };
+  const connection = { startSession: vi.fn().mockResolvedValue(session) };
+
   const purchaseOrderRepo = {
     findById: vi.fn(),
     findByIdWithSupplier: vi.fn(),
@@ -15,9 +22,7 @@ function buildService() {
     update: vi.fn().mockResolvedValue({}),
     delete: vi.fn(),
   };
-  const supplierRepo = {
-    findById: vi.fn(),
-  };
+  const supplierRepo = { findById: vi.fn() };
   const purchaseOrderItemRepo = {
     create: vi.fn(),
     findById: vi.fn(),
@@ -26,8 +31,6 @@ function buildService() {
     update: vi.fn(),
     delete: vi.fn(),
   };
-  const inventoryService = { syncInventoryFromBatch: vi.fn() };
-  const inventoryMovementService = {};
   const batchService = { createBatch: vi.fn() };
   const userRepo = { findById: vi.fn() };
 
@@ -35,18 +38,21 @@ function buildService() {
     purchaseOrderRepo as never,
     supplierRepo as never,
     purchaseOrderItemRepo as never,
-    inventoryService as never,
-    inventoryMovementService as never,
     batchService as never,
     userRepo as never,
     AppError,
+    connection as never,
   );
 
   return {
     service,
+    session,
+    connection,
     purchaseOrderRepo,
     purchaseOrderItemRepo,
     supplierRepo,
+    batchService,
+    userRepo,
   };
 }
 
@@ -218,6 +224,97 @@ describe("PurchaseOrderService", () => {
       await expect(
         service.recalculateTotals(PURCHASE_ORDER_ID),
       ).resolves.toBe(36.5);
+    });
+  });
+
+  describe("receivePurchaseOrder", () => {
+    function prepareReceive(build: ReturnType<typeof buildService>) {
+      build.userRepo.findById.mockResolvedValue({ _id: USER_ID });
+      build.purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "approved",
+        invoiceNumber: "PO-000001",
+      });
+      build.purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
+        {
+          _id: "item-1",
+          medicineId: { _id: { toString: () => MEDICINE_ID } },
+          quantity: 5,
+          purchasePrice: 10,
+        },
+      ]);
+      build.batchService.createBatch.mockResolvedValue({
+        _id: { toString: () => "batch-1" },
+      });
+    }
+
+    it("creates the batch with a movement context and no separate sync", async () => {
+      const build = buildService();
+      prepareReceive(build);
+
+      const result = await build.service.receivePurchaseOrder(
+        PURCHASE_ORDER_ID,
+        {
+          items: [
+            {
+              medicineId: MEDICINE_ID,
+              batchNumber: "B-1",
+              manufacturingDate: "2026-01-01",
+              expiryDate: "2027-01-01",
+              quantityReceived: 5,
+              sellingPrice: 15,
+            },
+          ],
+        } as never,
+        USER_ID,
+      );
+
+      expect(build.batchService.createBatch).toHaveBeenCalledTimes(1);
+      expect(build.batchService.createBatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicineId: MEDICINE_ID,
+          purchaseOrderId: PURCHASE_ORDER_ID,
+          quantityReceived: 5,
+          quantityRemaining: 5,
+        }),
+        expect.anything(),
+        {
+          referenceId: PURCHASE_ORDER_ID,
+          referenceType: "PURCHASE_ORDER",
+          movementType: "PURCHASE",
+          performedBy: USER_ID,
+          remarks: "Received from PO PO-000001",
+        },
+      );
+      expect(build.purchaseOrderRepo.update).toHaveBeenCalledWith(
+        PURCHASE_ORDER_ID,
+        expect.objectContaining({ status: "received" }),
+        expect.anything(),
+      );
+      expect(build.session.endSession).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ message: "Purchase order received successfully" });
+    });
+
+    it("rejects receiving an unapproved order", async () => {
+      const build = buildService();
+      build.userRepo.findById.mockResolvedValue({ _id: USER_ID });
+      build.purchaseOrderRepo.findById.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        status: "pending",
+        invoiceNumber: "PO-000001",
+      });
+
+      await expect(
+        build.service.receivePurchaseOrder(
+          PURCHASE_ORDER_ID,
+          { items: [] } as never,
+          USER_ID,
+        ),
+      ).rejects.toMatchObject({
+        message: "Only approved purchase orders can be received",
+        statusCode: 400,
+      });
+      expect(build.session.endSession).toHaveBeenCalledTimes(1);
     });
   });
 });

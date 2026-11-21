@@ -15,7 +15,22 @@ export class BatchController {
   // body: { purchaseOrderId, medicineId, batchNumber, expiryDate, manufacturingDate,
   //         purchasePrice, sellingPrice, quantityReceived, quantityRemaining }
   createBatch = asyncHandler(async (req: Request, res: Response) => {
-    const batch = await this.batchService.createBatch(req.body);
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const referenceId = req.body.referenceId ?? req.body.purchaseOrderId;
+    if (!referenceId) {
+      throw AppError.badRequest("purchaseOrderId is required");
+    }
+
+    const batch = await this.batchService.createBatch(req.body, undefined, {
+      referenceId,
+      referenceType: req.body.referenceType ?? "PURCHASE",
+      movementType: "PURCHASE",
+      performedBy,
+      remarks: req.body.remarks,
+    });
     res.status(201).json({ success: true, data: batch });
   });
 
@@ -68,9 +83,29 @@ export class BatchController {
 
   // PATCH /batches/:id
   updateBatch = asyncHandler(async (req: Request, res: Response) => {
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const batchId = req.params.id as string;
+    const {
+      referenceId,
+      referenceType,
+      movementType,
+      remarks,
+      ...updateData
+    } = req.body;
     const updated = await this.batchService.updateBatch(
-      req.params.id as string,
-      req.body,
+      batchId,
+      updateData,
+      undefined,
+      {
+        referenceId: referenceId ?? batchId,
+        referenceType: referenceType ?? "ADJUSTMENT",
+        movementType: movementType ?? "ADJUSTMENT",
+        performedBy,
+        remarks,
+      },
     );
     res.status(200).json({ success: true, data: updated });
   });
@@ -90,9 +125,22 @@ export class BatchController {
     if (typeof quantity !== "number" || quantity <= 0) {
       throw AppError.badRequest("quantity must be a positive number");
     }
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const batchId = req.params.id as string;
     const updated = await this.batchService.deductQuantity(
-      req.params.id as string,
+      batchId,
       quantity,
+      undefined,
+      {
+        referenceId: batchId,
+        referenceType: "ADJUSTMENT",
+        movementType: "ADJUSTMENT",
+        performedBy,
+        remarks: req.body.remarks,
+      },
     );
     res.status(200).json({ success: true, data: updated });
   });
@@ -104,9 +152,22 @@ export class BatchController {
     if (typeof quantity !== "number" || quantity <= 0) {
       throw AppError.badRequest("quantity must be a positive number");
     }
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const batchId = req.params.id as string;
     const updated = await this.batchService.increaseQuantity(
-      req.params.id as string,
+      batchId,
       quantity,
+      undefined,
+      {
+        referenceId: batchId,
+        referenceType: "ADJUSTMENT",
+        movementType: "PURCHASE",
+        performedBy,
+        remarks: req.body.remarks,
+      },
     );
     res.status(200).json({ success: true, data: updated });
   });
@@ -118,9 +179,22 @@ export class BatchController {
     if (typeof quantity !== "number" || quantity < 0) {
       throw AppError.badRequest("quantity must be a non-negative number");
     }
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+    const batchId = req.params.id as string;
     const updated = await this.batchService.adjustStock(
-      req.params.id as string,
+      batchId,
       quantity,
+      undefined,
+      {
+        referenceId: batchId,
+        referenceType: "ADJUSTMENT",
+        movementType: "ADJUSTMENT",
+        performedBy,
+        remarks: req.body.remarks,
+      },
     );
     res.status(200).json({ success: true, data: updated });
   });
