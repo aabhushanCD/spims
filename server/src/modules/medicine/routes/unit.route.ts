@@ -1,8 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 const router = express.Router();
-import {
-  createRateLimiter,
-} from "../../../shared/middleware/rateLimit.middleware.ts";
+import rateLimit from "express-rate-limit";
 import { verifyToken } from "../../../shared/middleware/verifyToken.js";
 import {
   validate,
@@ -12,11 +10,16 @@ import { objectIdParamSchema } from "../../../shared/schema/objectId.schema.ts";
 import { CreateUnitSchema, UpdateUnitSchema } from "../schema/unit.schema.js";
 import { unitController } from "../../../app/container.ts";
 
-const unitRateLimiter = createRateLimiter({
-  prefix: "medicine:unit",
+const unitRateLimiter = rateLimit({
   windowMs: 15 * 60_000,
   max: 300,
-  message: "Too many unit requests. Please try again later.",
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    code: "RATE_LIMITED",
+    message: "Too many unit requests. Please try again later.",
+  },
 });
 
 router.post("/", unitRateLimiter, validate(CreateUnitSchema), verifyToken, (req: Request, res: Response, next: NextFunction) => {
