@@ -15,6 +15,7 @@
     "test:run": "vitest run",
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "inventory:dedupe": "tsx src/scripts/dedupeInventories.ts",
     "notification:backfill": "tsx src/scripts/backfillNotificationRecipientTimestamps.ts",
     "notification:dedupe": "tsx src/scripts/dedupeNotificationRecipients.ts",
     "audit": "npm audit --omit=dev --audit-level=high",
