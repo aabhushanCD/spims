@@ -147,19 +147,17 @@ stateDiagram-v2
 7. `quantityReceived` must equal ordered quantity.
 8. `sellingPrice >= purchasePrice`.
 9. A batch is created with `quantityReceived = quantityRemaining`.
-
-> **Note:** batch creation with positive quantity now passes the `isActive` validator, so purchase receiving can complete. Remaining receiving defects are the unvalidated request body and stale totals.
-10. `syncInventoryFromBatch` runs per line with a `PURCHASE` movement context.
+10. `BatchService.createBatch` syncs the aggregate and writes one `PURCHASE` movement through `StockMutationService`; there is no separate sync call.
 11. PO becomes `received` with `receivedDate`.
 
-No partial receipt, tolerance, backorder, or multi-batch-per-line support.
+The whole receive operation runs in one transaction, including batch creation, aggregate sync, movements, and the PO status update. No partial receipt, tolerance, backorder, or multi-batch-per-line support.
 
 ## 11. Dependencies
 
 - `SupplierRepo`, `PurchaseOrderRepo`, `PurchaseOrderItemRepo`
 - `BatchService`
-- `InventoryService`, `InventoryMovementService`
 - `UserRepository`
+- MongoDB connection for transactions
 - Used by dashboard and smart reorder
 
 ## 12. Workflow
@@ -171,7 +169,7 @@ sequenceDiagram
   participant PS as PurchaseOrderService
   participant DB as MongoDB
   participant BS as BatchService
-  participant IS as InventoryService
+  participant SM as StockMutationService
 
   C->>PC: POST /purchases
   PC->>PS: createPurchaseOrder
@@ -184,8 +182,9 @@ sequenceDiagram
   C->>PC: POST /purchases/:id/receive
   PS->>PS: validate items/quantities/prices
   loop items
-    PS->>BS: createBatch
-    PS->>IS: sync aggregate + PURCHASE movement
+    PS->>BS: createBatch(..., session, PURCHASE ctx)
+    BS->>SM: receiveStock
+    SM->>DB: sync aggregate + PURCHASE movement
   end
   PS->>DB: status = received
   PC-->>C: 200

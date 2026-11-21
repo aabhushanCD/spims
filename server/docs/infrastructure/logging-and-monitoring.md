@@ -117,7 +117,7 @@ The dashboard's inventory value and low-stock counts are derived from these same
 | Purchase approval | Only status; no approver/timestamp |
 | PO cancellation | Only status; no actor |
 | Sale deletion | Movement with `performedBy`, but sale itself is gone |
-| Inventory adjustment | Movement if context supplied; batch adjust has none |
+| Inventory adjustment | Movement for every wired mutation, including batch adjust |
 | Batch disposal | Recorded as an `EXPIRED` movement, with performer (the requested type is preserved) |
 | Return | `returnedBy` and movements |
 | Smart reorder approval | Status only; no approver |

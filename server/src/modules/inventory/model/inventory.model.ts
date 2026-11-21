@@ -11,7 +11,7 @@ export interface IInventory extends Document {
 const inventorySchema = new Schema<IInventory>({
   medicineId: { type: Schema.Types.ObjectId, ref: "Medicine", required: true },
   currentStock: { type: Number, required: true, default: 0 },
-  reservedStock: { type: Number, required: true, default: 0 },
+  reservedStock: { type: Number, required: true, default: 0, min: 0 },
   availableStock: {
     type: Number,
     required: true,
@@ -29,6 +29,8 @@ const inventorySchema = new Schema<IInventory>({
   },
   lastUpdated: { type: Date, required: true, default: Date.now },
 });
+
+inventorySchema.index({ medicineId: 1 }, { unique: true });
 
 const Inventory = model<IInventory>("Inventory", inventorySchema);
 

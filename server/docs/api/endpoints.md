@@ -245,20 +245,20 @@ No Zod middleware. All responses are `{ success, data }` unless noted.
 
 | Method | Path | Purpose | Body / query | Success | Notes |
 |---|---|---|---|---|---|
-| POST | `/inventory` | Create aggregate row | `medicineId`, `currentStock`, `reservedStock`, `availableStock`, `lastUpdated`, optional movement context | `201` `{ success, data }` | Movement requires `referenceId` + `referenceType`; `batchId` required by the service |
+| POST | `/inventory` | Create aggregate row from batch truth | `medicineId`, `reservedStock?`, optional movement context | `201` `{ success, data }` | `currentStock`/`availableStock` are ignored; duplicate medicine → `409` |
 | GET | `/inventory` | List | — | `200` | Medicine populated |
 | GET | `/inventory/:id` | Get | — | `200` / `404` | |
 | GET | `/inventory/medicine/:medicineId` | Get by medicine | — | `200` / `404` | |
 | GET | `/inventory/medicines/search` | Sellable medicine search | `?query=` | `200` | Requires `availableStock > 0`; includes earliest batch |
-| POST | `/inventory/:medicineId/increase` | Increase aggregate | `quantity`, `batchId`, `referenceId`, `referenceType`, `movementType`, `remarks?` | `200` | `movementType` must be `PURCHASE` or `RETURN` |
-| POST | `/inventory/:medicineId/decrease` | Decrease aggregate | same | `200` | `movementType` must be `SALE`, `EXPIRED`, or `ADJUSTMENT`; `400` insufficient |
-| POST | `/inventory/:medicineId/reserve` | Reduce available | `quantity`, `batchId?`, `referenceId`, `referenceType`, `remarks?` | `200` | Does not change `reservedStock` |
-| POST | `/inventory/:medicineId/release` | Increase available | same | `200` | Does not change `reservedStock` |
-| POST | `/inventory/:medicineId/sync` | Recompute aggregate from batches | — | `200` | Uses the sellable filter (positive, unexpired, not flagged) in both session and non-session paths |
-| PATCH | `/inventory/:id` | Update fields | arbitrary inventory fields + optional movement context | `200` / `404` | If `currentStock` changes and context is supplied, a movement is logged |
-| DELETE | `/inventory/:id` | Delete aggregate | optional movement context | `200` `{ success, message }` / `404` | Movement logged if stock > 0 |
+| POST | `/inventory/:medicineId/increase` | Increase batch + aggregate | `quantity` > 0, `batchId`, `referenceId`, `referenceType`, `movementType`, `remarks?` | `200` | `movementType` must be `PURCHASE` or `RETURN`; `409` if above `quantityReceived` |
+| POST | `/inventory/:medicineId/decrease` | Decrease batch + aggregate | same | `200` | `movementType` must be `SALE`, `EXPIRED`, or `ADJUSTMENT`; `409` insufficient batch stock |
+| POST | `/inventory/:medicineId/reserve` | Increase reserved, reduce available | `quantity` > 0, `batchId?`, `referenceId`, `referenceType`, `remarks?` | `200` | Maintains `reservedStock`; `400` if over available |
+| POST | `/inventory/:medicineId/release` | Reduce reserved, restore available | same | `200` | `400` if releasing more than reserved |
+| POST | `/inventory/:medicineId/sync` | Recompute aggregate from batches | `remarks?` | `200` | Writes one `ADJUSTMENT` for the delta; uses the sellable filter |
+| PATCH | `/inventory/:id` | Update reservation only | `reservedStock`, `lastUpdated?` | `200` / `400` / `404` | `currentStock`/`availableStock` and other fields are rejected |
+| DELETE | `/inventory/:id` | Delete aggregate | — | `200` `{ success, message }` / `404` / `409` | Blocked while stock or reservations exist |
 
-Manual increase/decrease do not touch batch quantities. See [Inventory data model](../database/inventory-data-model.md).
+Every inventory stock mutation updates the batch, recomputes the aggregate, and writes one movement in one transaction. `PATCH /inventory/:id` only changes `reservedStock` and writes no movement; use the reserve/release endpoints for audited holds. See [Inventory data model](../database/inventory-data-model.md).
 
 > **Movement enum:** `referenceType` accepts `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, and `SYSTEM`. The service defaults for manual increase (`PURCHASE`), reserve (`RESERVE`), and release (`RELEASE`) are valid enum members.
 >
@@ -329,7 +329,7 @@ Behavior:
 
 There is no validation middleware on update. Financial fields and quantities cannot be edited through this endpoint.
 
-Delete restores **aggregate** stock only; batch quantities are not restored. See [Sales](../modules/sales.md).
+Delete restores `quantity - returnedQuantity` to the original batch, syncs the aggregate, and writes one `RETURN` movement per restored item. See [Sales](../modules/sales.md).
 
 ## Sale items
 
@@ -413,21 +413,21 @@ No Zod middleware. Responses are `{ success, data }` or `{ success, message }`.
 | Method | Path | Purpose | Input | Success | Notes |
 |---|---|---|---|---|---|
 | GET | `/batches` | List all | — | `200` | Medicine name populated |
-| GET | `/batches/:id` | Get batch | — | `200` | Missing → `500` (service throws `Error`) |
-| POST | `/batches` | Create batch | full batch body | `201` | PO must exist; no inventory sync |
-| PATCH | `/batches/:id` | Update arbitrary fields | partial | `200` | No validation; no sync |
-| DELETE | `/batches/:id` | Delete | — | `200` | Hard delete; no stock reconciliation |
-| GET | `/batches/medicine/:medicineId` | **First** batch for medicine | — | `200` | Uses `findOne`, not a list; missing → `500` |
-| GET | `/batches/medicine/:medicineId/available` | Sellable batches | — | `200` | Filters quantity > 0 and expiry > now |
+| GET | `/batches/:id` | Get batch | — | `200` / `404` | Missing → `404` |
+| POST | `/batches` | Create batch | full batch body + optional movement context | `201` | Requires authenticated user; PO must exist; syncs aggregate and writes `PURCHASE` |
+| PATCH | `/batches/:id` | Update allowed fields | `batchNumber`, dates, prices, `quantityRemaining`, `isActive` | `200` / `400` / `404` | Immutable fields rejected; quantity changes sync + movement |
+| DELETE | `/batches/:id` | Delete a zero-stock batch | — | `200` / `404` / `409` | `409` while `quantityRemaining > 0` |
+| GET | `/batches/medicine/:medicineId` | **First** batch for medicine | — | `200` / `404` | Uses `findOne`, not a list |
+| GET | `/batches/medicine/:medicineId/available` | Sellable batches | — | `200` | Filters quantity > 0, expiry > now, and `!isExpired` |
 | GET | `/batches/expired` | Batches past expiry date | — | `200` | Date-based, ignores `isExpired` |
 | GET | `/batches/expired/awaiting-disposal` | Flagged with stock | — | `200` | `isExpired && quantityRemaining > 0` |
 | GET | `/batches/low-stock?threshold=` | Per-batch low stock | threshold ≥ 0 | `200` | `0 < quantityRemaining <= threshold` |
-| POST | `/batches/mark-expired` | Flag expired batches | — | `200` `{ message }` | No movements or notifications triggered |
-| POST | `/batches/:id/deduct` | Decrement | `quantity` > 0 | `200` | `400` invalid; `500` insufficient |
-| POST | `/batches/:id/increase` | Increment | `quantity` > 0 | `200` | Can exceed `quantityReceived`; no sync |
-| POST | `/batches/:id/adjust` | Set absolute quantity | `quantity` ≥ 0 | `200` | Syncs aggregate; no movement log |
-| GET | `/batches/:id/history` | Batch metadata | — | `200` | **Not** movement history |
-| POST | `/batches/:id/confirm-disposal` | Dispose expired stock | `remarks?` | `200` | Requires `isExpired` and quantity > 0; no transaction |
+| POST | `/batches/mark-expired` | Flag expired batches | — | `200` `{ message }` | No movements; sync aggregates on the next mutation or sync call |
+| POST | `/batches/:id/deduct` | Decrement | `quantity` > 0 + movement context | `200` / `409` | Atomic batch + aggregate + movement |
+| POST | `/batches/:id/increase` | Increment | `quantity` > 0 + movement context | `200` / `409` | Rejects above `quantityReceived` |
+| POST | `/batches/:id/adjust` | Set absolute quantity | `quantity` ≥ 0 + movement context | `200` / `400` | Must be within `quantityReceived`; syncs + movement |
+| GET | `/batches/:id/history` | Batch metadata | — | `200` / `404` | **Not** movement history |
+| POST | `/batches/:id/confirm-disposal` | Dispose expired stock | `remarks?` | `200` / `400` / `404` | Requires `isExpired` and quantity > 0; batch + aggregate + movement are atomic |
 
 Important: the destructive `GET /batches/medicine/:medicineId/allocate` endpoint and its client stub were removed. Sales allocate FEFO stock through `InventoryService.sellMedicine`.
 
@@ -528,7 +528,7 @@ Details: [reporting.md](../modules/reporting.md).
 
 - Some list endpoints have no way to filter by medicine, date range, or status.
 - `GET /users/active` and one duplicate status route cannot be reached; see [API overview](api-overview.md#9-route-ordering-caveats).
-- `POST /batches/...` responses can be 500 for ordinary "not found" conditions because the service throws plain `Error`.
+- Batch and inventory services now throw `AppError`, so ordinary "not found"/conflict conditions return 404/409 instead of 500.
 
 ## Related documents
 

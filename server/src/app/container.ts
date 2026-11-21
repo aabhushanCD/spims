@@ -11,6 +11,7 @@ import { InventoryRepo } from "../modules/inventory/repo/inventory.repo.ts";
 import { InventoryMovementRepo } from "../modules/inventory/repo/inventoryMovement.repo.ts";
 import { InventoryService } from "../modules/inventory/services/inventory.service.ts";
 import { InventoryMovementService } from "../modules/inventory/services/inventoryMovement.service.ts";
+import { StockMutationService } from "../modules/inventory/services/stockMutation.service.ts";
 import { Medicine } from "../modules/medicine/models/medicine.model.ts";
 import { MedicineRepo } from "../modules/medicine/repo/medicine.repo.ts";
 import NotificationModel from "../modules/notification/model/notification.model.ts";
@@ -126,10 +127,17 @@ const inventoryMovementService = new InventoryMovementService(
   userRepo,
   AppError,
 );
+const stockMutationService = new StockMutationService(
+  inventoryRepo,
+  medicineBatchRepo,
+  inventoryMovementService,
+  AppError,
+  mongoose.connection,
+);
 const inventoryService = new InventoryService(
   inventoryRepo,
-  inventoryMovementService,
   medicineBatchRepo,
+  stockMutationService,
   AppError,
 );
 const unitService = new UnitService(unitRepo, AppError);
@@ -147,7 +155,9 @@ const medicineService = new MedicineService(
 const medicineBatchService = new BatchService(
   medicineBatchRepo,
   purchaseOrderRepo,
-  inventoryService,
+  stockMutationService,
+  AppError,
+  mongoose.connection,
 );
 
 const notificationService = new NotificationService(
@@ -162,11 +172,10 @@ const purchaseOrderService = new PurchaseOrderService(
   purchaseOrderRepo,
   supplierRepo,
   purchaseOrderItemRepo,
-  inventoryService,
-  inventoryMovementService,
   medicineBatchService,
   userRepo,
   AppError,
+  mongoose.connection,
 );
 
 const returnService = new ReturnService(
@@ -260,6 +269,7 @@ export {
   userService,
   backgroundJobService,
   inventoryMovementService,
+  stockMutationService,
   inventoryService,
   unitService,
   genericNameService,

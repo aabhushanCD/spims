@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Maintain the per-medicine aggregate stock record (`Inventory`), expose manual stock operations, and provide the shared `InventoryService` used by sales, purchasing, returns, and batch disposal.
+Maintain the per-medicine aggregate stock record (`Inventory`), expose manual stock operations, and provide the shared `InventoryService` and `StockMutationService` used by sales, purchasing, returns, batch operations, and disposal.
 
 ## 2. Responsibilities
 
@@ -30,9 +30,12 @@ modules/inventory/
 ├── schema/
 │   ├── inventory.schema.ts
 │   └── inventoryMovement.schema.ts
+├── types/
+│   └── stockMovement.type.ts
 └── services/
     ├── inventory.service.ts
     ├── inventoryMovement.service.ts
+    ├── stockMutation.service.ts
     └── stockAdjust.service.ts     # not wired
 ```
 
@@ -42,18 +45,18 @@ Base: `/api/inventory`, roles: all three. No Zod middleware.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/` | Create aggregate row |
+| POST | `/` | Create aggregate row from batch truth |
 | GET | `/` | List all |
 | GET | `/:id` | Get by inventory id |
 | GET | `/medicine/:medicineId` | Get by medicine |
 | GET | `/medicines/search?query=` | Sellable medicine search |
-| POST | `/:medicineId/increase` | Increase aggregate |
-| POST | `/:medicineId/decrease` | Decrease aggregate |
-| POST | `/:medicineId/reserve` | Reduce available |
-| POST | `/:medicineId/release` | Restore available |
+| POST | `/:medicineId/increase` | Increase batch + aggregate |
+| POST | `/:medicineId/decrease` | Decrease batch + aggregate |
+| POST | `/:medicineId/reserve` | Increase reserved, reduce available |
+| POST | `/:medicineId/release` | Reduce reserved, restore available |
 | POST | `/:medicineId/sync` | Recompute from batches |
-| PATCH | `/:id` | Update fields |
-| DELETE | `/:id` | Delete row |
+| PATCH | `/:id` | Update `reservedStock` only |
+| DELETE | `/:id` | Delete a zero-stock row |
 
 Full contracts: [endpoints.md](../api/endpoints.md#inventory).
 
@@ -63,32 +66,37 @@ Full contracts: [endpoints.md](../api/endpoints.md#inventory).
 
 Behavior worth noting:
 
-- `createInventory` accepts a movement context only when both `referenceId` and `referenceType` are present.
-- `increaseStock` rejects movement types other than `PURCHASE`/`RETURN`.
-- `decreaseStock` rejects movement types other than `SALE`/`EXPIRED`/`ADJUSTMENT`.
-- `updateInventory` separates movement-context fields from update fields.
-- `deleteInventory` reads an optional body even though it is a DELETE.
+- `createInventory` ignores client `currentStock`/`availableStock`; stock is derived from batches.
+- `increaseStock`/`decreaseStock` require `batchId` and a positive quantity.
+- `reserveStock`/`releaseReservedStock` accept an optional `batchId`; `referenceId` and `referenceType` are required for the movement.
+- `syncInventoryFromBatch` supplies an `ADJUSTMENT` context when authenticated, so drift corrections are audited.
+- `updateInventory` rejects `currentStock`/`availableStock`; only `reservedStock` applies.
+- `deleteInventory` reads an optional body even though it is a DELETE; the delete guard takes precedence.
 
 ## 6. Services
 
-### InventoryService
+### InventoryService (facade)
 
 | Method | Behavior |
 |---|---|
-| `createInventory` | Creates a row; optionally logs a movement for `currentStock` |
-| `increaseStock` | `currentStock += qty`, `availableStock += qty`, logs movement |
-| `decreaseStock` | Requires `availableStock >= qty`, subtracts, logs the requested `SALE`/`EXPIRED`/`ADJUSTMENT` movement type |
-| `reserveStock` | Requires enough available, subtracts from `availableStock` only |
-| `releaseReservedStock` | Adds to `availableStock` only |
-| `syncInventoryFromBatch` | Recomputes `currentStock` from batches and `availableStock = current - reserved` |
-| `updateInventory` | Generic update; logs a movement for the `currentStock` delta when context is supplied |
-| `sellMedicine` | FEFO allocation, per-batch deduction, movement per batch, aggregate sync |
-| `returnMedicine` | Condition-dependent restoration |
-| `deleteInventory` | Deletes; logs an adjustment when context and stock are present |
+| `createInventory` | Derives `currentStock` from batch truth; validates `reservedStock`; maps duplicate keys to 409 |
+| `increaseStock` | Requires `batchId`; delegates to `StockMutationService.increaseBatchStock` |
+| `decreaseStock` | Requires `batchId`; delegates to `StockMutationService.decreaseBatchStock` |
+| `reserveStock` | Delegates reservation accounting |
+| `releaseReservedStock` | Delegates release accounting |
+| `syncInventoryFromBatch` | Delegates to `StockMutationService.syncAggregate` |
+| `updateInventory` | Accepts only `reservedStock`/`lastUpdated`; recomputes `currentStock` and `availableStock` |
+| `sellMedicine` | FEFO allocation; one batch mutation per allocation; one aggregate sync |
+| `returnMedicine` | GOOD restores the original batch; DAMAGED/EXPIRED/OPENED writes one write-off movement |
+| `deleteInventory` | Blocks deletion while stock or reservations exist |
+
+### StockMutationService
+
+The single transactional write path. It owns batch mutation, aggregate recompute, and movement creation. If a caller supplies a session it joins it; otherwise it starts and ends its own transaction.
 
 ### InventoryMovementService
 
-Validates that the medicine exists, the batch exists, the batch belongs to the medicine, and the user exists. It then inserts a movement. `batchId` is mandatory even though the schema marks it optional.
+Validates that the medicine exists, the optional batch exists and belongs to the medicine, and the user exists. It then inserts a movement. `batchId` is optional for aggregate-only operations.
 
 Read helpers (`getMovementsByMedicineId`, `getMovementsByBatch`, `getMovementsByReference`, `getRecentMovements`) exist but are not exposed through inventory routes; only the dashboard uses `getRecentMovements`.
 
@@ -104,8 +112,8 @@ Status: **Not Implemented / dead code**.
 
 ## 7. Models
 
-- `Inventory`: aggregate row, intended one per medicine, no unique index.
-- `InventoryMovement`: append-only audit log.
+- `Inventory`: aggregate row, unique per medicine.
+- `InventoryMovement`: append-only audit log; `batchId` optional.
 - `StockAdjustment`: unused adjustment log.
 
 See [Inventory data model](../database/inventory-data-model.md).
@@ -113,9 +121,10 @@ See [Inventory data model](../database/inventory-data-model.md).
 ## 8. Validation
 
 - `createInventorySchema` and `createInventoryMovementSchema` exist but are **not wired**.
-- Controller checks are limited to movement type, `performedBy`, and numeric query parameters.
+- Controller checks cover movement type, `performedBy`, positive quantities, and required `batchId` on increase/decrease.
+- `StockMutationService` validates batch ownership, upper bounds, and session ownership.
 - No ObjectId validation.
-- No quantity validation on `POST /inventory` (negative values can reach Mongoose; only `availableStock` has a validator).
+- No quantity validation on `POST /inventory` for client-supplied `currentStock`/`availableStock`, because those fields are ignored.
 
 ## 9. Middleware
 
@@ -123,28 +132,28 @@ See [Inventory data model](../database/inventory-data-model.md).
 
 ## 10. Business rules
 
-1. `decreaseStock` and `reserveStock` require sufficient `availableStock`.
-2. `increaseStock` does not verify batch existence before adjusting the aggregate, but the movement service does (so it fails after the aggregate update when no session is used).
-3. Increase/decrease do not update batches.
-4. Sync overwrites `currentStock` from sellable batches (positive, unexpired, not flagged), with or without a session.
-5. Movement type is constrained by the controller, not by the service.
-6. `reservedStock` is never updated by reserve/release.
-7. Duplicate inventory rows for one medicine are possible and are not detected.
-8. Deleting an inventory row is allowed even with stock and movements; a movement is logged only when context is supplied.
+1. `currentStock` is the sum of sellable batches; `availableStock = currentStock - reservedStock`.
+2. Every stock mutation updates batch + aggregate + one movement in one transaction.
+3. `syncAggregate` is the only aggregate recompute.
+4. `POST /inventory/:medicineId/sync` is the only operation that intentionally writes an `ADJUSTMENT` for a drift correction.
+5. Reservations maintain `reservedStock`; reconciliation clamps it if batch truth falls below outstanding holds.
+6. Duplicate inventory rows are rejected by the unique index.
+7. Deleting an inventory row is blocked while stock or reservations exist.
 
 ## 11. Dependencies
 
 Used by:
 
-- `SalesService` (`sellMedicine`)
+- `SalesService` (`sellMedicine`, `increaseStock` on delete)
 - `ReturnService` (`returnMedicine`)
-- `PurchaseOrderService` (`syncInventoryFromBatch`)
-- `BatchService` (`syncInventoryFromBatch`, `decreaseStock` for disposal)
+- `PurchaseOrderService` (through `BatchService.createBatch`)
+- `BatchService` (through `StockMutationService`)
 - `DashboardService` (through `InventoryRepo` and `InventoryMovementService`)
 
 Depends on:
 
-- `InventoryRepo`, `InventoryMovementRepo`, `MedicineBatchRepo`
+- `InventoryRepo`, `MedicineBatchRepo`
+- `StockMutationService`
 - `InventoryMovementService`
 
 ## 12. Workflows
@@ -153,41 +162,39 @@ Depends on:
 
 ```mermaid
 flowchart TB
-  A["sellMedicine(medicineId, qty)"] --> B["findSellableBatches sorted by expiryDate, manufacturingDate, createdAt"]
+  A["sellMedicine(medicineId, qty)"] --> B["findSellableBatches sorted FEFO"]
   B --> C{"any batches?"}
   C -->|no| E["400 out of stock"]
   C -->|yes| D{"sum >= qty?"}
   D -->|no| F["400 only N available"]
-  D -->|yes| G["for each batch: atomic deduct with $gte guard"]
-  G --> H["log SALE movement per batch"]
+  D -->|yes| G["per batch: decreaseBatchStock(sync: false)"]
+  G --> H["one SALE movement per batch"]
   H --> I["remaining -= take"]
   I --> J{"remaining == 0?"}
   J -->|no| G
-  J -->|yes| K["syncInventoryFromBatch"]
+  J -->|yes| K["syncAggregate once"]
   K --> L["return allocations"]
 ```
 
 ### Manual increase
 
-1. Load inventory by medicine.
-2. Add quantity to `currentStock` and `availableStock`.
-3. Update row.
-4. Insert movement (`PURCHASE` or `RETURN`).
-5. Return updated row.
-
-No batch change.
+1. Require a positive quantity and `batchId`.
+2. Increase the batch by the quantity.
+3. Recompute the aggregate from batch truth.
+4. Insert one `PURCHASE`/`RETURN` movement.
+5. Return the updated aggregate row.
 
 ## 13. Limitations and risks
 
 | Issue | Status | Phase |
 |---|---|---|
-| `reservedStock` never changes | Needs decision (keep and maintain, or remove from `availableStock`) | Phase 2 |
-| Reserve/release not tied to orders | Needs decision | Phase 2 |
+| `reservedStock` never changed | Fixed (reserve/release maintain it) | — |
+| Reserve/release not tied to orders | Still open | Phase 6 |
 | Sync endpoint included expired/flagged/zero batches without a session | Already fixed (one sellable filter in both branches) | — |
 | Reserve/release defaults used invalid movement `referenceType` | Already fixed (enum widened) | — |
-| Decrease always logged `SALE` | Already fixed (respects `EXPIRED`/`ADJUSTMENT` context) | — |
-| Inventory/batch drift on manual operations | Still open | Phase 2 |
-| Duplicate inventory rows possible | Still open | Phase 2 |
+| Decrease always logged `SALE` | Fixed (respects `EXPIRED`/`ADJUSTMENT` context) | — |
+| Inventory/batch drift on manual operations | Fixed for wired mutations; expiry flagging still needs a sync | Phase 2 |
+| Duplicate inventory rows possible | Fixed (unique index; dedupe before deploy) | — |
 | No validation middleware | Still open | Phase 3 |
 | `StockAdjustment` unreachable | Needs decision | Phase 6 |
 | Movement read endpoints absent | Still open | Phase 5 |

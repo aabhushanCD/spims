@@ -1,8 +1,8 @@
 # Inventory Data Model
 
-SPIMS stores stock in **two places**: a per-batch quantity and a per-medicine aggregate. Movement records provide an audit trail but are not used to derive stock. This document explains the model and its consistency rules as implemented.
+SPIMS stores stock in **two places**: a per-batch quantity and a per-medicine aggregate. The batch is the source of truth; the aggregate is a derived cache. Movement records provide an audit trail but are not used to derive stock.
 
-## 1. The three inventory records
+## 1. The inventory records
 
 ```mermaid
 flowchart TB
@@ -24,8 +24,8 @@ flowchart TB
 
 | Record | Granularity | Role | Source of truth? |
 |---|---|---|---|
-| `Batch` | One row per medicine + batch number | Physical stock, expiry, cost and selling price | **Yes** for batch-first flows |
-| `Inventory` | One row per medicine (intended) | Fast aggregate availability for listings and reservations | Derived, but also directly mutated |
+| `Batch` | One row per medicine + batch number | Physical stock, expiry, cost and selling price | **Yes** |
+| `Inventory` | One row per medicine | Fast aggregate availability for listings and reservations | Derived |
 | `InventoryMovement` | Append-only event | Audit trail for sales, purchases, returns, adjustments, expiry | No — never replayed |
 | `StockAdjustment` | Append-only event | Intended manual adjustment history | No — not wired |
 
@@ -33,7 +33,7 @@ flowchart TB
 
 | Concept | Implementation |
 |---|---|
-| Quantity received | `quantityReceived` (immutable after creation in practice) |
+| Quantity received | `quantityReceived` (immutable after creation) |
 | Quantity on hand | `quantityRemaining` |
 | Expiry | `expiryDate` plus `isExpired` flag |
 | Sellable | `quantityRemaining > 0 && expiryDate > now && isExpired === false` |
@@ -57,114 +57,110 @@ Source: `server/src/modules/batch/model/medicineBatch.model.ts`
 ## 3. Aggregate inventory model
 
 ```text
-currentStock   = total units physically on hand (intended)
-reservedStock  = units held for pending orders (intended)
-availableStock = currentStock - reservedStock (intended)
+currentStock   = Σ quantityRemaining over sellable batches
+reservedStock  = units held by reserve/release
+availableStock = currentStock - reservedStock
 ```
 
-Schema validator on save:
+Schema:
 
 ```text
+reservedStock >= 0
 0 <= availableStock <= currentStock - reservedStock
+medicineId is unique
 ```
 
-Actual behavior:
+Because `findByIdAndUpdate` does not run document validators by default, `StockMutationService` computes the three values together and writes them explicitly. The unique index on `medicineId` prevents duplicate aggregate rows; duplicate-key errors are mapped to 409.
 
-- `syncInventoryFromBatch` sets `currentStock = sum(sellable batches)` and `availableStock = currentStock - reservedStock`.
-- `increaseStock` adds to both `currentStock` and `availableStock`.
-- `decreaseStock` subtracts from both.
-- `reserveStock` subtracts from `availableStock` only.
-- `releaseReservedStock` adds to `availableStock` only.
+Source: `server/src/modules/inventory/services/stockMutation.service.ts`, `server/src/modules/inventory/model/inventory.model.ts`
 
-Consequences:
-
-- `reservedStock` is **never changed** by any endpoint, so reservation is really "temporarily reduce available stock".
-- `increaseStock` / `decreaseStock` do not change batch quantities, so `currentStock` can diverge from the batch sum.
-- A later `syncInventoryFromBatch` overwrites `currentStock` with the batch sum, discarding aggregate-only changes.
-
-Source: `server/src/modules/inventory/services/inventory.service.ts`, `server/src/modules/inventory/model/inventory.model.ts`
-
-## 4. Invariants the code tries to maintain
+## 4. Invariants
 
 | Invariant | Enforced where | Reliable? |
 |---|---|---|
 | Cannot sell more than a batch holds | `deductBatchStock` filter `quantityRemaining >= qty` | Yes, atomic per batch |
 | Cannot sell expired stock | `findSellableBatches` filters date and flag | Yes at query time |
 | Sale allocation follows FEFO | `findSellableBatches` sort | Yes |
-| `currentStock` equals sum of batches | `syncInventoryFromBatch` after sales/receipts | Only on batch-first flows |
-| `availableStock = currentStock - reservedStock` | `syncInventoryFromBatch` | Yes on sync; not on direct updates |
-| Movement always belongs to the right medicine | `InventoryMovementService` checks batch.medicineId | Yes |
-| Every stock change has a movement | Not enforced | No: batch adjust, reserve/release edge cases, sale deletion batch side |
-| Quantities never negative | Batch min 0; stock checks | Mostly, but updates bypass validators |
+| `currentStock` equals sum of sellable batches | `syncAggregate` after every mutation | Yes, unless `markExpiredBatches` runs without a sync |
+| `availableStock = currentStock - reservedStock` | `syncAggregate`, reserve/release | Yes |
+| Movement always belongs to the right medicine | `InventoryMovementService` checks batch ownership | Yes |
+| Every stock change has one movement | `StockMutationService` | Yes, for all wired stock mutations |
+| Quantities never negative | Service guards plus schema `min` | Yes for batch and reserved stock |
+| One aggregate row per medicine | Unique index | Yes after deployment dedupe |
 
 ## 5. Flow-by-flow effects
 
-### 5.1 Purchase receipt (batch-first)
+### 5.1 Purchase receipt
 
 For each purchase item:
 
 1. Create a batch with `quantityReceived = quantityRemaining = received quantity`.
-2. Call `syncInventoryFromBatch(medicineId, purchaseContext, session)`.
-3. If inventory does not exist, create it with `currentStock = totalStock` and log a `PURCHASE` movement for `totalStock`.
-4. If it exists, update `currentStock` and log a movement for the delta (`updateInventory` computes `after - before`).
+2. Call `StockMutationService.receiveStock`.
+3. Recompute the aggregate from all sellable batches.
+4. Write one `PURCHASE` movement for the received quantity.
+5. `BatchService.createBatch` owns a transaction when the caller does not supply one.
 
 Effect: batch sum and aggregate agree after each item.
 
-Caveat: if a purchase order contains the same medicine twice (blocked by service) or a batch is created through `POST /batches` directly, no sync occurs.
-
-### 5.2 Sale (batch-first)
+### 5.2 Sale
 
 For each requested medicine:
 
 1. Load sellable batches sorted FEFO.
 2. For each batch, atomically decrement `quantityRemaining` if enough remains.
-3. Log one `SALE` movement per batch.
-4. After all allocations, sync aggregate stock.
+3. Write one `SALE` movement per batch.
+4. After all allocations, sync aggregate stock once.
 5. Create one `SalesItem` per allocation.
 
 Effect: batches and aggregate agree. If the transaction aborts, all writes roll back.
 
-### 5.3 GOOD return (aggregate-only)
+### 5.3 GOOD return
 
-`returnMedicine` immediately calls `increaseStock` and returns. It does **not** restore `batch.quantityRemaining` and does **not** sync.
+`returnMedicine` delegates to `increaseBatchStock`:
 
-Effect: aggregate stock increases, batch stock does not. The next batch-first sync (another sale/receipt) will overwrite the increase.
+1. Restore `batch.quantityRemaining`.
+2. Sync the aggregate.
+3. Write one `RETURN` movement.
 
-### 5.4 DAMAGED / EXPIRED / OPENED return (batch-first)
+### 5.4 DAMAGED / EXPIRED / OPENED return
 
-The service logs a `RETURN` movement, then increments the batch, logs a second `RETURN` movement, then syncs the aggregate.
+The service writes one `RETURN` movement and does **not** restore batch or aggregate stock. The item is treated as a write-off.
 
-Effect: stock is restored even for damaged/expired/opened items, and two movement records exist for one return line.
+### 5.5 Sale deletion
 
-### 5.5 Sale deletion (aggregate-only)
+For each sale item with `quantity > returnedQuantity`:
 
-For each sale item: `increaseStock` (aggregate + movement), delete the sale item, delete the sale.
+1. Restore `quantity - returnedQuantity` to the original batch.
+2. Sync the aggregate.
+3. Write one `RETURN` movement.
+4. Delete the sale item.
 
-Effect: aggregate stock is restored, batch stock is not. A subsequent sync can erase the restoration.
+Fully returned items are deleted without a stock change.
 
-### 5.6 Expiry disposal (batch + aggregate)
+### 5.6 Expiry disposal
 
 `confirmDisposal`:
 
 1. Requires `isExpired === true` and `quantityRemaining > 0`.
-2. Sets batch `quantityRemaining = 0` directly.
-3. Calls `decreaseStock` for the disposed quantity. `decreaseStock` records the requested `EXPIRED` movement type.
+2. Sets batch `quantityRemaining = 0`.
+3. Syncs the aggregate.
+4. Writes one `EXPIRED` movement.
 
-Effect: both layers drop by the same amount, so they stay aligned unless they were already drifted. No transaction wraps the two writes.
+All three writes run in one transaction.
 
 ### 5.7 Manual batch adjustment
 
-`POST /batches/:id/adjust` sets `quantityRemaining` to an absolute value and syncs the aggregate. It writes no movement and does not validate that the new value is below the amount already sold.
+`POST /batches/:id/adjust` sets `quantityRemaining` to an absolute value, syncs the aggregate, and writes one movement for the absolute delta. The value must be between 0 and `quantityReceived`.
 
 ### 5.8 Direct inventory endpoints
 
-`POST /inventory/:medicineId/increase|decrease|reserve|release` modify only the aggregate row and write a movement. These are intended as administrative escape hatches but can desynchronize the model.
+`POST /inventory/:medicineId/increase|decrease` require a `batchId` and mutate the batch plus aggregate. `reserve|release` mutate `reservedStock` and `availableStock`; `batchId` is optional.
 
 ### 5.9 `POST /inventory/:medicineId/sync`
 
-Recomputes the aggregate from batches. The same sellable filter (`quantityRemaining > 0`, `expiryDate > now`, `isExpired: false`) is applied with or without a session, so expired, flagged, and zero-quantity batches do not inflate `currentStock`.
+Recomputes the aggregate from batches. The sellable filter (`quantityRemaining > 0`, `expiryDate > now`, `isExpired: false`) is applied with or without a session. If the aggregate changes, one `ADJUSTMENT` movement records the delta.
 
-Source: `server/src/modules/batch/repo/medicineBatch.repo.ts` (`getTotalStock`), called by `server/src/modules/inventory/services/inventory.service.ts` (`syncInventoryFromBatch`).
+Source: `server/src/modules/batch/repo/medicineBatch.repo.ts` (`getTotalStock`), called by `server/src/modules/inventory/services/stockMutation.service.ts`.
 
 ## 6. Availability calculations
 
@@ -173,22 +169,19 @@ Source: `server/src/modules/batch/repo/medicineBatch.repo.ts` (`getTotalStock`),
 | Sales search result | `Inventory.availableStock > 0`, joins the earliest non-expired batch | `inventory.repo.ts` `searchMedicines` |
 | Low stock (dashboard) | `availableStock > 0` and `availableStock <= medicine.reorderLevel` | `inventory.repo.ts` `getLowStockCount` |
 | Out of stock | `availableStock <= 0` | `inventory.repo.ts` `getOutOfStockCount` |
-| Batch availability | `quantityRemaining > 0 && expiryDate > now` | `batch.service.ts` `getAvailableBatches` |
+| Batch availability | `quantityRemaining > 0 && expiryDate > now && !isExpired` | `batch.service.ts` `getAvailableBatches` |
 | Sellable for a sale | quantity > 0, expiry > now, `isExpired: false` | `medicineBatch.repo.ts` `findSellableBatches` |
 | Low-stock batches | per-batch `quantityRemaining <= query threshold` and `> 0` | `batch.service.ts` `getLowStockBatches` |
 | Smart reorder usable stock | sum of `quantityRemaining` for batches with `expiryDate > now + adjustedLeadTime + 30 days` | `medicineBatch.repo.ts` `getUsableStock` |
-
-The dashboard's `expiringSoonCount` from `InventoryRepo` queries `"batches.expiryDate"`, a path that does not exist on the `Inventory` collection, so it always returns 0. The batch repository has a working `getExpiringSoonCount`, which dashboard summary and expiry summary use.
 
 ## 7. Reservations
 
 The reserve/release endpoints exist but are not integrated with any order flow.
 
-- Reserve: rejects if `availableStock < quantity`, then `availableStock -= quantity`.
-- Release: `availableStock += quantity`.
-- Neither touches `reservedStock`.
+- Reserve: rejects if `availableStock < quantity`, then increments `reservedStock` and decrements `availableStock`.
+- Release: rejects if `reservedStock < quantity`, then decrements `reservedStock` and increments `availableStock`.
+- Reconciliation clamps `reservedStock` to `totalStock` if batch truth falls below outstanding reservations, so `availableStock` is never negative.
 - No reference integrity check (any `referenceId` is accepted).
-- No guard against releasing more than was reserved.
 
 Treat reservations as **Partially Implemented**.
 
@@ -196,24 +189,24 @@ Treat reservations as **Partially Implemented**.
 
 | Movement type | Written by | Notes |
 |---|---|---|
-| `PURCHASE` | Receipt sync, manual increase | Quantity is the increase |
-| `SALE` | Sale allocation; manual decrease when `SALE` is requested | Quantity is units removed |
-| `RETURN` | Return, sale deletion | Positive quantity; direction inferred by type |
-| `ADJUSTMENT` | Inventory update/delete with context | Absolute delta |
-| `EXPIRED` | Disposal and manual expired decreases | Disposed quantity |
+| `PURCHASE` | Receipt, direct batch create, manual increase | Quantity is the increase |
+| `SALE` | Sale allocation | Quantity is units removed |
+| `RETURN` | GOOD return, non-GOOD write-off, sale deletion | Positive quantity; direction inferred by operation |
+| `ADJUSTMENT` | Batch adjustment, drift correction, inventory initialization | Absolute delta |
+| `EXPIRED` | Disposal | Disposed quantity |
 | `RESERVE` | Reserve endpoint | Quantity removed from available |
 | `RELEASE` | Release endpoint | Quantity returned to available |
 
-`referenceType` is validated against a 9-value enum: `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, and `SYSTEM`. `SALES_RETURN` is used by sales returns. Adding these values does not require a data migration because existing documents remain valid.
+`referenceType` is validated against a 9-value enum: `PURCHASE_ORDER`, `PURCHASE`, `SALE`, `RETURN`, `SALES_RETURN`, `ADJUSTMENT`, `RESERVE`, `RELEASE`, and `SYSTEM`.
 
 ## 9. Data repair guidance
 
-If aggregate and batch stock disagree, the only supported repair is:
+If aggregate and batch stock disagree:
 
 1. Recompute from batches manually (`GET /batches/medicine/:medicineId`).
-2. Update via `PATCH /inventory/:id` or the sync endpoint.
-
-`POST /inventory/:medicineId/sync` is safe to use for this repair: it applies the sellable filter with or without a session and does not include expired, flagged, or zero-quantity batches.
+2. Run `POST /inventory/:medicineId/sync`. It applies the sellable filter and writes an `ADJUSTMENT` for the delta.
+3. Do not set `currentStock` or `availableStock` through `PATCH /inventory/:id`; those fields are rejected.
+4. For duplicate aggregate rows created before the unique index, run `npm --prefix server run inventory:dedupe -- --dry-run`, then `npm --prefix server run inventory:dedupe -- --sync-indexes`. The script keeps the latest/highest-stock row, reconciles it from sellable batches, merges reservations, and deletes the rest.
 
 ## Related documents
 

@@ -265,6 +265,26 @@ describe("ReturnService", () => {
     );
   });
 
+  it("attributes the movement to the authenticated performer, not the body field", async () => {
+    const { service, inventoryService } = buildService();
+
+    await service.createReturn(
+      buildDto({
+        returnedBy: "507f1f77bcf86cd799439099",
+        performedBy: USER_ID,
+      }),
+    );
+
+    expect(inventoryService.returnMedicine).toHaveBeenCalledWith(
+      MEDICINE_ID,
+      BATCH_ID,
+      3,
+      "GOOD",
+      expect.objectContaining({ performedBy: USER_ID }),
+      expect.anything(),
+    );
+  });
+
   it("passes the return condition through to inventory", async () => {
     const { service, inventoryService } = buildService();
 

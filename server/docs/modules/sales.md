@@ -57,7 +57,7 @@ modules/sales/
 | GET | `/api/sales` | List |
 | GET | `/api/sales/:id` | Detail + items |
 | PATCH | `/api/sales/:id` | Edit customer/payment |
-| DELETE | `/api/sales/:id` | Delete + restore aggregate stock |
+| DELETE | `/api/sales/:id` | Delete + restore batch and aggregate stock |
 
 ### Sale items
 
@@ -117,10 +117,11 @@ flowchart TB
 
 1. Starts a transaction.
 2. Loads the sale and its items.
-3. For each item, calls `increaseStock` (aggregate + RETURN movement).
-4. Deletes each sale item and the sale.
+3. For each item, computes `restorable = quantity - returnedQuantity`.
+4. If `restorable > 0`, calls `increaseStock` with the original `batchId`; this restores the batch, syncs the aggregate, and writes one `RETURN` movement.
+5. Deletes each sale item and the sale.
 
-It does **not** restore batch quantities and does not check return history.
+Fully returned items are deleted without a stock change. If a batch was deleted after it sold out, restoration fails with 404.
 
 ### SaleItemService
 
@@ -245,7 +246,7 @@ Sales.discount= 40
 | No payment ledger/gateway | Needs decision | Phase 6 |
 | No customer entity | Needs decision | Phase 6 |
 | No invoice PDF/print endpoint | Needs decision | Phase 6 |
-| Delete restores aggregate but not batches | Still open | Phase 2 |
+| Delete restores aggregate but not batches | Fixed (restores `quantity - returnedQuantity` to the original batch) | — |
 | Sale item correction does not recompute line or sale totals | Still open | Phase 4 |
 | Invoice discount is checked against the pre-line-discount subtotal, so taxable can go negative; `discountPercentage` has no upper bound | Still open | Phase 4 |
 | `batchId` required in request but ignored | Still open | Phase 4 |

@@ -171,7 +171,7 @@ Express 5 would forward rejected async handlers automatically, but the code does
 
 ## 8. Return-flow movement reference
 
-`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine`. `InventoryMovement.referenceType` now includes `SALES_RETURN`, so the GOOD path no longer fails enum validation. The remaining return defects are the condition semantics, the missing VAT on `returnItems`, and duplicate movement rows (Phase 4).
+`ReturnService` passes `referenceType: "SALES_RETURN"` into `InventoryService.returnMedicine`. `InventoryMovement.referenceType` includes `SALES_RETURN`, so the GOOD path cannot fail enum validation. GOOD returns now restore the original batch; damaged/expired/opened returns write one movement and no stock. The remaining return defects are VAT refunds, persisted `returnItems.VAT`, and the approval/status flow (Phase 4).
 
 Source: `server/src/modules/sales/services/return.service.ts`, `server/src/modules/inventory/services/inventory.service.ts`, `server/src/modules/inventory/model/inventoryMovement.model.ts`
 

@@ -4,11 +4,11 @@ Assessment of the backend as found in the repository. Status labels: **Implement
 
 ## 1. Overall assessment
 
-The backend is a working prototype of a single-pharmacy inventory and POS system. Core flows are present end to end: catalog, suppliers, purchasing, FEFO sales, VAT, returns, dashboard, and reorder recommendations. Authentication and role checks exist. The blocking schema defects were remediated: positive-quantity batch creation now validates, the movement `referenceType` enum covers every caller, and the destructive batch allocation endpoint was removed. Remaining stock drift, validation, and financial defects are tracked below and in the module docs.
+The backend is a working prototype of a single-pharmacy inventory and POS system. Core flows are present end to end: catalog, suppliers, purchasing, FEFO sales, VAT, returns, dashboard, and reorder recommendations. Authentication and role checks exist. The blocking schema defects were remediated, and Phase 2 consolidated stock writes: batch, aggregate, and movement now commit through one transactional path. Remaining validation and financial defects are tracked below and in the module docs.
 
 It is not production-hardened. The main risks are:
 
-- Two stock sources that can drift, with several paths that update only one.
+- Aggregate stock still depends on operational sync after expiry flagging and on deduping existing inventory rows before the unique index deploys.
 - Authorization is almost flat across roles.
 - Security defects in user management (role escalation and body-based delete authorization).
 - Missing validation on many write endpoints.
@@ -27,7 +27,7 @@ It is not production-hardened. The main risks are:
 | Endpoint rows documented | 138 (124 with a method column + 14 dashboard `GET` rows; 148 live registrations) |
 | Transactions | 7 flows |
 | Cron jobs | 3 active, 1 dead duplicate |
-| Tests | 22 files, 223 cases |
+| Tests | 24 files, 253 cases |
 
 ## 3. Module status matrix
 
@@ -37,11 +37,11 @@ It is not production-hardened. The main risks are:
 | Users & roles | Partially Implemented | CRUD, activation toggle, role checks, hashed password updates, public responses sanitized | Pharmacist can create/promote `owner`, body-based delete check, dead routes, flat permissions |
 | Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks | No pagination, no unit validation, hard-delete lookups, inactive not filtered |
 | Suppliers | Implemented | CRUD, email/phone uniqueness | No phone index, no delete guards, unused reliability field |
-| Inventory (aggregate) | Partially Implemented | CRUD, increase/decrease, reserve/release, sync | Drift, reservedStock unused, no unique medicine index |
-| Batches & expiry | Partially Implemented | CRUD, FEFO query, expiry flagging, disposal | No movement on adjust, no history, no transaction on disposal |
-| Purchases | Partially Implemented | Create/approve; receive logic works now that batch creation validates | VAT/discount ignored, no partial receipt, stale totals, hard delete |
-| Sales | Implemented | FEFO allocation, VAT, invoice counter, transaction, session cleanup | Delete doesn't restore batches, no payment ledger, item edits don't recompute totals |
-| Returns | Partially Implemented | Create/list/update, refunds, partial/full status | Damaged restocked, no VAT refund, statuses unreachable, duplicate movements |
+| Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, unique medicine index | Expiry flagging still needs a follow-up sync |
+| Batches & expiry | Implemented | CRUD, FEFO query, expiry flagging, atomic disposal, movements on every stock change | No movement history endpoint; zero-stock batch deletion can leave dangling references |
+| Purchases | Partially Implemented | Create/approve; receive uses batch + aggregate + movement transaction | VAT/discount ignored, no partial receipt, stale totals, hard delete |
+| Sales | Implemented | FEFO allocation, VAT, invoice counter, transaction, session cleanup | Delete restores batch + aggregate; no payment ledger, item edits don't recompute totals |
+| Returns | Partially Implemented | Create/list/update, refunds, partial/full status, correct GOOD/write-off stock semantics | No VAT refund, statuses unreachable |
 | Notifications | Implemented | Create/dispatch with atomic claim, inbox, WS/email/SMS, retries, preferences, read state, cursor pagination, hierarchy authz | Templates out of scope; multi-instance retry sweep; legacy backfill/dedupe is a deployment step |
 | Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cron, cache, approve/reject | No PO creation, stale cache, no dedupe, missing date handling |
 | Dashboard/reporting | Implemented | 14 endpoints, 8-part cached payload | Year params ignored, profit not COGS, top-selling includes returns |
@@ -55,7 +55,7 @@ It is not production-hardened. The main risks are:
 | Purchase returns | Not Implemented | — | No route/model |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Partially Implemented | 22 suites / 223 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
+| Automated tests | Partially Implemented | 24 suites / 253 tests | No HTTP integration tests; controllers, Redis, Mongo, and SMTP are mocked or uncovered |
 
 ## 4. Implemented features
 
@@ -82,16 +82,16 @@ It is not production-hardened. The main risks are:
 | Feature | What works | What does not |
 |---|---|---|
 | RBAC | Role checks exist | All three roles can do nearly everything; users module has its own gate |
-| Reservations | Reserve/release adjust availability | `reservedStock` never changes; not linked to orders |
-| Returns | Creation, refund, status | GOOD restores the aggregate only (not the batch); DAMAGED/EXPIRED/OPENED still restock; no VAT refund; no approval flow |
-| Stock adjustments | Batch adjust endpoint | No movement log; `StockAdjustment` service unreachable |
+| Reservations | Reserve/release maintain `reservedStock` and `availableStock` | Not linked to orders; reconciliation clamps outstanding holds if batch truth drops |
+| Returns | Creation, refund, status, correct GOOD/write-off stock semantics | No VAT refund; no approval flow |
+| Stock adjustments | Batch adjust endpoint | Writes movement and syncs; `StockAdjustment` service unreachable |
 | Purchase totals | Base total computed | VAT/discount ignored, recalculate not persisted |
 | Email notifications | Sending works if SMTP is reachable; auth emails have HTML templates | No retry/bounce tracking; console fallback when SMTP is unconfigured |
 | SMS notifications | Implemented via `SMS_WEBHOOK_URL` | Requires `SMS_WEBHOOK_URL` and a recipient phone |
-| Inventory reconciliation | Sync filter fixed for both session and non-session calls | Manual operations still drift; no single write path |
+| Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls | Expiry flagging needs a follow-up sync |
 | Dashboard analytics | Metrics returned | Several filters/parameters ignored; some counts always zero |
 | Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 22 suites / 223 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
+| Tests | 24 suites / 253 tests | No HTTP integration tests; controllers and external services are not exercised end-to-end |
 
 ## 6. Not implemented
 
@@ -130,7 +130,7 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current suite is 24 files, 253 tests) |
 | Client tests | 2 files, 17 tests passed |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
@@ -138,18 +138,18 @@ It is not production-hardened. The main risks are:
 ### Verified during this audit
 
 - `npx tsc --noEmit -p tsconfig.json` completes with no diagnostics.
-- `npx vitest run` passes: 22 files, 223 tests (server).
+- `npx vitest run` passes: 24 files, 253 tests (server).
 - Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all nine `referenceType` values validate.
 
 ## 8. Highest-risk defects (ranked)
 
-1. **Stock drift**: GOOD returns and sale deletion update the aggregate only; damaged returns restock sellable stock.
-2. **Privilege escalation in user management**: a pharmacist can create an `owner` or promote a user, and delete authorization reads `req.body.role`.
-3. **Purchase totals** ignore VAT/discount; item updates leave stale totals; the item repo saves twice, once outside the transaction.
-4. **Return refunds omit VAT** while `returnItems.VAT` is required but never written. DAMAGED/EXPIRED/OPENED returns incorrectly restock sellable stock, and GOOD returns do not restore the original batch.
-5. **Sales item corrections** do not recompute the line or parent totals; invoice discount is not clamped to the discounted subtotal.
-6. **Missing input validation** on users, batches, inventory, returns, sale updates, and purchase receive.
-7. **Missing indexes** on `inventories.medicineId`, `salesitems.salesId`, and `returns.salesId`.
+1. **Privilege escalation in user management**: a pharmacist can create an `owner` or promote a user, and delete authorization reads `req.body.role`.
+2. **Purchase totals** ignore VAT/discount; item updates leave stale totals; the item repo saves twice, once outside the transaction.
+3. **Return refunds omit VAT** while `returnItems.VAT` is required but never written.
+4. **Sales item corrections** do not recompute the line or parent totals; invoice discount is not clamped to the discounted subtotal.
+5. **Missing input validation** on users, batches, inventory, returns, sale updates, and purchase receive.
+6. **Missing indexes** on `salesitems.salesId` and `returns.salesId`.
+7. **Expiry flagging** changes the sellable set without syncing aggregates; the next mutation or sync call corrects it.
 
 ## 9. Security posture
 
@@ -198,7 +198,7 @@ Engineering (not performed in this documentation task):
 8. ~~`isActive` at login and token revocation/refresh~~ (done: login rejects deactivated accounts; refresh sessions rotate and are revocable).
 9. Wire validation for users, inventory, batches, returns, sale updates, and purchase receive.
 10. Apply purchase VAT/discount or remove the fields; persist recalculated totals.
-11. Add indexes for `inventories.medicineId`, `salesitems.salesId`, `returns.salesId`, and status/date queries.
+11. Add indexes for `salesitems.salesId`, `returns.salesId`, and status/date queries (`inventories.medicineId` is now unique).
 12. Add integration tests for sale, receipt, return, disposal, and reorder.
 13. Replace console logging with structured logging and add readiness checks.
 14. Fix the environment loading order and Redis URL handling.

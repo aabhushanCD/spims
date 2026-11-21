@@ -62,7 +62,7 @@ MongoDB sessions are passed into repository calls and used in:
 | Purchase order receiving | same |
 | Notification creation and deletion | `modules/notification/services/notification.service.ts` |
 
-Inventory increase/decrease, reservations, batch adjustments, disposal, and most CRUD operations run without a session.
+Inventory increase/decrease, reservations, batch adjustments, batch creation, and disposal run through `StockMutationService`, which joins a caller session or owns a transaction. The unique inventory index must be deployed after existing duplicate rows are deduped.
 
 ## 5. Constraints and indexes
 
@@ -78,6 +78,7 @@ Inventory increase/decrease, reservations, batch adjustments, disposal, and most
 | `units` | `name`, `description` | `unit.model.ts` |
 | `suppliers` | `email` | `supplier.model.ts` |
 | `batches` | compound `{ medicineId, batchNumber }` | `medicineBatch.model.ts` |
+| `inventories` | `medicineId` | `inventory.model.ts` |
 | `sales` | `invoiceNumber` | `sales.model.ts` |
 | `counters` | `name` | `counter.model.ts` |
 
@@ -150,9 +151,9 @@ MongoDB does not enforce foreign keys. The application validates some references
 | Medicine | `DELETE /medicines/:id` sets `isActive: false` (soft) |
 | Brand/category/generic name/unit | Hard delete |
 | Supplier | Hard delete |
-| Batch | Hard delete; movements and sale items retain dangling references |
-| Inventory | Hard delete |
-| Sales | Hard delete **and** restores aggregate stock (batches untouched) |
+| Batch | Hard delete; blocked while `quantityRemaining > 0`; movements and sale items retain dangling references |
+| Inventory | Hard delete; blocked while stock or reservations exist |
+| Sales | Hard delete and restores `quantity - returnedQuantity` to the original batch |
 | Sale item | No delete route |
 | Return | No delete route |
 | Notification | Hard delete plus recipient rows |

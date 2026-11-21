@@ -1,6 +1,7 @@
 import mongoose, { Types } from "mongoose";
 
 import type { AppError } from "../../../shared/error.ts";
+import type { IPurchaseOrder } from "../model/purchaseOrder.model.js";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
 import type { PurchaseOrderRepo } from "../repo/purchaseOrder.repo.ts";
 import type { PurchaseOrderItemRepo } from "../repo/purchaseOrderItem.repo.ts";
@@ -12,8 +13,6 @@ import type {
 
 import type { BatchService } from "../../batch/service/batch.service.ts";
 import type { ReceivePurchaseOrderDto } from "../schema/receivePurchaseOrder.type.ts";
-import type { InventoryService } from "../../inventory/services/inventory.service.ts";
-import type { InventoryMovementService } from "../../inventory/services/inventoryMovement.service.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 
 export class PurchaseOrderService {
@@ -21,58 +20,54 @@ export class PurchaseOrderService {
     private readonly purchaseOrderRepo: PurchaseOrderRepo,
     private readonly supplierRepo: SupplierRepo,
     private readonly purchaseOrderItemRepo: PurchaseOrderItemRepo,
-    private readonly inventoryService: InventoryService,
-    private readonly inventoryMovementService: InventoryMovementService,
     private readonly batchService: BatchService,
     private readonly userRepo: UserRepository,
     private readonly appError: typeof AppError,
+    private readonly connection: mongoose.Connection,
   ) {}
 
   async createPurchaseOrder(data: CreatePurchaseOrderDto) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const session = await this.connection.startSession();
     try {
-      const supplier = await this.supplierRepo.findById(data.supplierId);
+      let purchaseOrder!: IPurchaseOrder;
+      await session.withTransaction(async () => {
+        const supplier = await this.supplierRepo.findById(data.supplierId);
 
-      if (!supplier) {
-        throw this.appError.notFound("Supplier not found");
-      }
+        if (!supplier) {
+          throw this.appError.notFound("Supplier not found");
+        }
 
-      const { items, ...purchaseOrderData } = data;
+        const { items, ...purchaseOrderData } = data;
+        const totalAmount = items.reduce(
+          (sum, item) => sum + item.quantity * item.purchasePrice,
+          0,
+        );
 
-      const totalAmount = items.reduce(
-        (sum, item) => sum + item.quantity * item.purchasePrice,
-        0,
-      );
+        const purchaseOrderPayload = {
+          ...purchaseOrderData,
+          supplierId: new Types.ObjectId(data.supplierId),
+          totalAmount,
+          ...(purchaseOrderData.orderDate !== undefined
+            ? { orderDate: purchaseOrderData.orderDate }
+            : {}),
+        };
 
-      const purchaseOrderPayload = {
-        ...purchaseOrderData,
-        supplierId: new Types.ObjectId(data.supplierId),
-        totalAmount,
-        ...(purchaseOrderData.orderDate !== undefined
-          ? { orderDate: purchaseOrderData.orderDate }
-          : {}),
-      };
-
-      const purchaseOrder = await this.purchaseOrderRepo.create(
-        purchaseOrderPayload,
-        session,
-      );
-
-      for (const item of data.items) {
-        await this.purchaseOrderItemRepo.create(
-          {
-            purchaseOrderId: purchaseOrder._id.toString(),
-            ...item,
-          },
+        purchaseOrder = await this.purchaseOrderRepo.create(
+          purchaseOrderPayload,
           session,
         );
-      }
-      await session.commitTransaction();
-      return purchaseOrder;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
+
+        for (const item of data.items) {
+          await this.purchaseOrderItemRepo.create(
+            {
+              purchaseOrderId: purchaseOrder._id.toString(),
+              ...item,
+            },
+            session,
+          );
+        }
+      });
+      return purchaseOrder!;
     } finally {
       await session.endSession();
     }
@@ -322,115 +317,104 @@ export class PurchaseOrderService {
     data: ReceivePurchaseOrderDto,
     performedBy: string,
   ) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const session = await this.connection.startSession();
     try {
-      const user = await this.userRepo.findById(performedBy);
-
-      if (!user) {
-        throw this.appError.notFound("User not found");
-      }
-      const purchaseOrder =
-        await this.purchaseOrderRepo.findById(purchaseOrderId);
-
-      if (!purchaseOrder) {
-        throw this.appError.notFound("Purchase order not found");
-      }
-
-      if (purchaseOrder.status !== "approved") {
-        throw this.appError.badRequest(
-          "Only approved purchase orders can be received",
-        );
-      }
-
-      const purchaseOrderItems =
-        await this.purchaseOrderItemRepo.findByPurchaseOrderId(purchaseOrderId);
-
-        
-      if (!purchaseOrderItems.length) {
-        throw this.appError.badRequest(
-          "Cannot receive a purchase order with no items",
-        );
-      }
-      const batchMap = new Map(
-        data.items.map((item) => [item.medicineId, item]),
-      );
-
-      const ids = data.items.map((i) => i.medicineId);
-
-      if (new Set(ids).size !== ids.length) {
-        throw this.appError.badRequest(
-          "Duplicate medicine found in batch data",
-        );
-      }
-      if (data.items.length !== purchaseOrderItems.length) {
-        throw this.appError.badRequest(
-          "Batch data does not match purchase order",
-        );
-      }
-      for (const poItem of purchaseOrderItems) {
-        const batch = batchMap.get(poItem.medicineId._id.toString());
-       
-        if (!batch) {
-          throw this.appError.badRequest(
-            `No batch data provided for medicine with ID ${poItem.medicineId}`,
-          );
+      await session.withTransaction(async () => {
+        const user = await this.userRepo.findById(performedBy);
+        if (!user) {
+          throw this.appError.notFound("User not found");
         }
-        if (batch.quantityReceived !== poItem.quantity) {
-          throw this.appError.badRequest(
-            `Quantity received for medicine with ID ${poItem.medicineId} does not match the ordered quantity`,
-          );
+
+        const purchaseOrder = await this.purchaseOrderRepo.findById(
+          purchaseOrderId,
+          session,
+        );
+        if (!purchaseOrder) {
+          throw this.appError.notFound("Purchase order not found");
         }
-        if (batch.sellingPrice < poItem.purchasePrice) {
+        if (purchaseOrder.status !== "approved") {
           throw this.appError.badRequest(
-            "Selling price cannot be less than purchase price",
+            "Only approved purchase orders can be received",
           );
         }
 
-        const batchRecord = await this.batchService.createBatch(
-          {
-            medicineId: poItem.medicineId._id.toString(),
+        const purchaseOrderItems =
+          await this.purchaseOrderItemRepo.findByPurchaseOrderId(
             purchaseOrderId,
-            batchNumber: batch.batchNumber,
-            manufacturingDate: batch.manufacturingDate,
-            expiryDate: batch.expiryDate,
-            purchasePrice: poItem.purchasePrice,
-            sellingPrice: batch.sellingPrice,
-            quantityReceived: batch.quantityReceived,
-            quantityRemaining: batch.quantityReceived,
-          },
-          session,
-        );
-        
-        await this.inventoryService.syncInventoryFromBatch(
-          poItem.medicineId._id.toString(),
-          {
-            batchId: batchRecord._id.toString(),
-            movementType: "PURCHASE",
-            referenceId: purchaseOrderId,
-            referenceType: "PURCHASE_ORDER",
-            performedBy,
-            remarks: `Received from PO ${purchaseOrder.invoiceNumber}`,
-          },
-          session,
-        );
-      }
+          );
+        if (!purchaseOrderItems.length) {
+          throw this.appError.badRequest(
+            "Cannot receive a purchase order with no items",
+          );
+        }
 
-      await this.purchaseOrderRepo.update(
-        purchaseOrderId,
-        {
-          status: "received",
-          receivedDate: new Date(),
-        },
-        session,
-      );
-      await session.commitTransaction();
-      return {
-        message: "Purchase order received successfully",
-      };
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
+        const batchMap = new Map(
+          data.items.map((item) => [item.medicineId, item]),
+        );
+        const ids = data.items.map((item) => item.medicineId);
+        if (new Set(ids).size !== ids.length) {
+          throw this.appError.badRequest(
+            "Duplicate medicine found in batch data",
+          );
+        }
+        if (data.items.length !== purchaseOrderItems.length) {
+          throw this.appError.badRequest(
+            "Batch data does not match purchase order",
+          );
+        }
+
+        for (const poItem of purchaseOrderItems) {
+          const batch = batchMap.get(poItem.medicineId._id.toString());
+          if (!batch) {
+            throw this.appError.badRequest(
+              `No batch data provided for medicine with ID ${poItem.medicineId}`,
+            );
+          }
+          if (batch.quantityReceived !== poItem.quantity) {
+            throw this.appError.badRequest(
+              `Quantity received for medicine with ID ${poItem.medicineId} does not match the ordered quantity`,
+            );
+          }
+          if (batch.sellingPrice < poItem.purchasePrice) {
+            throw this.appError.badRequest(
+              "Selling price cannot be less than purchase price",
+            );
+          }
+
+          await this.batchService.createBatch(
+            {
+              medicineId: poItem.medicineId._id.toString(),
+              purchaseOrderId,
+              batchNumber: batch.batchNumber,
+              manufacturingDate: batch.manufacturingDate,
+              expiryDate: batch.expiryDate,
+              purchasePrice: poItem.purchasePrice,
+              sellingPrice: batch.sellingPrice,
+              quantityReceived: batch.quantityReceived,
+              quantityRemaining: batch.quantityReceived,
+            },
+            session,
+            {
+              referenceId: purchaseOrderId,
+              referenceType: "PURCHASE_ORDER",
+              movementType: "PURCHASE",
+              performedBy,
+              remarks: `Received from PO ${purchaseOrder.invoiceNumber}`,
+            },
+          );
+        }
+
+        await this.purchaseOrderRepo.update(
+          purchaseOrderId,
+          {
+            status: "received",
+            receivedDate: new Date(),
+          },
+          session,
+        );
+      });
+
+      return { message: "Purchase order received successfully" };
     } finally {
       await session.endSession();
     }

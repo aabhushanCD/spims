@@ -166,20 +166,22 @@ Source: `server/src/modules/sales/services/return.service.ts`
 
 ```mermaid
 flowchart LR
-  Batch["Batch.quantityRemaining"] -->|"sum of sellable batches"| Sync["syncInventoryFromBatch"]
+  Write["Sale / Receipt / Return / Disposal / Manual / Batch op"] --> SM["StockMutationService"]
+  SM --> Batch["Batch.quantityRemaining"]
+  SM --> Sync["syncAggregate"]
   Sync --> Inv["Inventory.currentStock"]
   Inv --> Avail["Inventory.availableStock = currentStock - reservedStock"]
-  Sale["Sale / Return / Receipt / Disposal"] --> Sync
-  Direct["increaseStock / decreaseStock"] --> Inv
-  Direct -.->|"does not touch batches"| Batch
+  SM --> MV["one InventoryMovement"]
 ```
 
-There are two paths:
+There is one write path:
 
-1. **Batch-first flows** (sale, receipt, GOOD return, disposal) update batches and then reconcile `Inventory`.
-2. **Aggregate-first flows** (`increaseStock`, `decreaseStock`, `reserveStock`, `releaseReservedStock`) update `Inventory` directly and may log a movement without touching a batch.
+1. `StockMutationService` mutates the batch and/or reservation counters.
+2. It recomputes `Inventory.currentStock` from sellable batches.
+3. It writes exactly one movement.
+4. It joins a caller session or owns a transaction.
 
-This split is the root of several drift bugs documented in [Inventory management](../business-logic/inventory-management.md).
+See [Inventory management](../business-logic/inventory-management.md).
 
 ## 6. Dashboard read flow
 
@@ -279,15 +281,16 @@ There are no client-to-server messages and no heartbeat.
 
 | Operation | Transaction? | Batch update | Aggregate update | Movement log |
 |---|---|---|---|---|
-| Sale create | Yes | Deduct per allocation | Recalculated | SALE per batch |
-| Sale delete | Yes | **No** | `increaseStock` per item | RETURN per item |
-| Return GOOD | Yes | **No** | `increaseStock` | RETURN once |
-| Return DAMAGED/EXPIRED/OPENED | Yes | Increase | Recalculated | Two RETURN logs |
-| Purchase receive | Yes | Create batches | Recalculated per item | PURCHASE (on create or delta) |
-| Confirm disposal | No | Set 0 | `decreaseStock` | `EXPIRED` (requested type preserved) |
-| Manual increase/decrease | No | No | Direct delta | Requested `PURCHASE`/`RETURN`/`SALE`/`EXPIRED`/`ADJUSTMENT` |
-| Reserve/release | No | No | Available only | RESERVE/RELEASE |
-| Batch adjust | No | Set value | Recalculated | None |
+| Sale create | Yes | Deduct per allocation | Recalculated once | SALE per batch |
+| Sale delete | Yes | Restore per item | Recalculated | RETURN per restored item |
+| Return GOOD | Yes | Restore | Recalculated | RETURN once |
+| Return DAMAGED/EXPIRED/OPENED | Yes | No change | No change | One RETURN (write-off) |
+| Purchase receive | Yes | Create batch | Recalculated per item | PURCHASE per batch |
+| Confirm disposal | Yes | Set 0 | Recalculated | EXPIRED |
+| Manual increase/decrease | Yes | Delta | Recalculated | Requested type |
+| Reserve/release | Yes | No change | `reservedStock`/`availableStock` | RESERVE/RELEASE |
+| Batch adjust | Yes | Set value | Recalculated | ADJUSTMENT/PURCHASE |
+| Batch create | Yes | Create | Recalculated | PURCHASE |
 
 ## Related documents
 
