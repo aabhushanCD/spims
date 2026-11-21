@@ -19,8 +19,11 @@ All variables are read via `process.env`. No values are reproduced here.
 | `PORT` | No | `server.ts` | HTTP port | Default `3000` |
 | `TRUST_PROXY` | No | `server.ts` | Enables Express `trust proxy` for `req.ip` | `true` (one hop) or a hop count; leave unset when directly exposed |
 | `ALLOWED_ORIGINS` | No | `server.ts`, `verifyOrigin.middleware.ts` | JSON array of allowed CORS/Origin values | Defaults to `["http://localhost:5173","http://localhost:5174"]` |
-| `UPSTASH_REDIS_REST_URL` | Yes (for startup) | `config/redis.config.ts` | Redis URL | Passed directly to `ioredis` when set; `https://` REST URLs are not valid for ioredis |
-| `UPSTASH_REDIS_REST_TOKEN` | No | `config/redis.config.ts` | Redis password in fallback branch | Used as the ioredis password |
+| `REDIS_URL` | Yes (or host/port) | `config/redis.target.ts` | Preferred Redis URL | `redis://` or `rediss://` |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | No | `config/redis.target.ts` | Fallback TCP connection | Default `localhost:6379` |
+| `UPSTASH_REDIS_REST_URL` | No | `config/redis.target.ts` | Legacy Upstash URL | REST `https://` URLs are converted to `rediss://<host>:6379` |
+| `UPSTASH_REDIS_REST_TOKEN` | No | `config/redis.target.ts` | Password for converted Upstash URL | |
+| `LOG_LEVEL` | No | `shared/logger.ts` | Structured log level | `debug`, `info`, `warn`, `error`; default `info` |
 | `NODE_ENV` | No | Cookie and token config | Cookie security and production-required env checks | `production` enables `secure`, `SameSite=None`, and requires refresh/CLIENT env values |
 | `SMTP_HOST` | Production | `email.provider.ts` | SMTP host | In development, missing value uses the JSON transport that logs email text. In production, `assertEmailConfig()` refuses to boot without it |
 | `SMTP_PORT` | No | `email.provider.ts` | SMTP port | Default `587` |
@@ -50,8 +53,10 @@ MAX_SESSIONS_PER_USER=10
 PORT=
 NODE_ENV=
 TRUST_PROXY=
+REDIS_URL=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
+LOG_LEVEL=info
 ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
 SMTP_HOST=
 SMTP_PORT=
@@ -85,25 +90,9 @@ SMS_API_KEY=
 | `REPORTING_TIMEZONE` | IANA timezone name | `Asia/Kathmandu`, `UTC` |
 | `NODE_ENV` | `development` / `production` | unset in development |
 
-## 4. Loading order and an order-dependent side effect
+## 4. Loading order
 
-`server.ts` has static imports followed by `dotenv.config()` in the module body. Under ESM, all static imports are evaluated **before** the body runs.
-
-However, `.env` is normally loaded earlier by accident:
-
-- `app.routes.ts` imports `auth.route.ts` first.
-- `auth.route.ts` imports `shared/middleware/verifyToken.ts`.
-- `verifyToken.ts` calls `dotenv.config()` at **module scope**.
-- This happens before `app.routes.ts` imports the container, which imports Redis and the auth mailer.
-
-Consequences:
-
-- `MONGO_URI`, `JWT_SECRET`, `ALLOWED_ORIGINS`, `PORT`, `NODE_ENV`, and Redis values are normally available from `.env` by the time they are read.
-- The SMTP provider no longer performs network work at import time; the transporter is created lazily on the first email.
-- The `dotenv.config()` call in `server.ts` is later and effectively redundant.
-- The behavior depends on import order. Refactoring the auth/verify-token imports could silently change when `.env` is loaded.
-
-Status: **Implemented by import-order side effect**, not by a deliberate bootstrap. A robust setup would load dotenv in a dedicated entry module before anything else (or use the runtime's `--env-file`).
+`config/env.ts` calls `dotenv.config()` and is imported by `server.ts`, `config/db.config.ts`, `config/redis.config.ts`, and other config modules that read env at module scope. This removes the previous dependency on the auth route import chain and makes `dotenv.config()` calls in middleware unnecessary.
 
 ## 5. Security rules
 
@@ -122,7 +111,8 @@ Status: **Implemented by import-order side effect**, not by a deliberate bootstr
 | `JWT_REFRESH_SECRET` | Required in production at startup; falls back to `JWT_SECRET` in development |
 | `CLIENT_URL` | Required in production at startup |
 | `ALLOWED_ORIGINS` | JSON parse with fallback |
-| Redis URL | Only by `ioredis`/`ping`; failure exits |
+| Redis URL | `resolveRedisTarget` rejects unsupported schemes; connection is still verified by `ping` at startup |
+| `LOG_LEVEL` | Unknown values fall back to `info` |
 | SMTP | `assertEmailConfig()` requires `SMTP_HOST` in production; development falls back to the JSON transport |
 | SMS | Not validated at startup; missing `SMS_WEBHOOK_URL` fails each SMS recipient non-retryably |
 | `REPORTING_TIMEZONE` | `assertReportingConfig()` validates the IANA name at startup; defaults to `Asia/Kathmandu` |

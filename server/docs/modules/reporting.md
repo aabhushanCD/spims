@@ -265,7 +265,7 @@ sequenceDiagram
 | Legacy sale items (pre-snapshot) still use the current batch price for COGS | Accepted limitation | Phase 6 |
 | No arbitrary date-range analytics | Needs decision | Phase 6 |
 | No export (CSV/PDF) | Needs decision | Phase 6 |
-| Dashboard cache not invalidated | Still open | Phase 5 |
+| Dashboard cache not invalidated | Fixed: writes invalidate the cache | — |
 | No per-cashier or per-category breakdown | Needs decision | Phase 6 |
 
 ## Related documents

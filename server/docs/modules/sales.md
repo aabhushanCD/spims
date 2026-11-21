@@ -269,8 +269,8 @@ Sales.discount= 40
 | `batchId` required in request but ignored | Fixed (optional; FEFO chooses) | — |
 | Sale deletion orphans return records | Fixed (`409` while active/completed returns exist) | — |
 | No validation on update/delete | Already fixed (body and ObjectId param schemas) | — |
-| No idempotency key | Needs decision | Phase 5 |
-| No pagination/date filters | Still open | Phase 5 |
+| No idempotency key | Fixed: `Idempotency-Key` header with a partial unique index on string keys and replay | — |
+| No pagination/date filters | Fixed: cursor pagination, search, status, cashier, date range | — |
 | No prescription linkage | Needs decision | Phase 6 |
 | VAT rate is a code constant (`VAT_RATE = 0.13`) rather than configuration | Needs decision | Phase 6 |
 

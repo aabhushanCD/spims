@@ -248,7 +248,7 @@ refund accordingly.
 | No return deletion/reversal | Needs decision | Phase 6 |
 | No refund payment record | Needs decision | Phase 6 |
 | No restocking fee/partial refund policy | Needs decision | Phase 6 |
-| No pagination on the list | Still open | Phase 5 |
+| No pagination on the list | Fixed: cursor pagination, status/sale/search/date filters | — |
 
 ## Related documents
 

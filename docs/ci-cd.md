@@ -38,10 +38,11 @@ Both jobs use a 15-minute timeout, a frozen lockfile install (`npm ci`), and
 read-only repository permissions. Concurrency cancellation stops superseded
 runs on the same ref.
 
-Tests currently do not require MongoDB or Redis because they exercise services
-with fake repositories and a fake transaction session. No service containers
-are started. If integration tests are added later that need real services, add
-them to the backend job and wait for health checks before running tests.
+Unit tests do not require MongoDB or Redis; they use fake repositories and a
+fake transaction session. The Phase 5 integration suite uses
+`mongodb-memory-server` and a fake in-memory Redis, so no CI service containers
+are required. Run it with `npm run test:integration` (or
+`npm --prefix server run test:integration`).
 
 ### Security
 

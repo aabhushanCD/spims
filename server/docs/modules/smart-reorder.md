@@ -153,9 +153,10 @@ Notes:
 | `reorder:{medicineId}` | 12 hours | Recommendation object or negative result |
 
 - Cache is read before any database work.
-- A negative result (`reorderNeeded: false`) is cached, but the first request then throws 400. Subsequent requests within the TTL return the cached negative object with a success status; the reorder-point check is not re-run.
-- There is no invalidation when stock, sales, or suppliers change.
-- `deleteCache` exists but is unused.
+- A negative result (`reorderNeeded: false`) is cached and still throws `400` on cache hits, preserving the endpoint contract.
+- Stock, purchase, sale, return, batch-expiry, and disposal writes invalidate the dashboard cache. Stock changes also invalidate `reorder:{medicineId}`.
+- Pending recommendations are upserted per medicine; the partial unique index prevents duplicate open recommendations.
+- A 12-hour cache expiry can refresh the existing pending recommendation rather than creating another row.
 
 ## 10. Validation
 
@@ -231,17 +232,17 @@ A recommendation for 45 units is stored, with confidence derived from data cover
 | Auto-create purchase orders | Needs decision | Phase 6 |
 | MOQ / pack size | Needs decision | Phase 6 |
 | Seasonality/trend modeling | Needs decision | Phase 6 |
-| Cache invalidation | Still open | Phase 5 |
-| Negative results returned as success on cache hits | Still open | Phase 5 |
-| Missing `expectedDeliveryDate` handling (`NaN`) | Still open | Phase 5 |
-| Duplicate recommendations per run | Still open | Phase 5 |
-| Recommendation deduplication | Still open | Phase 5 |
+| Cache invalidation | Fixed: stock, purchase, sale, return, batch, and notification writes invalidate the dashboard; stock changes invalidate the medicine reorder key | — |
+| Negative results returned as success on cache hits | Fixed: cached negative results keep the 400 contract | — |
+| Missing `expectedDeliveryDate` handling (`NaN`) | Fixed: missing/invalid dates are ignored when averaging delays | — |
+| Duplicate recommendations per run | Fixed: pending recommendations are upserted and the partial unique index prevents a second PENDING row | — |
+| Recommendation deduplication | Fixed: one PENDING recommendation per medicine | — |
 | Approval audit (who/when) | Needs decision | Phase 6 |
-| `expiryRiskUnits` includes already-expired stock | Still open | Phase 5 |
-| Indexes on medicine/status | Still open | Phase 5 |
+| `expiryRiskUnits` includes already-expired stock | Fixed: expiry risk is bounded by `now` and the cutoff | — |
+| Indexes on medicine/status | Fixed: medicine/status/generatedAt and status/generatedAt indexes added | — |
 | `createRecommendation` manual path | Needs decision | Phase 6 |
-| Manual confidence scale (0–1) differs from generated scale (0–100) | Still open | Phase 5 |
-| `supplier.reliabilityScore` unused | Still open | Phase 5 |
+| Manual confidence scale (0–1) differs from generated scale (0–100) | Fixed: both use 0–100 | — |
+| `supplier.reliabilityScore` unused | Fixed: computed from valid delivery history and persisted | — |
 
 ## Related documents
 

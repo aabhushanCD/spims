@@ -2,10 +2,11 @@
 
 ## 1. Current state
 
-There is no logging library, structured logging, log levels, request tracing, metrics endpoint, or alerting. Diagnostics rely on:
+Runtime logs are structured JSON through `shared/logger.ts`: timestamp, level, event name, and context. `LOG_LEVEL` controls verbosity. HTTP requests log method, path, status, duration, request id, and user id; `X-Request-Id` is returned to the client. Secrets and tokens are redacted.
 
-- `console.log`, `console.error`, and `console.warn`.
-- HTTP `/health`.
+Diagnostics also rely on:
+
+- HTTP `/health` (liveness) and `/ready` (MongoDB + Redis readiness).
 - The `BackgroundJob` collection and the dashboard system-health endpoint.
 - Notification recipient statuses.
 
@@ -33,20 +34,17 @@ Concerns:
 - Logs are unstructured single-line strings without timestamps, request ids, user ids, or route context.
 - Errors from the global handler are logged without the request method/path.
 
-## 3. Health probe
+## 3. Health and readiness probes
 
-`GET /health` returns:
+`GET /health` returns `Server is healthy` with status 200. It is a liveness check only.
 
-```text
-Server is healthy
+`GET /ready` checks MongoDB and Redis and returns:
+
+```json
+{ "status": "ready", "checks": { "mongo": true, "redis": true } }
 ```
 
-- Status 200, `text/plain`.
-- No authentication.
-- Does not check MongoDB, Redis, SMTP, cron, or disk.
-- Always returns the same value while the process is alive.
-
-This is a liveness check only, not readiness.
+It returns `503` with `status: "not_ready"` when either dependency fails. It does not expose connection strings or secrets.
 
 ## 4. Job monitoring
 
@@ -123,20 +121,21 @@ The dashboard's inventory value and low-stock counts are derived from these same
 | Smart reorder approval | Status only; no approver |
 | Notification dispatch | Recipient status only |
 
-## 9. Recommended minimum (not implemented)
+## 9. Remaining observability gaps
 
-If this system is to be operated beyond a demo, the following would be needed:
+Implemented in Phase 5:
 
 1. Structured JSON logging with request id, user id, route, status, and duration.
 2. Readiness endpoint checking MongoDB and Redis.
-3. Error aggregation (Sentry or equivalent).
-4. Metrics for request rate/latency/errors and job duration.
-5. Audit collection for auth and administrative actions.
-6. Alerting on failed cron runs and notification backlogs.
-7. Stock reconciliation report comparing batches and aggregates.
-8. Retention policy for `backgroundjobs` and `inventorymovements`.
 
-None of these exist in the repository.
+Still not implemented:
+
+1. Error aggregation (Sentry or equivalent).
+2. Metrics for request rate/latency/errors and job duration.
+3. Audit collection for auth and administrative actions.
+4. Alerting on failed cron runs and notification backlogs.
+5. Stock reconciliation report comparing batches and aggregates.
+6. Retention policy for `backgroundjobs` and `inventorymovements`.
 
 ## 10. Practical diagnosis guide
 
