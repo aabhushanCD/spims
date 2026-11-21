@@ -30,6 +30,7 @@ interface InventoryState {
   reservedStock: number;
   availableStock: number;
   lastUpdated: Date;
+  version: number;
 }
 
 interface BatchState {
@@ -76,6 +77,7 @@ function buildHarness() {
         reservedStock: data.reservedStock as number,
         availableStock: data.availableStock as number,
         lastUpdated: new Date(),
+        version: 0,
       };
       return { ...state.inventory };
     }),
@@ -84,6 +86,20 @@ function buildHarness() {
       Object.assign(state.inventory, data);
       return { ...state.inventory };
     }),
+    updateWithVersion: vi.fn(
+      async (id: string, expectedVersion: number, data: Record<string, unknown>) => {
+        if (
+          !state.inventory ||
+          state.inventory._id !== id ||
+          (state.inventory.version ?? 0) !== expectedVersion
+        ) {
+          return null;
+        }
+        Object.assign(state.inventory, data);
+        state.inventory.version += 1;
+        return { ...state.inventory };
+      },
+    ),
   };
 
   const batchRepo = {
@@ -105,12 +121,30 @@ function buildHarness() {
       }
       return total;
     }),
-    increaseBatchStock: vi.fn(async (batchId: string, quantity: number) => {
-      const batch = state.batches.get(batchId);
-      if (!batch) return null;
-      batch.quantityRemaining += quantity;
-      return cloneBatch(batch);
-    }),
+    increaseBatchStock: vi.fn(
+      async (
+        batchId: string,
+        quantity: number,
+        expectedQuantity: number,
+      ) => {
+        const batch = state.batches.get(batchId);
+        if (!batch || batch.quantityRemaining !== expectedQuantity) return null;
+        batch.quantityRemaining += quantity;
+        return cloneBatch(batch);
+      },
+    ),
+    setBatchStock: vi.fn(
+      async (
+        batchId: string,
+        expectedQuantity: number,
+        newQuantity: number,
+      ) => {
+        const batch = state.batches.get(batchId);
+        if (!batch || batch.quantityRemaining !== expectedQuantity) return null;
+        batch.quantityRemaining = newQuantity;
+        return cloneBatch(batch);
+      },
+    ),
     deductBatchStock: vi.fn(async (batchId: string, quantity: number) => {
       const batch = state.batches.get(batchId);
       if (!batch || batch.quantityRemaining < quantity) return null;
@@ -147,12 +181,18 @@ function buildHarness() {
     }),
   };
 
+  const cacheInvalidator = {
+    invalidateDashboard: vi.fn().mockResolvedValue(undefined),
+    invalidateReorder: vi.fn().mockResolvedValue(undefined),
+  };
+
   const service = new StockMutationService(
     inventoryRepo as never,
     batchRepo as never,
     inventoryMovementService as never,
     AppError,
     connection as never,
+    cacheInvalidator,
   );
 
   const addBatch = (overrides: Record<string, unknown> = {}) => {
@@ -178,6 +218,7 @@ function buildHarness() {
     connection,
     ownedSession,
     addBatch,
+    cacheInvalidator,
   };
 }
 
@@ -442,6 +483,7 @@ describe("StockMutationService", () => {
       reservedStock: 8,
       availableStock: -3,
       lastUpdated: new Date(),
+      version: 0,
     };
 
     const synced = await harness.service.syncAggregate(MEDICINE_ID);
@@ -496,6 +538,7 @@ describe("StockMutationService", () => {
       reservedStock: 0,
       availableStock: 10,
       lastUpdated: new Date(),
+      version: 0,
     };
 
     const withoutContext = await harness.service.syncAggregate(MEDICINE_ID);
@@ -516,6 +559,23 @@ describe("StockMutationService", () => {
       ctx: buildCtx("ADJUSTMENT"),
     });
     expect(harness.state.movements).toHaveLength(1);
+  });
+
+  it("invalidates dashboard and medicine caches after a stock mutation", async () => {
+    const harness = buildHarness();
+    harness.addBatch({ quantityRemaining: 4 });
+
+    await harness.service.receiveStock({
+      medicineId: MEDICINE_ID,
+      batchId: BATCH_ID,
+      quantity: 4,
+      ctx: buildCtx("PURCHASE"),
+    });
+
+    expect(harness.cacheInvalidator.invalidateDashboard).toHaveBeenCalled();
+    expect(harness.cacheInvalidator.invalidateReorder).toHaveBeenCalledWith(
+      MEDICINE_ID,
+    );
   });
 
   it("keeps the stock invariant through receive, sale, return, reserve, release and disposal", async () => {

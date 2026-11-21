@@ -48,6 +48,10 @@ const returnSchema = new Schema<ISalesReturn>(
   { timestamps: true },
 );
 
+returnSchema.index({ salesId: 1 });
+returnSchema.index({ status: 1, returnDate: -1 });
+returnSchema.index({ returnDate: -1 });
+
 const Return = model<ISalesReturn>("Return", returnSchema);
 
 export default Return;

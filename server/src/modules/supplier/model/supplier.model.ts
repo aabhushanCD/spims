@@ -16,7 +16,7 @@ const supplierSchema = new Schema<ISupplier>(
     companyName: { type: String, required: true },
     contactPerson: { type: String, required: true },
     email: { type: String, required: true, lowercase: true, unique: true },
-    phone: { type: String, required: true },
+    phone: { type: String, required: true, unique: true },
     address: { type: String, required: true },
     leadTime: { type: Number, required: true },
     status: { type: String, enum: ["active", "inActive"], default: "active" },
@@ -26,6 +26,8 @@ const supplierSchema = new Schema<ISupplier>(
     timestamps: true,
   },
 );
+
+supplierSchema.index({ status: 1, companyName: 1 });
 
 const Supplier = model<ISupplier>("Supplier", supplierSchema);
 

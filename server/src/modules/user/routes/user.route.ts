@@ -8,6 +8,7 @@ import { authorize } from "../../../shared/middleware/authorize.ts";
 import {
   validate,
   validateParams,
+  validateQuery,
 } from "../../../shared/middleware/validate.middleware.ts";
 import {
   changeUserRoleSchema,
@@ -16,6 +17,7 @@ import {
   updateUserSchema,
   userDateParamSchema,
   userIdParamSchema,
+  userListQuerySchema,
   userRoleDateParamSchema,
   userRoleParamSchema,
   userRoleStatusParamSchema,
@@ -70,8 +72,11 @@ router.get(
   (req: Request, res: Response, next: NextFunction) =>
     userController.getUsersByLastLogin(req, res, next),
 );
-router.get("/", (req: Request, res: Response, next: NextFunction) =>
-  userController.getAllUsers(req, res, next),
+router.get(
+  "/",
+  validateQuery(userListQuerySchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    userController.getAllUsers(req, res, next),
 );
 
 router.get(

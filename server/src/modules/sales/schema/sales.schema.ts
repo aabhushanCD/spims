@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  cursorPaginationQuerySchema,
+  dateRangeQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 const paymentMethodSchema = z.enum([
   "CASH",
@@ -40,6 +44,7 @@ export const createSaleSchema = z.object({
   paymentMethod: paymentMethodSchema,
   saleDate: z.coerce.date(),
   discount: z.number().min(0, "Discount cannot be negative").default(0),
+  idempotencyKey: z.string().trim().min(8).max(200).optional(),
   items: z
     .array(createSalesItemSchema)
     .min(1, "At least one sale item is required"),
@@ -76,6 +81,22 @@ export const updateSaleItemSchema = z
     message: "At least one field must be provided",
   });
 
+export const salesListQuerySchema = cursorPaginationQuerySchema
+  .merge(dateRangeQuerySchema)
+  .extend({
+    search: z.string().trim().min(1).max(100).optional(),
+    status: z
+      .enum([
+        "COMPLETED",
+        "PARTIALLY_RETURNED",
+        "RETURNED",
+        "CANCELLED",
+        "PENDING",
+      ])
+      .optional(),
+    cashierId: objectIdSchema.optional(),
+  });
+
 export const saleIdParamSchema = z.object({ id: objectIdSchema });
 export const saleItemIdParamSchema = z.object({ id: objectIdSchema });
 export const saleItemSalesParamSchema = z.object({ salesId: objectIdSchema });
@@ -85,3 +106,4 @@ export type CreateSaleDto = z.infer<typeof createSaleSchema> & {
 };
 export type UpdateSaleDto = z.infer<typeof updateSaleSchema>;
 export type UpdateSaleItemDto = z.infer<typeof updateSaleItemSchema>;
+export type SalesListQuery = z.infer<typeof salesListQuerySchema>;

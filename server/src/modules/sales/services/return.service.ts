@@ -12,6 +12,16 @@ import type {
   ReturnItem,
   ReturnStatus,
 } from "../types/return.type.ts";
+import type { ReturnListQuery } from "../schema/return.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import { logger } from "../../../shared/logger.ts";
 
 export interface ReturnItemInput {
   saleItemId: string;
@@ -52,7 +62,18 @@ export class ReturnService {
     private readonly appError: typeof AppError,
     private readonly counterRepo: CounterRepository,
     private readonly connection: mongoose.Connection,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
+
+  private async invalidateDashboard(): Promise<void> {
+    try {
+      await this.cacheInvalidator.invalidateDashboard();
+    } catch (error) {
+      logger.warn("cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   /**
    * Merges duplicate request lines for the same sale item *and* condition.
@@ -462,6 +483,7 @@ export class ReturnService {
         );
       });
 
+      await this.invalidateDashboard();
       return completedReturn;
     } finally {
       await session.endSession();
@@ -478,6 +500,27 @@ export class ReturnService {
 
   async getAllReturns(status?: ReturnStatus) {
     return await this.returnRepo.findAll(status);
+  }
+
+  async getReturnsPage(query: ReturnListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.returnRepo.findPage(
+      {
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.salesId ? { salesId: query.salesId } : {}),
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.from ? { from: query.from } : {}),
+        ...(query.to ? { to: query.to } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.returnDate,
+      (row) => String(row._id),
+    );
   }
 
   async updateReturn(

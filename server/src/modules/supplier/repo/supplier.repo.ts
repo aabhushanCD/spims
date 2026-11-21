@@ -30,6 +30,16 @@ export class SupplierRepo {
     return this.supplierModel.find().lean().exec();
   }
 
+  async updateReliabilityScore(
+    id: string,
+    reliabilityScore: number,
+  ): Promise<ISupplier | null> {
+    return this.supplierModel
+      .findByIdAndUpdate(id, { reliabilityScore }, { new: true })
+      .lean()
+      .exec();
+  }
+
   async update(
     id: string,
     supplierData: UpdateSupplierDto,

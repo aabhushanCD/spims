@@ -1,9 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 
 import type { JWTUserPayload } from "../../types/global.js";
-import dotenv from "dotenv";
 import { verifyJwt } from "./verifyJwt.ts";
-dotenv.config();
+import { logger } from "../logger.ts";
 
 export const verifyToken = (
   req: Request,
@@ -15,7 +14,9 @@ export const verifyToken = (
     req.user = verifyJwt(token) as JWTUserPayload;
     next();
   } catch (error) {
-    console.error("Failed to verify JWT token:", error);
+    logger.warn("jwt_verification_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(401).json({ message: "Unauthorized: Invalid token" });
   }
 };

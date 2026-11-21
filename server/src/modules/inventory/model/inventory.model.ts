@@ -6,6 +6,7 @@ export interface IInventory extends Document {
   reservedStock: number;
   availableStock: number;
   lastUpdated: Date;
+  version: number;
 }
 
 const inventorySchema = new Schema<IInventory>({
@@ -28,6 +29,7 @@ const inventorySchema = new Schema<IInventory>({
     },
   },
   lastUpdated: { type: Date, required: true, default: Date.now },
+  version: { type: Number, required: true, default: 0 },
 });
 
 inventorySchema.index({ medicineId: 1 }, { unique: true });

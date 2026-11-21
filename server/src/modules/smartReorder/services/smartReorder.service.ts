@@ -8,6 +8,13 @@ import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.ts";
 import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.ts";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
 import { getCache, setCache } from "../../../shared/provider/redis.provider.ts";
+import { reorderCacheKey } from "../../../shared/provider/cacheKeys.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import type { ISmartReorder } from "../model/smartReorder.model.ts";
+import { logger } from "../../../shared/logger.ts";
 import {
   calculateWADS,
   calculateStdDev,
@@ -29,6 +36,11 @@ export interface CreateSmartReorderDto {
 const REVIEW_PERIOD_DAYS = 7;
 const EXPIRY_LOOKAHEAD_DAYS = 30;
 const CACHE_TTL_SECONDS = 12 * 60 * 60; // 12 hours, per spec 11.9
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+type GenerationOutcome =
+  | { status: "created"; recommendation: ISmartReorder }
+  | { status: "skipped"; reason: string };
 
 export class SmartReorderService {
   constructor(
@@ -40,6 +52,7 @@ export class SmartReorderService {
     private readonly purchaseOrderRepo: PurchaseOrderRepo,
     private readonly supplierRepo: SupplierRepo,
     private readonly appError: typeof AppError,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
 
   // Manual/admin-authored recommendation — bypasses the algorithm entirely.
@@ -54,11 +67,13 @@ export class SmartReorderService {
         "suggestedQuantity must be greater than zero",
       );
     }
-    if (dto.confidenceScore < 0 || dto.confidenceScore > 1) {
-      throw this.appError.badRequest("confidenceScore must be between 0 and 1");
+    if (dto.confidenceScore < 0 || dto.confidenceScore > 100) {
+      throw this.appError.badRequest(
+        "confidenceScore must be between 0 and 100",
+      );
     }
 
-    return await this.smartReorderRepo.create({
+    const created = await this.smartReorderRepo.create({
       medicineId: new Types.ObjectId(dto.medicineId),
       suggestedQuantity: dto.suggestedQuantity,
       confidenceScore: dto.confidenceScore,
@@ -66,19 +81,47 @@ export class SmartReorderService {
       generatedAt: new Date(),
       status: "PENDING",
     });
+    await this.invalidateDashboard();
+    return created;
   }
 
   // Real algorithm — WADS, safety stock, reorder point, ROQ, confidence
   // score, all per the SPIMS spec. Cached in Redis for 12h so repeated
   // reads (e.g. dashboard polling) don't recompute every time.
   async generateRecommendationForMedicine(medicineId: string) {
-    const cacheKey = `reorder:${medicineId}`;
+    const outcome = await this.generateRecommendationOutcome(medicineId);
+    if (outcome.status === "skipped") {
+      throw this.appError.badRequest(outcome.reason);
+    }
+    return outcome.recommendation;
+  }
+
+  private async generateRecommendationOutcome(
+    medicineId: string,
+  ): Promise<GenerationOutcome> {
+    const cacheKey = reorderCacheKey(medicineId);
     const cached = await getCache(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      // A negative result must keep the same 400 semantics on every request,
+      // not turn into a success just because it came from the cache.
+      if (cached.reorderNeeded === false) {
+        return {
+          status: "skipped",
+          reason:
+            typeof cached.reason === "string"
+              ? cached.reason
+              : "Medicine is not currently below reorder point",
+        };
+      }
+      return {
+        status: "created",
+        recommendation: cached as ISmartReorder,
+      };
+    }
 
     const medicine = await this.medicineRepo.findById(medicineId);
     if (!medicine) {
-      throw this.appError.notFound("Medicine not found");
+      return { status: "skipped", reason: "Medicine not found" };
     }
 
     // 1. Demand history
@@ -94,31 +137,43 @@ export class SmartReorderService {
     const purchaseOrderId =
       await this.batchRepo.findMostRecentPurchaseOrderId(medicineId);
     if (!purchaseOrderId) {
-      throw this.appError.badRequest(
-        "No purchase history found for this medicine — cannot determine supplier lead time",
-      );
+      return {
+        status: "skipped",
+        reason:
+          "No purchase history found for this medicine — cannot determine supplier lead time",
+      };
     }
     const latestOrder = await this.purchaseOrderRepo.findById(
       purchaseOrderId.toString(),
     );
+    if (!latestOrder) {
+      return { status: "skipped", reason: "Purchase order not found" };
+    }
     const supplier = await this.supplierRepo.findById(
-      latestOrder!.supplierId.toString(),
+      latestOrder.supplierId.toString(),
     );
     if (!supplier) {
-      throw this.appError.notFound("Supplier not found");
+      return { status: "skipped", reason: "Supplier not found" };
     }
 
     const recentOrders = await this.purchaseOrderRepo.findRecentBySupplier(
       supplier._id.toString(),
       10,
     );
+    const delays = recentOrders
+      .map((order) => {
+        const receivedAt = order.receivedDate;
+        const expectedAt = order.expectedDeliveryDate;
+        if (!(receivedAt instanceof Date) || !(expectedAt instanceof Date)) {
+          return null;
+        }
+        const delayMs = receivedAt.getTime() - expectedAt.getTime();
+        return Number.isFinite(delayMs) ? delayMs / DAY_MS : null;
+      })
+      .filter((delay): delay is number => delay !== null);
     const avgDelayDays =
-      recentOrders.length > 0
-        ? recentOrders.reduce((sum, o) => {
-            const delayMs =
-              o.receivedDate!.getTime() - o.expectedDeliveryDate!.getTime();
-            return sum + delayMs / (1000 * 60 * 60 * 24);
-          }, 0) / recentOrders.length
+      delays.length > 0
+        ? delays.reduce((sum, delay) => sum + delay, 0) / delays.length
         : 0;
 
     const baseLeadTime = supplier.leadTime;
@@ -129,8 +184,10 @@ export class SmartReorderService {
     const safetyStock = calculateSafetyStock(sigma, alt);
     const rop = calculateReorderPoint(wads, alt, safetyStock);
 
-    // 4. Current usable stock + expiry risk
-    const expiryCutoff = new Date();
+    // 4. Current usable stock + expiry risk. Expired stock is not "expiring
+    // soon" and must not inflate the order quantity.
+    const now = new Date();
+    const expiryCutoff = new Date(now);
     expiryCutoff.setDate(expiryCutoff.getDate() + alt + EXPIRY_LOOKAHEAD_DAYS);
     const currentStock = await this.batchRepo.getUsableStock(
       medicineId,
@@ -138,21 +195,22 @@ export class SmartReorderService {
     );
     const expiryRiskUnits = await this.batchRepo.getExpiringUnits(
       medicineId,
+      now,
       expiryCutoff,
     );
 
     // 5. Reorder decision — no reorder needed, cache the negative result too
     if (currentStock > rop) {
+      const reason = `Medicine is not currently below reorder point (stock: ${currentStock}, ROP: ${Math.round(rop)})`;
       const result = {
         medicineId,
         reorderNeeded: false,
         currentStock,
         reorderPoint: Math.round(rop),
+        reason,
       };
       await setCache(cacheKey, result, CACHE_TTL_SECONDS);
-      throw this.appError.badRequest(
-        `Medicine is not currently below reorder point (stock: ${currentStock}, ROP: ${Math.round(rop)})`,
-      );
+      return { status: "skipped", reason };
     }
 
     // 6. Recommended order quantity
@@ -165,11 +223,29 @@ export class SmartReorderService {
       expiryRiskUnits,
     });
 
-    // 7. Confidence score
-    const supplierReliabilityScore = this.computeReliabilityScore(
-      avgDelayDays,
-      baseLeadTime,
-    );
+    // 7. Confidence score. With no valid delivery delays, fall back to the
+    // supplier's persisted score (or full confidence) instead of treating the
+    // schema default of 0 as real history.
+    const hasDelayHistory = delays.length > 0;
+    const supplierReliabilityScore = hasDelayHistory
+      ? this.computeReliabilityScore(avgDelayDays, baseLeadTime)
+      : supplier.reliabilityScore && supplier.reliabilityScore > 0
+        ? supplier.reliabilityScore
+        : 100;
+
+    if (hasDelayHistory) {
+      try {
+        await this.supplierRepo.updateReliabilityScore(
+          supplier._id.toString(),
+          supplierReliabilityScore,
+        );
+      } catch (error) {
+        logger.warn("supplier_reliability_persist_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
     const confidence = calculateConfidenceScore({
       daysWithSalesData,
       wads,
@@ -177,7 +253,7 @@ export class SmartReorderService {
       supplierReliabilityScore,
     });
 
-    const recommendation = await this.smartReorderRepo.create({
+    const recommendation = await this.smartReorderRepo.upsertPending({
       medicineId: new Types.ObjectId(medicineId),
       suggestedQuantity: roq,
       confidenceScore: confidence,
@@ -199,7 +275,18 @@ export class SmartReorderService {
     });
 
     await setCache(cacheKey, recommendation, CACHE_TTL_SECONDS);
-    return recommendation;
+    await this.invalidateDashboard();
+    return { status: "created", recommendation };
+  }
+
+  private async invalidateDashboard(): Promise<void> {
+    try {
+      await this.cacheInvalidator.invalidateDashboard();
+    } catch (error) {
+      logger.warn("cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   // Heuristic interpretation of "supplier reliability" — see prior message,
@@ -223,11 +310,21 @@ export class SmartReorderService {
 
     for (const medicine of allMedicines) {
       try {
-        await this.generateRecommendationForMedicine(medicine._id.toString());
-        results.push({
-          medicineId: medicine._id.toString(),
-          status: "created",
-        });
+        const outcome = await this.generateRecommendationOutcome(
+          medicine._id.toString(),
+        );
+        if (outcome.status === "created") {
+          results.push({
+            medicineId: medicine._id.toString(),
+            status: "created",
+          });
+        } else {
+          results.push({
+            medicineId: medicine._id.toString(),
+            status: "skipped",
+            reason: outcome.reason,
+          });
+        }
       } catch (error) {
         // Most common case: medicine isn't below reorder point, or has no
         // purchase history yet — not a real error, just nothing to do.
@@ -276,9 +373,11 @@ export class SmartReorderService {
         `Cannot approve a recommendation with status ${reorder.status}`,
       );
     }
-    return await this.smartReorderRepo.update(id, {
+    const updated = await this.smartReorderRepo.update(id, {
       status: "APPROVED",
     });
+    await this.invalidateDashboard();
+    return updated;
   }
 
   async reject(id: string) {
@@ -291,9 +390,11 @@ export class SmartReorderService {
         `Cannot reject a recommendation with status ${reorder.status}`,
       );
     }
-    return await this.smartReorderRepo.update(id, {
+    const updated = await this.smartReorderRepo.update(id, {
       status: "REJECTED",
     });
+    await this.invalidateDashboard();
+    return updated;
   }
 
   async delete(id: string) {
@@ -301,6 +402,7 @@ export class SmartReorderService {
     if (!deleted) {
       throw this.appError.notFound("Smart reorder recommendation not found");
     }
+    await this.invalidateDashboard();
     return deleted;
   }
 }

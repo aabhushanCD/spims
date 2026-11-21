@@ -2,7 +2,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { AppError } from "../../../shared/error.ts";
 import type { ReturnService } from "../services/return.service.ts";
-import type { ReturnStatus } from "../types/return.type.ts";
+import type { ReturnListQuery } from "../schema/return.schema.ts";
 
 const asyncHandler =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
@@ -45,11 +45,12 @@ export class ReturnController {
     res.status(200).json({ success: true, data: salesReturn });
   });
 
-  // GET /returns?status=PENDING
+  // GET /returns?status=PENDING&cursor=...&limit=...
   getAllReturns = asyncHandler(async (req: Request, res: Response) => {
-    const status = req.query.status as ReturnStatus | undefined;
-    const returns = await this.returnService.getAllReturns(status);
-    res.status(200).json({ success: true, data: returns });
+    const page = await this.returnService.getReturnsPage(
+      req.query as unknown as ReturnListQuery,
+    );
+    res.status(200).json({ success: true, data: page });
   });
 
   // PATCH /returns/:id — reason/notes only, and only while PENDING

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  booleanQuerySchema,
+  cursorPaginationQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 export const medicineSearchQuerySchema = z.object({
   query: z
@@ -65,5 +69,15 @@ export const createMedicineSchema = z.object({
 
 export const updateMedicineSchema = createMedicineSchema.partial();
 
+export const medicineListQuerySchema = cursorPaginationQuerySchema.extend({
+  search: z.string().trim().min(1).max(100).optional(),
+  isActive: booleanQuerySchema.optional(),
+  categoryId: objectIdSchema.optional(),
+  brandId: objectIdSchema.optional(),
+  genericNameId: objectIdSchema.optional(),
+  unitId: objectIdSchema.optional(),
+});
+
 export type CreateMedicineDto = z.infer<typeof createMedicineSchema>;
 export type UpdateMedicineDto = z.infer<typeof updateMedicineSchema>;
+export type MedicineListQuery = z.infer<typeof medicineListQuerySchema>;

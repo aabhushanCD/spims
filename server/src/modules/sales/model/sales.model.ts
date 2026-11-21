@@ -11,6 +11,7 @@ export interface ISales extends Document {
   cashierId: Types.ObjectId;
   saleDate: Date;
   status: "COMPLETED" | "PARTIALLY_RETURNED" | "RETURNED" | "CANCELLED" | "PENDING";
+  idempotencyKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,8 +28,20 @@ const salesSchema = new Schema<ISales>(
     cashierId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     saleDate: { type: Date, required: true },
     status: { type: String, enum: ["COMPLETED", "PARTIALLY_RETURNED", "RETURNED", "CANCELLED", "PENDING"], default: "PENDING" },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
+);
+
+salesSchema.index({ status: 1, saleDate: -1 });
+salesSchema.index({ saleDate: -1 });
+salesSchema.index({ cashierId: 1, saleDate: -1 });
+salesSchema.index(
+  { idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: "string" } },
+  },
 );
 
 const Sales = model<ISales>("Sales", salesSchema);

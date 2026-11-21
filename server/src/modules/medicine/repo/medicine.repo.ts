@@ -1,6 +1,10 @@
-import type { Model } from "mongoose";
+import type { Model, PipelineStage } from "mongoose";
 import { Types } from "mongoose";
 import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
+import {
+  cursorFilter,
+  type PageCursor,
+} from "../../../shared/pagination/cursor.ts";
 import type { IMedicine } from "../models/medicine.model.js";
 import type {
   CreateMedicineDto,
@@ -78,13 +82,52 @@ export class MedicineRepo {
       .lean()
       .exec();
   }
-  async findAllWithInventory() {
-    return this.medicineModel.aggregate([
-      {
-        $match: {
-          isActive: true,
-        },
-      },
+  async findAllWithInventory(
+    options: {
+      filters?: {
+        search?: string;
+        isActive?: boolean;
+        categoryId?: string;
+        brandId?: string;
+        genericNameId?: string;
+        unitId?: string;
+      };
+      cursor?: PageCursor | null;
+      limit?: number;
+    } = {},
+  ) {
+    const { filters = {}, cursor = null, limit } = options;
+    const match: Record<string, unknown> = {
+      isActive: filters.isActive ?? true,
+    };
+    if (filters.categoryId) {
+      match.categoryId = new Types.ObjectId(filters.categoryId);
+    }
+    if (filters.brandId) {
+      match.brandId = new Types.ObjectId(filters.brandId);
+    }
+    if (filters.genericNameId) {
+      match.genericNameId = new Types.ObjectId(filters.genericNameId);
+    }
+    if (filters.unitId) {
+      match.unitId = new Types.ObjectId(filters.unitId);
+    }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), "i");
+      match.$or = [
+        { medicineName: regex },
+        { strength: regex },
+        { manufacturer: regex },
+        { barcode: regex },
+      ];
+    }
+
+    const pipeline: PipelineStage[] = [{ $match: match }];
+    if (cursor) {
+      pipeline.push({ $match: cursorFilter("createdAt", cursor) });
+    }
+
+    pipeline.push(
       {
         $lookup: {
           from: "inventories",
@@ -93,14 +136,12 @@ export class MedicineRepo {
           as: "inventory",
         },
       },
-
       {
         $unwind: {
           path: "$inventory",
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $lookup: {
           from: "genericnames",
@@ -109,14 +150,12 @@ export class MedicineRepo {
           as: "genericName",
         },
       },
-
       {
         $unwind: {
           path: "$genericName",
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $lookup: {
           from: "brands",
@@ -125,14 +164,12 @@ export class MedicineRepo {
           as: "brand",
         },
       },
-
       {
         $unwind: {
           path: "$brand",
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $lookup: {
           from: "categories",
@@ -141,14 +178,12 @@ export class MedicineRepo {
           as: "category",
         },
       },
-
       {
         $unwind: {
           path: "$category",
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $lookup: {
           from: "units",
@@ -157,44 +192,39 @@ export class MedicineRepo {
           as: "unit",
         },
       },
-
       {
         $unwind: {
           path: "$unit",
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $project: {
           medicineName: 1,
-
           strength: 1,
-
           reorderLevel: 1,
-
           manufacturer: 1,
-
           barcode: 1,
-
+          createdAt: 1,
           genericName: "$genericName.name",
-
           brand: "$brand.name",
-
           category: "$category.name",
-
           unit: "$unit.name",
-
           currentStock: {
             $ifNull: ["$inventory.currentStock", 0],
           },
-
           availableStock: {
             $ifNull: ["$inventory.availableStock", 0],
           },
         },
       },
-    ]);
+    );
+
+    if (limit !== undefined) {
+      pipeline.push({ $sort: { createdAt: -1, _id: -1 } }, { $limit: limit });
+    }
+
+    return this.medicineModel.aggregate(pipeline);
   }
 
   async countByBrandId(brandId: string): Promise<number> {

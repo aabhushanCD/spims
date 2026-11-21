@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 
 import redis from "../../config/redis.config.ts";
 import { getClientIp } from "../utils/requestContext.ts";
+import { logger } from "../logger.ts";
 
 export interface RateLimitStore {
   incr(key: string): Promise<number>;
@@ -74,7 +75,9 @@ export function createRateLimiter(options: RateLimitOptions) {
       // Authentication should remain available if Redis is temporarily
       // unavailable. The failure is logged rather than turning every login
       // into a 500.
-      console.error("[RateLimit] Store error", error);
+      logger.warn("rate_limit_store_error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       next();
     }
   };

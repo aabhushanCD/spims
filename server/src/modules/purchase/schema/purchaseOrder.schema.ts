@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { objectIdSchema } from "../../../shared/schema/objectId.schema.ts";
+import {
+  cursorPaginationQuerySchema,
+  dateRangeQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 export const createPurchaseOrderSchema = z.object({
   supplierId: objectIdSchema,
@@ -38,6 +42,16 @@ export const createPurchaseOrderSchema = z.object({
     .min(1, "At least one purchase order item is required"),
 });
 
+export const purchaseOrderListQuerySchema = cursorPaginationQuerySchema
+  .merge(dateRangeQuerySchema)
+  .extend({
+    search: z.string().trim().min(1).max(100).optional(),
+    status: z
+      .enum(["pending", "approved", "received", "cancelled"])
+      .optional(),
+    supplierId: objectIdSchema.optional(),
+  });
+
 export const purchaseIdParamSchema = z.object({ id: objectIdSchema });
 export const purchaseItemParamSchema = z.object({
   id: objectIdSchema,
@@ -48,3 +62,6 @@ export const purchaseSupplierParamSchema = z.object({
 });
 
 export type CreatePurchaseOrderDto = z.infer<typeof createPurchaseOrderSchema>;
+export type PurchaseOrderListQuery = z.infer<
+  typeof purchaseOrderListQuerySchema
+>;

@@ -45,7 +45,6 @@ const MedicineSchema = new Schema<IMedicine>(
     },
     barcode: {
       type: String,
-      unique: true,
       trim: true,
       maxlength: 50,
     },
@@ -80,6 +79,15 @@ const MedicineSchema = new Schema<IMedicine>(
   },
   {
     timestamps: true,
+  },
+);
+
+MedicineSchema.index({ isActive: 1, createdAt: -1 });
+MedicineSchema.index(
+  { barcode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { barcode: { $type: "string" } },
   },
 );
 

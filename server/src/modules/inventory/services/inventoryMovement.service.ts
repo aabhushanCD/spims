@@ -9,7 +9,12 @@ import type { InventoryMovementRepo } from "../repo/inventoryMovement.repo.js";
 import {
   createInventoryMovementSchema,
   type CreateInventoryMovementDto,
+  type InventoryMovementListQuery,
 } from "../schema/inventoryMovement.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 import type { StockReferenceType } from "../types/stockMovement.type.ts";
 
 export class InventoryMovementService {
@@ -69,6 +74,29 @@ export class InventoryMovementService {
     }
 
     return await this.inventoryMovementRepo.create(movementRecord, session);
+  }
+
+  async getMovementsPage(query: InventoryMovementListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.inventoryMovementRepo.findPage(
+      {
+        ...(query.medicineId ? { medicineId: query.medicineId } : {}),
+        ...(query.batchId ? { batchId: query.batchId } : {}),
+        ...(query.referenceId ? { referenceId: query.referenceId } : {}),
+        ...(query.movementType ? { movementType: query.movementType } : {}),
+        ...(query.referenceType ? { referenceType: query.referenceType } : {}),
+        ...(query.from ? { from: query.from } : {}),
+        ...(query.to ? { to: query.to } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.createdAt,
+      (row) => String(row._id),
+    );
   }
 
   async getMovementById(id: string) {

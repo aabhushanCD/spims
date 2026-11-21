@@ -11,6 +11,12 @@ import type { PurchaseOrderRepo } from "../../purchase/repo/purchaseOrder.repo.j
 import type { SaleItemRepo } from "../../sales/repo/saleItem.repo.js";
 import type { IBatch } from "../model/medicineBatch.model.js";
 import type { MedicineBatchRepo } from "../repo/medicineBatch.repo.js";
+import type { InventoryMovementRepo } from "../../inventory/repo/inventoryMovement.repo.ts";
+import type { BatchListQuery } from "../schema/batch.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export interface CreateBatchInput {
   purchaseOrderId: string;
@@ -47,6 +53,7 @@ export class BatchService {
     private readonly stockMutation: StockMutationService,
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
+    private readonly movementRepo?: InventoryMovementRepo,
   ) {}
 
   private async runInSession<T>(
@@ -174,6 +181,29 @@ export class BatchService {
 
   async getAllBatches(session?: mongoose.ClientSession): Promise<IBatch[]> {
     return await this.batchRepo.findAll(session);
+  }
+
+  async getBatchesPage(query: BatchListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.batchRepo.findPage(
+      {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.medicineId ? { medicineId: query.medicineId } : {}),
+        ...(query.isExpired !== undefined ? { isExpired: query.isExpired } : {}),
+        ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+        ...(query.expiringInDays !== undefined
+          ? { expiringInDays: query.expiringInDays }
+          : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.createdAt,
+      (row) => String(row._id),
+    );
   }
 
   /** True when a purchase order has already produced batches. */
@@ -345,6 +375,11 @@ export class BatchService {
         "Cannot delete a batch referenced by sales; COGS and returns depend on it",
       );
     }
+    if (this.movementRepo && (await this.movementRepo.existsByBatchId(batchId))) {
+      throw this.appError.conflict(
+        "Cannot delete a batch with inventory movement history",
+      );
+    }
     const deleted = await this.batchRepo.delete(batchId, session);
     if (!deleted) {
       throw this.appError.conflict("Batch changed while being deleted");
@@ -452,34 +487,40 @@ export class BatchService {
   async markExpiredBatches(
     session?: mongoose.ClientSession,
   ): Promise<{ batchId: string; medicineId: string }[]> {
-    const batches = await this.batchRepo.findAll(session);
     const now = new Date();
+    const batches = await this.batchRepo.findExpiredCandidates(now, session);
     const newlyExpired: { batchId: string; medicineId: string }[] = [];
+    const affectedMedicineIds = new Set<string>();
 
     for (const batch of batches) {
-      if (
-        batch.quantityRemaining > 0 &&
-        batch.expiryDate < now &&
-        !batch.isExpired
-      ) {
-        await this.batchRepo.update(
-          batch._id.toString(),
-          { isExpired: true },
-          session,
-        );
-        newlyExpired.push({
-          batchId: batch._id.toString(),
-          medicineId: batch.medicineId.toString(),
-        });
+      const updated = await this.batchRepo.update(
+        batch._id.toString(),
+        { isExpired: true },
+        session,
+      );
+      if (!updated) {
+        continue;
       }
+      const medicineId = batch.medicineId.toString();
+      newlyExpired.push({
+        batchId: batch._id.toString(),
+        medicineId,
+      });
+      affectedMedicineIds.add(medicineId);
+    }
+
+    // Flagging expiry removes stock from the sellable set. Reconcile the
+    // aggregate immediately instead of leaving it inflated until the next
+    // unrelated stock mutation.
+    for (const medicineId of affectedMedicineIds) {
+      await this.stockMutation.syncAggregate(medicineId, { session });
     }
 
     return newlyExpired;
   }
 
   async getExpiredBatches(session?: mongoose.ClientSession): Promise<IBatch[]> {
-    const batches = await this.batchRepo.findAll(session);
-    return batches.filter((batch) => batch.expiryDate < new Date());
+    return await this.batchRepo.findExpired(new Date(), session);
   }
 
   async confirmDisposal(
@@ -530,20 +571,30 @@ export class BatchService {
   async getExpiredAwaitingDisposal(
     session?: mongoose.ClientSession,
   ): Promise<IBatch[]> {
-    return (await this.batchRepo.findAll(session)).filter(
-      (batch) => batch.isExpired && batch.quantityRemaining > 0,
-    );
+    return await this.batchRepo.findExpiredAwaitingDisposal(session);
   }
 
   async getLowStockBatches(
     threshold: number,
     session?: mongoose.ClientSession,
   ): Promise<IBatch[]> {
-    const batches = await this.batchRepo.findAll(session);
-    return batches.filter(
-      (batch) =>
-        batch.quantityRemaining <= threshold && batch.quantityRemaining > 0,
+    return await this.batchRepo.findLowStock(threshold, session);
+  }
+
+  async getBatchesByMedicineId(
+    medicineId: string,
+    session?: mongoose.ClientSession,
+  ): Promise<IBatch[]> {
+    const batches = await this.batchRepo.findAllByMedicineId(
+      medicineId,
+      session,
     );
+    if (batches.length === 0) {
+      throw this.appError.notFound(
+        "Batch not found for the given medicineId",
+      );
+    }
+    return batches;
   }
 
   async getBatchByMedicineId(
@@ -564,6 +615,9 @@ export class BatchService {
     if (!batch) {
       throw this.appError.notFound("Batch not found");
     }
+    const movements = this.movementRepo
+      ? await this.movementRepo.findByBatchIdPage(batchId, 100)
+      : [];
     return {
       batchId: batch._id,
       medicineId: batch.medicineId,
@@ -577,6 +631,7 @@ export class BatchService {
       quantityRemaining: batch.quantityRemaining,
       createdAt: batch.createdAt,
       updatedAt: batch.updatedAt,
+      movements,
     };
   }
 }

@@ -3,10 +3,12 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import {
   validate,
   validateParams,
+  validateQuery,
 } from "../../../shared/middleware/validate.middleware.ts";
 import {
   createSaleSchema,
   saleIdParamSchema,
+  salesListQuerySchema,
   updateSaleSchema,
 } from "../schema/sales.schema.ts";
 import { saleController } from "../../../app/container.ts";
@@ -20,8 +22,11 @@ router.post(
     saleController.createSale(req, res, next),
 );
 
-router.get("/", (req: Request, res: Response, next: NextFunction) =>
-  saleController.getAllSales(req, res, next),
+router.get(
+  "/",
+  validateQuery(salesListQuerySchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    saleController.getAllSales(req, res, next),
 );
 
 router.get(

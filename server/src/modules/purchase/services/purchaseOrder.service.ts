@@ -5,7 +5,14 @@ import type { IPurchaseOrder } from "../model/purchaseOrder.model.js";
 import type { SupplierRepo } from "../../supplier/repo/supplier.repo.ts";
 import type { PurchaseOrderRepo } from "../repo/purchaseOrder.repo.ts";
 import type { PurchaseOrderItemRepo } from "../repo/purchaseOrderItem.repo.ts";
-import type { CreatePurchaseOrderDto } from "../schema/purchaseOrder.schema.ts";
+import type {
+  CreatePurchaseOrderDto,
+  PurchaseOrderListQuery,
+} from "../schema/purchaseOrder.schema.ts";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 import type {
   CreatePurchaseOrderItemInput,
   UpdatePurchaseOrderItemDto,
@@ -18,6 +25,11 @@ import {
   computePurchaseTotals,
   type PurchaseTotals,
 } from "../utils/purchaseTotals.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import { logger } from "../../../shared/logger.ts";
 
 export class PurchaseOrderService {
   constructor(
@@ -28,7 +40,18 @@ export class PurchaseOrderService {
     private readonly userRepo: UserRepository,
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
+
+  private async invalidateDashboard(): Promise<void> {
+    try {
+      await this.cacheInvalidator.invalidateDashboard();
+    } catch (error) {
+      logger.warn("cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   private async runInSession<T>(
     session: mongoose.ClientSession | undefined,
@@ -119,6 +142,7 @@ export class PurchaseOrderService {
           );
         }
       });
+      await this.invalidateDashboard();
       return purchaseOrder!;
     } finally {
       await session.endSession();
@@ -145,6 +169,27 @@ export class PurchaseOrderService {
 
   async getPurchaseOrders() {
     return this.purchaseOrderRepo.findAll();
+  }
+
+  async getPurchaseOrdersPage(query: PurchaseOrderListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.purchaseOrderRepo.findPage(
+      {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+        ...(query.from ? { from: query.from } : {}),
+        ...(query.to ? { to: query.to } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.orderDate,
+      (row) => String(row._id),
+    );
   }
   async getPurchaseOrdersBySupplierId(supplierId: string) {
     const supplier = await this.supplierRepo.findById(supplierId);
@@ -238,6 +283,7 @@ export class PurchaseOrderService {
         deleted = await this.purchaseOrderRepo.delete(id, session);
       });
 
+      await this.invalidateDashboard();
       return deleted;
     } finally {
       await session.endSession();
@@ -256,6 +302,7 @@ export class PurchaseOrderService {
       );
     }
     await this.purchaseOrderRepo.update(id, { status: "cancelled" });
+    await this.invalidateDashboard();
   }
 
   async addPurchaseOrderItem(
@@ -298,6 +345,9 @@ export class PurchaseOrderService {
         session,
       );
       await this.recalculateTotals(purchaseOrderId, session);
+      return created;
+    }).then(async (created) => {
+      await this.invalidateDashboard();
       return created;
     });
   }
@@ -344,6 +394,9 @@ export class PurchaseOrderService {
       );
       await this.recalculateTotals(purchaseOrderId, session);
       return updated;
+    }).then(async (updated) => {
+      await this.invalidateDashboard();
+      return updated;
     });
   }
 
@@ -380,6 +433,9 @@ export class PurchaseOrderService {
       await this.purchaseOrderItemRepo.delete(itemId, session);
       await this.recalculateTotals(purchaseOrderId, session);
       return existingItem;
+    }).then(async (removed) => {
+      await this.invalidateDashboard();
+      return removed;
     });
   }
 
@@ -445,6 +501,7 @@ export class PurchaseOrderService {
     await this.purchaseOrderRepo.update(purchaseOrderId, {
       status: "approved",
     });
+    await this.invalidateDashboard();
   }
 
   async receivePurchaseOrder(
@@ -550,6 +607,7 @@ export class PurchaseOrderService {
         );
       });
 
+      await this.invalidateDashboard();
       return { message: "Purchase order received successfully" };
     } finally {
       await session.endSession();

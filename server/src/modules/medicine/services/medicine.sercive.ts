@@ -2,8 +2,13 @@ import { AppError } from "../../../shared/error.js";
 import type { MedicineRepo } from "../repo/medicine.repo.js";
 import type {
   CreateMedicineDto,
+  MedicineListQuery,
   UpdateMedicineDto,
 } from "../schema/medicine.schema.js";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 import type { BrandService } from "./brand.service.js";
 import type { CategoryService } from "./category.service.js";
 import type { GenericNameService } from "./genericName.service.js";
@@ -108,5 +113,30 @@ export class MedicineService {
 
   async getMedicines() {
     return await this.medicineRepo.findAllWithInventory();
+  }
+
+  async getMedicinesPage(query: MedicineListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.medicineRepo.findAllWithInventory({
+      filters: {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+        ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+        ...(query.brandId ? { brandId: query.brandId } : {}),
+        ...(query.genericNameId
+          ? { genericNameId: query.genericNameId }
+          : {}),
+        ...(query.unitId ? { unitId: query.unitId } : {}),
+      },
+      cursor,
+      limit: query.limit + 1,
+    });
+
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.createdAt,
+      (row) => String(row._id),
+    );
   }
 }

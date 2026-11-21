@@ -13,6 +13,7 @@ import type { SmartReorderService } from "../../smartReorder/services/smartReord
 import type { InventoryMovementService } from "../../inventory/services/inventoryMovement.service.ts";
 import type { BackgroundJobService } from "../../backgroundJobs/service/background.service.ts";
 import { getCache, setCache } from "../../../shared/provider/redis.provider.ts";
+import { DASHBOARD_CACHE_KEY } from "../../../shared/provider/cacheKeys.ts";
 import { getReportingTimeZone } from "../../../config/reporting.config.ts";
 import { roundCurrency } from "../../../shared/finance/money.ts";
 import {
@@ -331,7 +332,7 @@ export class DashboardService {
   // above into one cached call instead of 9 separate round-trips + 9 cache
   // checks from the frontend.
   async getFullDashboard() {
-    const cacheKey = "dashboard:full-summary";
+    const cacheKey = DASHBOARD_CACHE_KEY;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
 

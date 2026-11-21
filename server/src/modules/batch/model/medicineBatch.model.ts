@@ -109,6 +109,8 @@ batchSchema.index(
 batchSchema.index({ medicineId: 1, expiryDate: 1 });
 batchSchema.index({ isExpired: 1 });
 batchSchema.index({ isActive: 1 });
+batchSchema.index({ medicineId: 1, createdAt: -1 });
+batchSchema.index({ isExpired: 1, quantityRemaining: 1 });
 
 const Batch = model<IBatch>("Batch", batchSchema);
 

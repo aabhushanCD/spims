@@ -2,6 +2,11 @@ import mongoose, { Types } from "mongoose";
 
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.ts";
 import type { AppError } from "../../../shared/error.ts";
+import {
+  noopCacheInvalidator,
+  type CacheInvalidator,
+} from "../../../shared/provider/cacheInvalidator.ts";
+import { logger } from "../../../shared/logger.ts";
 import type { IBatch } from "../../batch/model/medicineBatch.model.js";
 import type { MedicineBatchRepo } from "../../batch/repo/medicineBatch.repo.js";
 import type { IInventory } from "../model/inventory.model.js";
@@ -49,7 +54,23 @@ export class StockMutationService {
     private readonly inventoryMovementService: InventoryMovementService,
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
+    private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
   ) {}
+
+  private async invalidateStockCaches(medicineId: string): Promise<void> {
+    try {
+      await Promise.all([
+        this.cacheInvalidator.invalidateDashboard(),
+        this.cacheInvalidator.invalidateReorder(medicineId),
+      ]);
+    } catch (error) {
+      // Cache invalidation is best-effort; a successful stock change must not
+      // be reported as a failure because Redis was unavailable.
+      logger.warn("stock_cache_invalidation_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   private async runInSession<T>(
     session: mongoose.ClientSession | undefined,
@@ -124,13 +145,14 @@ export class StockMutationService {
         activeSession,
       );
     });
+    await this.invalidateStockCaches(ctx.medicineId);
   }
 
   async syncAggregate(
     medicineId: string,
     opts: SyncAggregateOptions = {},
   ): Promise<IInventory> {
-    return this.runInSession(opts.session, async (activeSession) => {
+    const result = await this.runInSession(opts.session, async (activeSession) => {
       const inventory = await this.inventoryRepo.findByMedicineId(
         medicineId,
         activeSession,
@@ -184,8 +206,9 @@ export class StockMutationService {
         inventory.reservedStock !== reservedStock ||
         inventory.availableStock !== availableStock
       ) {
-        const result = await this.inventoryRepo.update(
+        const result = await this.inventoryRepo.updateWithVersion(
           inventory._id.toString(),
+          inventory.version ?? 0,
           {
             currentStock: totalStock,
             reservedStock,
@@ -212,6 +235,9 @@ export class StockMutationService {
 
       return updated;
     });
+
+    await this.invalidateStockCaches(medicineId);
+    return result;
   }
 
   async initializeAggregate(input: {
@@ -227,7 +253,7 @@ export class StockMutationService {
       );
     }
 
-    return this.runInSession(input.session, async (activeSession) => {
+    const result = await this.runInSession(input.session, async (activeSession) => {
       const totalStock = await this.batchRepo.getTotalStock(
         input.medicineId,
         activeSession,
@@ -264,6 +290,9 @@ export class StockMutationService {
       }
       return created;
     });
+
+    await this.invalidateStockCaches(input.medicineId);
+    return result;
   }
 
   async receiveStock(
@@ -310,6 +339,7 @@ export class StockMutationService {
       const updatedBatch = await this.batchRepo.increaseBatchStock(
         input.batchId,
         input.quantity,
+        batch.quantityRemaining,
         activeSession,
       );
       if (!updatedBatch) {
@@ -390,9 +420,10 @@ export class StockMutationService {
       }
 
       const delta = input.newQuantity - batch.quantityRemaining;
-      const updatedBatch = await this.batchRepo.update(
+      const updatedBatch = await this.batchRepo.setBatchStock(
         input.batchId,
-        { quantityRemaining: input.newQuantity },
+        batch.quantityRemaining,
+        input.newQuantity,
         activeSession,
       );
       if (!updatedBatch) {
@@ -434,9 +465,10 @@ export class StockMutationService {
         );
       }
 
-      const updatedBatch = await this.batchRepo.update(
+      const updatedBatch = await this.batchRepo.setBatchStock(
         input.batchId,
-        { quantityRemaining: 0 },
+        batch.quantityRemaining,
+        0,
         activeSession,
       );
       if (!updatedBatch) {
@@ -474,8 +506,9 @@ export class StockMutationService {
         );
       }
 
-      const updated = await this.inventoryRepo.update(
+      const updated = await this.inventoryRepo.updateWithVersion(
         current._id.toString(),
+        current.version ?? 0,
         {
           reservedStock: current.reservedStock + input.quantity,
           availableStock: current.availableStock - input.quantity,
@@ -512,8 +545,9 @@ export class StockMutationService {
         );
       }
 
-      const updated = await this.inventoryRepo.update(
+      const updated = await this.inventoryRepo.updateWithVersion(
         current._id.toString(),
+        current.version ?? 0,
         {
           reservedStock: current.reservedStock - input.quantity,
           availableStock: current.availableStock + input.quantity,

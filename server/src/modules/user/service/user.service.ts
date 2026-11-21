@@ -3,7 +3,15 @@ import bcrypt from "bcrypt";
 import { AppError } from "../../../shared/error.js";
 import type { IUser, UserRole } from "../model/user.model.js";
 import type { UserRepository } from "../repo/user.repo.js";
-import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
+import type {
+  CreateUserDto,
+  UpdateUserDto,
+  UserListQuery,
+} from "../schema/user.schema.js";
+import {
+  buildPage,
+  decodeCursor,
+} from "../../../shared/pagination/cursor.ts";
 
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
@@ -96,6 +104,25 @@ export class UserService {
     }
 
     return await this.userRepository.update(id, { role });
+  }
+
+  async getUsersPage(query: UserListQuery) {
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const rows = await this.userRepository.findPage(
+      {
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.role ? { role: query.role } : {}),
+        ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      },
+      cursor,
+      query.limit + 1,
+    );
+    return buildPage(
+      rows,
+      query.limit,
+      (row) => row.createdAt,
+      (row) => String(row._id),
+    );
   }
 
   async getAllUsers(): Promise<IUser[]> {

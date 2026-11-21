@@ -5,6 +5,10 @@ import {
   stockMovementTypeSchema,
   stockReferenceTypeSchema,
 } from "../../inventory/schema/stockMovement.schema.ts";
+import {
+  booleanQuerySchema,
+  cursorPaginationQuerySchema,
+} from "../../../shared/schema/pagination.schema.ts";
 
 const batchNumberSchema = z
   .string()
@@ -88,6 +92,14 @@ export const confirmDisposalSchema = z
   .object({ remarks: remarksSchema })
   .optional();
 
+export const batchListQuerySchema = cursorPaginationQuerySchema.extend({
+  search: z.string().trim().min(1).max(100).optional(),
+  medicineId: objectIdSchema.optional(),
+  isExpired: booleanQuerySchema.optional(),
+  isActive: booleanQuerySchema.optional(),
+  expiringInDays: z.coerce.number().int().min(0).optional(),
+});
+
 export const batchIdParamSchema = z.object({ id: objectIdSchema });
 export const batchMedicineParamSchema = z.object({ medicineId: objectIdSchema });
 export const lowStockQuerySchema = z.object({
@@ -99,3 +111,4 @@ export const lowStockQuerySchema = z.object({
 
 export type CreateBatchDto = z.infer<typeof createBatchSchema>;
 export type UpdateBatchDto = z.infer<typeof updateBatchSchema>;
+export type BatchListQuery = z.infer<typeof batchListQuerySchema>;

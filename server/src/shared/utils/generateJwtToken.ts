@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { logger } from "../logger.ts";
 
 interface JwtPayload {
   userId: string;
@@ -15,7 +16,9 @@ export const generateJwtToken = (
     });
     return token;
   } catch (error) {
-    console.error("Failed to generate JWT token:", error);
+    logger.error("jwt_generation_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new Error("Failed to generate JWT token", { cause: error });
   }
 };

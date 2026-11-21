@@ -21,7 +21,12 @@ export interface ISmartReorder extends Document {
 const SmartReorderSchema = new Schema<ISmartReorder>({
   medicineId: { type: Schema.Types.ObjectId, ref: "Medicine", required: true },
   suggestedQuantity: { type: Number, required: true },
-  confidenceScore: { type: Number, required: false },
+  confidenceScore: {
+    type: Number,
+    required: false,
+    min: 0,
+    max: 100,
+  },
   recommendationReason: { type: String, required: true },
   generatedAt: { type: Date, default: Date.now },
   WADS: { type: Number, required: true },
@@ -39,6 +44,16 @@ const SmartReorderSchema = new Schema<ISmartReorder>({
     default: "PENDING",
   },
 });
+
+SmartReorderSchema.index({ medicineId: 1, status: 1, generatedAt: -1 });
+SmartReorderSchema.index({ status: 1, generatedAt: -1 });
+SmartReorderSchema.index(
+  { medicineId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: "PENDING" },
+  },
+);
 
 const SmartReorderModel = model<ISmartReorder>(
   "SmartReorder",
