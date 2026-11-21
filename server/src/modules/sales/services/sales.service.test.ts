@@ -316,6 +316,70 @@ describe("SalesService", () => {
     });
   });
 
+  describe("deleteSale", () => {
+    it("restores only the unreturned quantity to the original batch", async () => {
+      const { service, salesRepo, saleItemRepo, inventoryService } =
+        buildService();
+      salesRepo.findById.mockResolvedValue({
+        _id: SALE_ID,
+        invoiceNumber: "INV-000001",
+      });
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        {
+          _id: { toString: () => "item-1" },
+          medicineId: { toString: () => MEDICINE_ID },
+          batchId: { toString: () => BATCH_ID },
+          quantity: 5,
+          returnedQuantity: 2,
+        },
+      ]);
+
+      await service.deleteSale(SALE_ID, USER_ID);
+
+      expect(inventoryService.increaseStock).toHaveBeenCalledWith(
+        MEDICINE_ID,
+        3,
+        expect.objectContaining({
+          batchId: BATCH_ID,
+          referenceId: SALE_ID,
+          referenceType: "SALE",
+          performedBy: USER_ID,
+          movementType: "RETURN",
+        }),
+        expect.anything(),
+      );
+      expect(saleItemRepo.delete).toHaveBeenCalledWith(
+        "item-1",
+        expect.anything(),
+      );
+      expect(salesRepo.delete).toHaveBeenCalledWith(SALE_ID, expect.anything());
+    });
+
+    it("does not restore stock for a fully returned line", async () => {
+      const { service, salesRepo, saleItemRepo, inventoryService } =
+        buildService();
+      salesRepo.findById.mockResolvedValue({
+        _id: SALE_ID,
+        invoiceNumber: "INV-000001",
+      });
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        {
+          _id: { toString: () => "item-1" },
+          medicineId: { toString: () => MEDICINE_ID },
+          batchId: { toString: () => BATCH_ID },
+          quantity: 5,
+          returnedQuantity: 5,
+        },
+      ]);
+
+      await service.deleteSale(SALE_ID, USER_ID);
+
+      expect(inventoryService.increaseStock).not.toHaveBeenCalled();
+      expect(saleItemRepo.delete).toHaveBeenCalledTimes(1);
+      expect(salesRepo.delete).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("reads and narrow updates", () => {
     it("returns sale and items together", async () => {
       const { service, salesRepo, saleItemRepo } = buildService();

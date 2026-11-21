@@ -228,9 +228,15 @@ export class SalesService {
         const items = await this.saleItemRepo.findBySalesId(id, session);
 
         for (const item of items) {
+          const restorable = item.quantity - (item.returnedQuantity ?? 0);
+          if (restorable <= 0) {
+            await this.saleItemRepo.delete(item._id.toString(), session);
+            continue;
+          }
+
           await this.inventoryService.increaseStock(
             item.medicineId.toString(),
-            item.quantity,
+            restorable,
             {
               batchId: item.batchId.toString(),
               referenceId: id,
