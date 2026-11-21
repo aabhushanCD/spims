@@ -51,6 +51,18 @@ export class SalesService {
 
     const session = await this.connection.startSession();
 
+    try {
+      const sale = await this.runCreateSaleTransaction(dto, session);
+      return await this.salesRepo.findById(sale._id.toString(), session);
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private async runCreateSaleTransaction(
+    dto: CreateSaleDto,
+    session: mongoose.ClientSession,
+  ) {
     let sale;
 
     await session.withTransaction(async () => {
@@ -171,7 +183,7 @@ export class SalesService {
       );
     });
 
-    return await this.salesRepo.findById(sale!._id.toString(), session);
+    return sale!;
   }
 
   async getSaleById(id: string) {
