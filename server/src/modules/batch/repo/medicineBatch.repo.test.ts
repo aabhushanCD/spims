@@ -79,12 +79,12 @@ describe("MedicineBatchRepo", () => {
       await repo.getTotalStock(MEDICINE_ID);
 
       const filter = model.find.mock.calls[0]?.[0] as {
-        medicineId: string;
+        medicineId: { $eq: string };
         quantityRemaining: { $gt: number };
         expiryDate: { $gt: Date };
         isExpired: boolean;
       };
-      expect(filter.medicineId).toBe(MEDICINE_ID);
+      expect(filter.medicineId).toEqual({ $eq: MEDICINE_ID });
       expect(filter.quantityRemaining).toEqual({ $gt: 0 });
       expect(filter.isExpired).toBe(false);
       expect(filter.expiryDate.$gt).toBeInstanceOf(Date);

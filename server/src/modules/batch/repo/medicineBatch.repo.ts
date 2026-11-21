@@ -89,7 +89,7 @@ export class MedicineBatchRepo {
     session?: mongoose.ClientSession,
   ): Promise<number> {
     const query = this.batchModel.find({
-      medicineId,
+      medicineId: { $eq: medicineId },
       quantityRemaining: {
         $gt: 0,
       },
