@@ -69,7 +69,8 @@ const batchSchema = new Schema<IBatch>(
       default: true,
       validate: {
         validator: function () {
-          return (this as IBatch).quantityRemaining === 0;
+          const batch = this as IBatch;
+          return batch.isActive !== false || batch.quantityRemaining === 0;
         },
         message:
           "Batch can only be marked as inactive if quantity remaining is zero",

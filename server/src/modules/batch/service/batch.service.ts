@@ -265,52 +265,6 @@ export class BatchService {
     return lowStockBatches;
   }
 
-  async allocateStock(
-    medicineId: string,
-    requestedQuantity: number,
-    session?: mongoose.ClientSession,
-  ): Promise<{ batchId: string; quantity: number }[]> {
-    const batches = await this.batchRepo.findAllByMedicineId(
-      medicineId,
-      session,
-    );
-    if (!batches || batches.length === 0) {
-      throw new Error("No batches found for the given medicineId");
-    }
-    const availableBatches = batches.filter(
-      (batch) => batch.quantityRemaining > 0 && batch.expiryDate > new Date(),
-    );
-    const totalAvailableQuantity = availableBatches.reduce(
-      (sum, batch) => sum + batch.quantityRemaining,
-      0,
-    );
-    if (totalAvailableQuantity < requestedQuantity) {
-      throw new Error(
-        `Insufficient stock. Requested: ${requestedQuantity}, Available: ${totalAvailableQuantity}`,
-      );
-    }
-
-    const allocation: { batchId: string; quantity: number }[] = [];
-    const remaining = requestedQuantity;
-
-    for (const batch of availableBatches) {
-      if (remaining <= 0) break;
-      const take = Math.min(batch.quantityRemaining, remaining);
-
-      await this.batchRepo.update(
-        batch._id.toString(),
-        { quantityRemaining: batch.quantityRemaining - take },
-        session,
-      );
-      await this.inventoryService.syncInventoryFromBatch(
-        batch.medicineId.toString(),
-        undefined,
-        session,
-      );
-    }
-    return allocation;
-  }
-
   async getBatchByMedicineId(
     medicineId: string,
     session?: mongoose.ClientSession,

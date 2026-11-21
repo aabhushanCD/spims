@@ -88,22 +88,22 @@ export class MedicineBatchRepo {
     medicineId: string,
     session?: mongoose.ClientSession,
   ): Promise<number> {
-    const batches = session
-      ? await this.batchModel
-          .find({
-            medicineId,
-            quantityRemaining: {
-              $gt: 0,
-            },
-            expiryDate: {
-              $gt: new Date(),
-            },
-            isExpired: false,
-          })
-          .session(session)
-          .lean()
-          .exec()
-      : await this.batchModel.find({ medicineId }).lean().exec();
+    const query = this.batchModel.find({
+      medicineId,
+      quantityRemaining: {
+        $gt: 0,
+      },
+      expiryDate: {
+        $gt: new Date(),
+      },
+      isExpired: false,
+    });
+
+    if (session) {
+      query.session(session);
+    }
+
+    const batches = await query.lean().exec();
 
     if (!batches.length) return 0;
     return batches.reduce((total, batch) => total + batch.quantityRemaining, 0);
