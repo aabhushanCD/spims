@@ -137,7 +137,7 @@ export class ReturnService {
               movementType: "RETURN",
               referenceType: "SALES_RETURN",
               referenceId: salesReturn._id.toString(),
-              performedBy: dto.returnedBy,
+              performedBy: dto.performedBy,
               remarks: `Return ${returnNumber}`,
             },
             session,
