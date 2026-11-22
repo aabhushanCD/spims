@@ -1,6 +1,6 @@
 // features/sales/pages/SaleDetailsPage.tsx
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { ArrowLeft, Loader2, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,14 +25,27 @@ import {
 } from "@/components/ui/table";
 import { useSale } from "../hooks/useSale";
 import { useDeleteSale } from "../hooks/useDeleteSale";
+import { useSalePayments } from "@/features/payment/hooks/useSalePayments";
+import PaymentLedger from "@/features/payment/components/PaymentLedger";
+import RecordPaymentDialog from "@/features/payment/components/RecordPaymentDialog";
+import CreateReturnDialog from "@/features/returns/components/CreateReturnDialog";
+import ReturnStatusBadge from "@/features/returns/components/ReturnStatusBadge";
+import { useReturns } from "@/features/returns/hooks/useReturns";
+import CorrectSaleItemDialog from "../components/CorrectSaleItemDialog";
 import { formatCurrency, formatDateTime } from "@/lib/format";
+import type { SaleDetailsItem } from "../types/sale.types";
 
 export default function SaleDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: sale, isLoading } = useSale(id);
   const deleteSale = useDeleteSale();
+  const payments = useSalePayments(id);
+  const saleReturns = useReturns(id ? { salesId: id } : {}, Boolean(id));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [correctItem, setCorrectItem] = useState<SaleDetailsItem | null>(null);
 
   if (isLoading) {
     return (
@@ -53,6 +66,10 @@ export default function SaleDetailsPage() {
     );
   }
 
+  const hasReturnableItems = sale.items.some(
+    (item) => item.quantity > item.returnedQuantity,
+  );
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -63,15 +80,27 @@ export default function SaleDetailsPage() {
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" /> Print
           </Button>
-          {sale.status === "COMPLETED" && (
-            <Button
-              variant="destructive"
-              disabled={deleteSale.isPending}
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Sale
-            </Button>
+          {sale.amountDue > 0 && (
+            <Button onClick={() => setPaymentOpen(true)}>Record payment</Button>
           )}
+          {hasReturnableItems &&
+            (sale.status === "COMPLETED" ||
+              sale.status === "PARTIALLY_RETURNED") && (
+              <Button variant="outline" onClick={() => setReturnOpen(true)}>
+                Return items
+              </Button>
+            )}
+          {sale.status === "COMPLETED" &&
+            saleReturns.isSuccess &&
+            (saleReturns.data?.items.length ?? 0) === 0 && (
+              <Button
+                variant="destructive"
+                disabled={deleteSale.isPending}
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Sale
+              </Button>
+            )}
         </div>
       </div>
 
@@ -121,6 +150,7 @@ export default function SaleDetailsPage() {
               <TableHead>Disc %</TableHead>
               <TableHead>VAT %</TableHead>
               <TableHead className="text-right">Total</TableHead>
+              <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -134,6 +164,17 @@ export default function SaleDetailsPage() {
                 <TableCell>{item.vatPercentage}%</TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(item.total)}
+                </TableCell>
+                <TableCell>
+                  {item.returnedQuantity === 0 && item.id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCorrectItem(item)}
+                    >
+                      Correct
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -168,6 +209,56 @@ export default function SaleDetailsPage() {
           </div>
         </div>
       </div>
+
+      <PaymentLedger
+        payments={payments.data?.items ?? []}
+        isLoading={payments.isLoading}
+      />
+
+      {(saleReturns.data?.items.length ?? 0) > 0 && (
+        <div className="rounded-lg border p-4">
+          <h2 className="mb-3 text-sm font-semibold">Returns</h2>
+          <div className="space-y-2">
+            {saleReturns.data?.items.map((item) => (
+              <Link
+                key={item._id}
+                to={`/returns/${item._id}`}
+                className="hover:bg-muted flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+              >
+                <span className="font-medium">{item.returnNumber}</span>
+                <span className="flex items-center gap-3">
+                  <ReturnStatusBadge status={item.status} />
+                  <span>{formatCurrency(item.refundAmount)}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {paymentOpen && (
+        <RecordPaymentDialog
+          key={sale.amountDue}
+          saleId={sale.id}
+          amountDue={sale.amountDue}
+          onOpenChange={setPaymentOpen}
+        />
+      )}
+
+      {returnOpen && (
+        <CreateReturnDialog
+          sale={sale}
+          onOpenChange={setReturnOpen}
+        />
+      )}
+
+      {correctItem && (
+        <CorrectSaleItemDialog
+          saleId={sale.id}
+          item={correctItem}
+          onOpenChange={(open) => !open && setCorrectItem(null)}
+        />
+      )}
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

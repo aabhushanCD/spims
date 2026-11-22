@@ -24,6 +24,9 @@ import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
 
+import CustomerPage from "@/features/customer/pages/CustomerPage";
+import ReturnDetailsPage from "@/features/returns/pages/ReturnDetailsPage";
+import ReturnsPage from "@/features/returns/pages/ReturnsPage";
 import SupplierPage from "@/features/supplier/pages/SupplierPage";
 import UserPage from "@/features/user/pages/UserPage";
 import { BrowserRouter, Routes, Route } from "react-router";
@@ -57,8 +60,11 @@ export default function AppRoutes() {
           <Route path="/units" element={<UnitPage />} />
           <Route path="/suppliers" element={<SupplierPage />} />
           <Route path="/purchase-orders" element={<PurchasePage />} />
+          <Route path="/customers" element={<CustomerPage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/sales/:id" element={<SaleDetailsPage />} />
+          <Route path="/returns" element={<ReturnsPage />} />
+          <Route path="/returns/:id" element={<ReturnDetailsPage />} />
           <Route
             path="/users"
             element={
