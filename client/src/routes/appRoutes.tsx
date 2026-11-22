@@ -29,6 +29,8 @@ import SalesPage from "@/features/sales/pages/SalesPage";
 import CustomerPage from "@/features/customer/pages/CustomerPage";
 import ReturnDetailsPage from "@/features/returns/pages/ReturnDetailsPage";
 import ReturnsPage from "@/features/returns/pages/ReturnsPage";
+import PurchaseReturnDetailsPage from "@/features/purchaseReturn/pages/PurchaseReturnDetailsPage";
+import PurchaseReturnsPage from "@/features/purchaseReturn/pages/PurchaseReturnsPage";
 import StocktakeDetailsPage from "@/features/stocktake/pages/StocktakeDetailsPage";
 import StocktakesPage from "@/features/stocktake/pages/StocktakesPage";
 import SupplierPage from "@/features/supplier/pages/SupplierPage";
@@ -64,6 +66,11 @@ export default function AppRoutes() {
           <Route path="/units" element={<UnitPage />} />
           <Route path="/suppliers" element={<SupplierPage />} />
           <Route path="/purchase-orders" element={<PurchasePage />} />
+          <Route path="/purchase-returns" element={<PurchaseReturnsPage />} />
+          <Route
+            path="/purchase-returns/:id"
+            element={<PurchaseReturnDetailsPage />}
+          />
           <Route path="/customers" element={<CustomerPage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/sales/:id" element={<SaleDetailsPage />} />
