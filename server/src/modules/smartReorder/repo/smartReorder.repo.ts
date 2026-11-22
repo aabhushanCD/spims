@@ -6,6 +6,15 @@ import type SmartReorderModel from "../model/smartReorder.model.ts";
 import type { ISmartReorder } from "../model/smartReorder.model.ts";
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.ts";
 
+const STATUS_FILTERS: Record<
+  ISmartReorder["status"],
+  { status: ISmartReorder["status"] }
+> = {
+  PENDING: { status: "PENDING" },
+  APPROVED: { status: "APPROVED" },
+  REJECTED: { status: "REJECTED" },
+};
+
 export class SmartReorderRepo {
   constructor(private readonly smartReorderModel: typeof SmartReorderModel) {}
 
@@ -103,7 +112,7 @@ export class SmartReorderRepo {
     status?: ISmartReorder["status"],
     session?: mongoose.ClientSession,
   ): Promise<ISmartReorder[]> {
-    const filter = status ? { status } : {};
+    const filter = status ? STATUS_FILTERS[status] : {};
 
     if (session) {
       return this.smartReorderModel
@@ -138,14 +147,16 @@ export class SmartReorderRepo {
     status: ISmartReorder["status"],
     session?: mongoose.ClientSession,
   ): Promise<ISmartReorder[]> {
+    const filter = STATUS_FILTERS[status];
+
     if (session) {
       return this.smartReorderModel
-        .find({ status })
+        .find(filter)
         .session(session)
         .lean()
         .exec();
     }
-    return this.smartReorderModel.find({ status }).lean().exec();
+    return this.smartReorderModel.find(filter).lean().exec();
   }
 
   async update(
