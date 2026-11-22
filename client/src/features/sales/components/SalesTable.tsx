@@ -1,6 +1,6 @@
 // features/sales/components/SalesTable.tsx
 import { useNavigate } from "react-router";
-import { MoreHorizontal, Eye, Ban, Loader2 } from "lucide-react";
+import { MoreHorizontal, Eye, Loader2, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,10 +21,10 @@ import type { SalesListItem } from "../types/sale.types";
 interface SalesTableProps {
   sales: SalesListItem[];
   isLoading?: boolean;
-  onCancel: (sale: SalesListItem) => void;
+  onDelete: (sale: SalesListItem) => void;
 }
 
-export function SalesTable({ sales, isLoading, onCancel }: SalesTableProps) {
+export function SalesTable({ sales, isLoading, onDelete }: SalesTableProps) {
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -93,10 +93,10 @@ export function SalesTable({ sales, isLoading, onCancel }: SalesTableProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       disabled={sale.status !== "COMPLETED"}
-                      onClick={() => onCancel(sale)}
+                      onClick={() => onDelete(sale)}
                       className="text-destructive focus:text-destructive"
                     >
-                      <Ban className="mr-2 h-4 w-4" /> Cancel sale
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete sale
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

@@ -22,10 +22,9 @@ export interface InventorySearchResult {
   };
 }
 
-/** Exactly matches backend createSalesItemSchema */
+/** Matches the backend create-sale item contract. FEFO picks the batch. */
 export interface CreateSaleItemInput {
   medicineId: string;
-  batchId: string;
   quantity: number;
   discountPercentage?: number;
 }
@@ -73,11 +72,20 @@ export interface SaleDetailsItem {
   id?: string;
   medicineId: string;
   medicineName: string;
+  batchNumber?: string;
+  batchExpiryDate?: string;
   quantity: number;
   unitPrice: number;
   discountPercentage: number;
   vatPercentage: number;
   total: number;
+}
+
+export interface InvoiceBatchPayload {
+  _id: string;
+  batchNumber: string;
+  expiryDate?: string;
+  sellingPrice?: number;
 }
 
 export interface InvoiceItemPayload {
@@ -88,6 +96,7 @@ export interface InvoiceItemPayload {
     strength?: string;
     dosageForm?: string;
   };
+  batchId?: string | InvoiceBatchPayload | null;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -134,4 +143,6 @@ export interface SaleDetails {
   discountTotal: number;
   vatTotal: number;
   grandTotal: number;
+  paidAmount: number;
+  amountDue: number;
 }

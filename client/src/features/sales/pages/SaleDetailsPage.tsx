@@ -1,9 +1,20 @@
 // features/sales/pages/SaleDetailsPage.tsx
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Ban, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, Loader2, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -13,13 +24,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useSale } from "../hooks/useSale";
-import { useCancelSale } from "../hooks/useCancelSale";
+import { useDeleteSale } from "../hooks/useDeleteSale";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 
 export default function SaleDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: sale, isLoading } = useSale(id);
-  const cancelSale = useCancelSale();
+  const deleteSale = useDeleteSale();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (isLoading) {
     return (
@@ -53,10 +66,10 @@ export default function SaleDetailsPage() {
           {sale.status === "COMPLETED" && (
             <Button
               variant="destructive"
-              disabled={cancelSale.isPending}
-              onClick={() => cancelSale.mutate({ id: sale.id })}
+              disabled={deleteSale.isPending}
+              onClick={() => setConfirmDelete(true)}
             >
-              <Ban className="mr-2 h-4 w-4" /> Cancel Sale
+              <Trash2 className="mr-2 h-4 w-4" /> Delete Sale
             </Button>
           )}
         </div>
@@ -67,7 +80,7 @@ export default function SaleDetailsPage() {
           <div>
             <h1 className="text-xl font-semibold">Invoice {sale.invoiceNo}</h1>
             <p className="text-sm text-muted-foreground">
-              {new Date(sale.createdAt).toLocaleString()}
+              {formatDateTime(sale.createdAt)}
             </p>
           </div>
           <Badge>{sale.status}</Badge>
@@ -102,6 +115,7 @@ export default function SaleDetailsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Medicine</TableHead>
+              <TableHead>Batch</TableHead>
               <TableHead>Qty</TableHead>
               <TableHead>Unit Price</TableHead>
               <TableHead>Disc %</TableHead>
@@ -113,12 +127,13 @@ export default function SaleDetailsPage() {
             {sale.items.map((item) => (
               <TableRow key={item.id ?? item.medicineId}>
                 <TableCell className="font-medium">{item.medicineName}</TableCell>
+                <TableCell>{item.batchNumber ?? "-"}</TableCell>
                 <TableCell>{item.quantity}</TableCell>
-                <TableCell>Rs. {item.unitPrice.toFixed(2)}</TableCell>
+                <TableCell>{formatCurrency(item.unitPrice)}</TableCell>
                 <TableCell>{item.discountPercentage}%</TableCell>
                 <TableCell>{item.vatPercentage}%</TableCell>
                 <TableCell className="text-right">
-                  Rs. {item.total.toFixed(2)}
+                  {formatCurrency(item.total)}
                 </TableCell>
               </TableRow>
             ))}
@@ -128,33 +143,65 @@ export default function SaleDetailsPage() {
         <div className="ml-auto mt-4 w-full max-w-xs space-y-1.5 text-sm">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span>Rs. {sale.subtotal.toFixed(2)}</span>
+            <span>{formatCurrency(sale.subtotal)}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Discount</span>
-            <span>- Rs. {sale.discountTotal.toFixed(2)}</span>
+            <span>- {formatCurrency(sale.discountTotal)}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>VAT</span>
-            <span>Rs. {sale.vatTotal.toFixed(2)}</span>
+            <span>{formatCurrency(sale.vatTotal)}</span>
           </div>
           <Separator />
           <div className="flex justify-between text-base font-semibold">
             <span>Grand Total</span>
-            <span>Rs. {sale.grandTotal.toFixed(2)}</span>
+            <span>{formatCurrency(sale.grandTotal)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>Paid</span>
+            <span>{formatCurrency(sale.paidAmount)}</span>
+          </div>
+          <div className="flex justify-between font-medium">
+            <span>Amount Due</span>
+            <span>{formatCurrency(sale.amountDue)}</span>
           </div>
         </div>
-
-        {sale.notes && (
-          <>
-            <Separator className="my-4" />
-            <div>
-              <p className="text-sm text-muted-foreground">Notes</p>
-              <p className="text-sm">{sale.notes}</p>
-            </div>
-          </>
-        )}
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this sale?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes invoice {sale.invoiceNo} and restores
+              the sold stock. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSale.isPending}>
+              Keep Sale
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteSale.isPending}
+              onClick={() => {
+                deleteSale.mutate(
+                  { id: sale.id },
+                  {
+                    onSuccess: () => {
+                      setConfirmDelete(false);
+                      navigate("/sales");
+                    },
+                  },
+                );
+              }}
+            >
+              Delete Sale
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

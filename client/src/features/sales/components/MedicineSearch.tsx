@@ -1,6 +1,6 @@
 // features/sales/components/MedicineSearch.tsx
 import { useRef, useState } from "react";
-import { Search, ScanBarcode, Loader2, PackageX } from "lucide-react";
+import { Search, Loader2, PackageX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,10 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import type {
-  InventorySearchResult,
- 
-} from "../types/sale.types";
+import type { InventorySearchResult } from "../types/sale.types";
 import { cn } from "@/lib/utils";
 import { salesService } from "../services/sales.service";
 
@@ -90,11 +87,10 @@ export function MedicineSearch({
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search medicine by name, generic name, or scan barcode..."
-            className="h-11 pr-9 pl-9 text-base"
+            placeholder="Search medicine by name or generic name..."
+            className="h-11 pr-3 pl-9 text-base"
             autoComplete="off"
           />
-          <ScanBarcode className="text-muted-foreground absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
         </div>
       </PopoverAnchor>
 
@@ -156,7 +152,7 @@ export function MedicineSearch({
                   </div>
 
                   <p className="text-muted-foreground truncate text-xs">
-                    Batch: {medicine.nextBatch.batchNumber}
+                    FEFO batch: {medicine.nextBatch.batchNumber}
                   </p>
 
                   <p className="text-muted-foreground truncate text-xs">

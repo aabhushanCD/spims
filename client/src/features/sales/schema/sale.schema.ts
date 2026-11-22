@@ -13,7 +13,8 @@ export type PaymentMethod = z.infer<typeof paymentMethodEnum>;
 export const saleItemSchema = z.object({
   medicineId: z.string().min(1, "Select a medicine"),
   medicineName: z.string().min(1), // display only, not sent to backend
-  batchId: z.string().min(1, "Select a batch"),
+  /** FEFO preview only — the server allocates the batch. */
+  batchId: z.string().optional(),
   batchNo: z.string().optional(), // display only, not sent to backend
   vatPercentage: z.coerce.number().min(0).default(13), // default VAT percentage
   quantity: z
@@ -35,16 +36,9 @@ export const saleItemSchema = z.object({
 export const saleFormSchema = z
   .object({
     customerName: z.string().min(1, "Customer name is required").max(100),
-    customerPhone: z
-      .string()
-      .refine((val) => !val || /^[0-9+\-\s]{7,15}$/.test(val), {
-        message: "Enter a valid phone number",
-      })
-      .optional(),
     discountPercentage: z.coerce.number().min(0).max(100).default(0),
     paymentMethod: paymentMethodEnum,
     discount: z.number().min(0).default(0), // sale-level discount
-    notes: z.string().max(500, "Notes must be under 500 characters").optional(),
     items: z
       .array(saleItemSchema)
       .min(1, "Add at least one medicine to the sale"),
