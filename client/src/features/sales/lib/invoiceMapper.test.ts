@@ -55,6 +55,21 @@ describe("mapInvoiceToSaleDetails", () => {
     });
   });
 
+  it("maps the returned quantity on each sale line", () => {
+    const sale = mapInvoiceToSaleDetails({
+      ...basePayload,
+      items: [{ ...basePayload.items[0], returnedQuantity: 3 }],
+    });
+
+    expect(sale.items[0]?.returnedQuantity).toBe(3);
+  });
+
+  it("defaults a missing returned quantity to zero", () => {
+    const sale = mapInvoiceToSaleDetails(basePayload);
+
+    expect(sale.items[0]?.returnedQuantity).toBe(0);
+  });
+
   it("ignores an unpopulated batch id", () => {
     const sale = mapInvoiceToSaleDetails({
       ...basePayload,
