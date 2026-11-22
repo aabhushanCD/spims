@@ -12,15 +12,24 @@ import redis from "./config/redis.config.ts";
 import { assertAuthConfig } from "./modules/auth/utils/authConfig.ts";
 import { assertEmailConfig } from "./shared/provider/email.provider.ts";
 import { assertReportingConfig } from "./config/reporting.config.ts";
+import { assertVatConfig } from "./config/vat.config.ts";
 import { logger } from "./shared/logger.ts";
+import { isOriginAllowed } from "./shared/utils/allowedOrigins.ts";
+import { isSessionAccessTokenRevoked } from "./shared/security/sessionRevocation.ts";
+import { getCurrentTokenVersion } from "./shared/security/tokenVersion.ts";
 
 const app = createApp();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
-server.on("upgrade", (request, socket, head) => {
+server.on("upgrade", async (request, socket, head) => {
   const url = new URL(request.url ?? "", `http://${request.headers.host}`);
   if (url.pathname !== "/ws") {
+    socket.destroy();
+    return;
+  }
+  if (!isOriginAllowed(request.headers.origin)) {
+    socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
     socket.destroy();
     return;
   }
@@ -31,15 +40,35 @@ server.on("upgrade", (request, socket, head) => {
     socket.destroy();
     return;
   }
+
   let userId: string;
   try {
     const payload = verifyJwt(token);
     userId = payload.userId;
+
+    if (
+      payload.sessionId &&
+      (await isSessionAccessTokenRevoked(payload.sessionId))
+    ) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    if (typeof payload.ver === "number") {
+      const currentVersion = await getCurrentTokenVersion(payload.userId);
+      if (currentVersion === null || currentVersion !== payload.ver) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+    }
   } catch {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;
   }
+
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit("connection", ws, request, userId);
   });
@@ -68,6 +97,7 @@ async function startServer() {
     assertAuthConfig();
     assertEmailConfig();
     assertReportingConfig();
+    assertVatConfig();
     await redis.ping();
     await connectDB();
     scheduleExpiryCheckJob();

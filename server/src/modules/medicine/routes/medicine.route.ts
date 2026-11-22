@@ -43,6 +43,13 @@ router.get(
 );
 
 router.get(
+  "/barcode/:barcode",
+  (req: Request, res: Response, next: NextFunction) => {
+    medicineController.getMedicineByBarcode(req, res, next);
+  },
+);
+
+router.get(
   "/:id",
   validateParams(objectIdParamSchema),
   (req: Request, res: Response, next: NextFunction) => {

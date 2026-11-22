@@ -20,10 +20,10 @@ Source: `server/src/modules/auth/routes/auth.route.ts`
 
 | Method | Path | Purpose | Auth / roles | Body / query | Validation | Success |
 |---|---|---|---|---|---|---|
-| POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password` (`role` is stripped) | `registerSchema` | `201` raw user (includes password hash) |
-| POST | `/auth/login` | Authenticate and set cookie | Public | `email`, `password` | `loginSchema` | `200` raw user + `token`; sets `token` cookie |
-| POST | `/auth/logout` | Clear cookie | Cookie JWT / any | — | — | `200` `{ message }` |
-| GET | `/auth/me` | Current user | Cookie JWT / any | — | — | `200` raw user (includes password hash) |
+| POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password` (`role` is stripped) | `registerSchema` | `201` `{ message, user: public user }` |
+| POST | `/auth/login` | Authenticate and set cookies | Public | `email`, `password` | `loginSchema` | `200` public user; sets `token` and `refreshToken` cookies |
+| POST | `/auth/logout` | Clear cookies and revoke the access token | Cookie JWT / any | — | — | `200` `{ message }` |
+| GET | `/auth/me` | Current user | Cookie JWT / any | — | — | `200` public user |
 
 Endpoint-specific errors: `400` validation, `401` wrong password, `404` user not found, `409` duplicate email.
 
@@ -51,6 +51,9 @@ Router-level roles: **`owner`, `pharmacist` only**. Every write route also requi
 | GET | `/users/last-login/:date` | Users since date | `date` | `200` array | |
 | PATCH | `/users/:id/toggleUserActivation` | Toggle `isActive` | ObjectId `id` | `200` `{ message }` / `404` | Owner only |
 | PATCH | `/users/:id/role` | Change role | `{ role }` | `200` public user | Owner only; matches the client service call |
+| POST | `/users/:id/reset-password` | Send an admin password-reset link | no body | `200` `{ message }` | Owner only; revokes sessions; never returns a password; SMTP failure is `503` |
+| POST | `/users/:id/force-logout` | Revoke every session and access token | no body | `200` `{ message }` | Owner only; bumps the token version |
+| GET | `/audit` | Read auth/admin audit rows | `cursor?`, `limit?`, `action?`, `actorId?`, `entityType?`, `entityId?`, `status?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Owner only; cursor paginated |
 
 Details: [users-and-roles.md](../modules/users-and-roles.md).
 
@@ -63,6 +66,7 @@ Source: `server/src/modules/medicine/routes/medicine.route.ts`
 | POST | `/medicines` | Create medicine | catalog fields | `createMedicineSchema` | `201` raw medicine |
 | GET | `/medicines` | List with inventory | `cursor?`, `limit?`, `search?`, `isActive?`, category/brand/generic/unit ids | `medicineListQuerySchema` | `200` `{ success, data: { items, nextCursor } }` |
 | GET | `/medicines/search` | Literal substring search | `?query=` | `medicineSearchQuerySchema` | `200` active matches |
+| GET | `/medicines/barcode/:barcode` | Barcode lookup | barcode string | — | `200` medicine / `404` |
 | GET | `/medicines/:id` | Get one | ObjectId `id` | param schema | `200` raw / `404` |
 | PUT | `/medicines/:id` | Update | partial catalog fields | param + `updateMedicineSchema` | `200` raw / `404` |
 | DELETE | `/medicines/:id` | Deactivate | ObjectId `id` | param schema | `200` `{ message }`; sets `isActive: false` |
@@ -142,6 +146,23 @@ All responses use `{ success, message, data }`.
 
 `reliabilityScore` cannot be set through the API (the Zod schema strips it). Delete returns `409` while the supplier has `pending` or `approved` purchase orders.
 
+## Customers
+
+Source: `server/src/modules/customer/routes/customer.routes.ts`
+
+All roles. Responses use `{ success, data }`; the list is cursor-paginated.
+
+| Method | Path | Purpose | Input | Success |
+|---|---|---|---|---|
+| POST | `/customers` | Create | `name`, `phone?`, `email?`, `address?`, `isActive?` | `201` customer |
+| GET | `/customers` | List/search | `cursor?`, `limit?`, `search?`, `isActive?` | `200` `{ items, nextCursor }` |
+| GET | `/customers/:id` | Detail | ObjectId `id` | `200` / `404` |
+| PUT | `/customers/:id` | Update | partial customer fields | `200` / `404` |
+| DELETE | `/customers/:id` | Delete | ObjectId `id` | `200` / `404` |
+
+Sales keep a `customerName` snapshot, so editing/deleting a customer does not
+rewrite historical invoices.
+
 ## Purchases
 
 Source: `server/src/modules/purchase/routes/purchase.route.ts`, `services/purchaseOrder.service.ts`
@@ -160,8 +181,11 @@ The router applies `verifyToken` again (redundant). Mount roles: all three.
 | PATCH | `/purchases/:id/approve` | Approve | — | — | `200` `{ message }`; `400` if not pending or empty; `404` |
 | POST | `/purchases/:id/receive` | Receive goods and create batches | `items[]` | param + `receivePurchaseOrderSchema` | `200` `{ message, data: { message } }` |
 | PATCH | `/purchases/:id/recalculate` | Recompute and persist total | — | — | `200` `{ message, data: { subtotal, discount, taxable, vatAmount, totalAmount } }` |
+| POST | `/purchases/:id/invoice` | Upload invoice file | multipart `file` (PDF/PNG/JPEG, max 5MB) | param schema | `200` updated PO |
+| GET | `/purchases/:id/invoice` | Download invoice file | — | param schema | file / `404` |
 | GET | `/purchases/:id/items` | List items | — | — | `200` `{ message, data: items[] }`; `404` PO |
 | GET | `/purchases/supplier/:supplierId` | POs for supplier | — | — | `200` `{ message, data }`; `404` supplier |
+| GET | `/purchases/suppliers/:id/performance` | Supplier delivery performance | — | — | `200` counts, on-time rate, average delay, recent receipts |
 
 #### Create body
 
@@ -211,17 +235,16 @@ Schema notes:
 
 Receive rules:
 
-1. PO must exist and be `approved`.
+1. PO must exist and be `approved` or `partially_received`.
 2. PO must have items.
-3. Request items must be unique by `medicineId`.
-4. Item count must exactly equal the PO item count.
-5. Every PO medicine must appear.
-6. `quantityReceived` must equal the ordered quantity.
-7. `sellingPrice >= purchasePrice` (no equality restriction beyond that).
-8. One batch is created per PO item; aggregate inventory is synced in the same transaction.
-9. PO becomes `received` with `receivedDate = now`.
+3. Each receipt line targets `purchaseOrderItemId` (or `medicineId` for older clients) and has a unique batch number for that item.
+4. `quantityReceived` must not exceed ordered quantity minus `receivedQuantity`.
+5. `sellingPrice >= purchasePrice`.
+6. One batch is created per receipt line; aggregate inventory is synced in the same transaction.
+7. PO item `receivedQuantity` is incremented; the PO becomes `partially_received` until every line is complete, then `received` with `receivedDate`.
+8. Multiple receipts and multiple batches per PO item are supported.
 
-No partial receiving, over-receiving, or batch splitting is supported.
+Over-receiving is rejected.
 
 Errors: `400` for each rule above, `404` PO/user/supplier, `500` for batch validation failures or duplicate batch numbers.
 
@@ -256,6 +279,7 @@ Body, ObjectId-param, and search-query schemas are wired. All responses are `{ s
 | GET | `/inventory/:id` | Get | ObjectId `id` | `200` / `404` | |
 | GET | `/inventory/medicine/:medicineId` | Get by medicine | ObjectId `medicineId` | `200` / `404` | |
 | GET | `/inventory/medicines/search` | Sellable medicine search | `?query=` | `200` | Requires `availableStock > 0`; active medicines only; escaped regex |
+| GET | `/inventory/reconciliation` | Aggregate vs batch-stock reconciliation | — | `200` rows with `aggregateStock`, `batchStock`, `variance`, `reconciled` |
 | POST | `/inventory/:medicineId/increase` | Increase batch + aggregate | `quantity` > 0, `batchId`, `referenceId`, `referenceType`, `movementType`, `remarks?` | `200` | `movementType` must be `PURCHASE` or `RETURN`; `409` if above `quantityReceived` |
 | POST | `/inventory/:medicineId/decrease` | Decrease batch + aggregate | same | `200` | `movementType` must be `SALE`, `EXPIRED`, or `ADJUSTMENT`; `409` insufficient batch stock |
 | POST | `/inventory/:medicineId/reserve` | Increase reserved, reduce available | `quantity` > 0, `batchId?`, `referenceId`, `referenceType`, `remarks?` | `200` | Maintains `reservedStock`; `400` if over available |
@@ -325,15 +349,18 @@ Behavior:
 - VAT is 13% of `subtotal - line discounts - invoice discount`; the invoice
   discount cannot exceed `subtotal - line discounts`.
 - Line discounts, line totals, and sale totals are rounded to two decimals.
-- Payment method is recorded but no payment transaction is created.
+- Non-credit payment methods create a full `PAYMENT` ledger row in the same transaction; `CREDIT` sales start unpaid and are settled through `/sales/:id/payments`.
 
 ### Other sale endpoints
 
 | Method | Path | Purpose | Body | Success |
 |---|---|---|---|---|
-| GET | `/sales` | List sales | `cursor?`, `limit?`, `search?`, `status?`, `cashierId?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Cashier populated |
+| GET | `/sales` | List sales | `cursor?`, `limit?`, `search?`, `status?`, `cashierId?`, `customerId?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Cashier populated |
 | GET | `/sales/:id` | Sale + items | — | `200` `{ success, data: { ...sale, items } }` / `404` |
-| PATCH | `/sales/:id` | Edit customer/payment | `customerName?`, `paymentMethod?` | `200` `{ success, data }` / `404` |
+| GET | `/sales/:id/invoice` | Print-ready invoice payload | — | `200` `{ sale, items, payments, summary }` / `404` |
+| GET | `/sales/:id/payments` | Payment ledger + balance | — | `200` `{ items, summary: { totalAmount, paidAmount, amountDue } }` |
+| POST | `/sales/:id/payments` | Record a settlement | `amount`, `method`, `reference?`, `idempotencyKey?` | `201` payment; `400` overpayment |
+| PATCH | `/sales/:id` | Edit customer/payment | `customerId?`, `customerName?`, `paymentMethod?` | `200` `{ success, data }` / `404` |
 | DELETE | `/sales/:id` | Delete and restore stock | — | `200` `{ success, message }` / `404` / `409` if returns exist |
 
 `updateSaleSchema` accepts `customerName` and/or `paymentMethod`; empty updates return `400`. Financial fields and quantities cannot be edited through this endpoint. ObjectId params are validated.
@@ -371,7 +398,13 @@ Source: `server/src/modules/sales/routes/return.routes.ts`, `services/return.ser
   "returnedBy": "665f...",
   "returnDate": "2026-02-11T09:00:00.000Z",
   "items": [
-    { "saleItemId": "665f...", "quantity": 1, "condition": "GOOD", "remarks": "unopened" }
+    {
+      "saleItemId": "665f...",
+      "quantity": 1,
+      "condition": "GOOD",
+      "restockingFee": 0,
+      "remarks": "unopened"
+    }
   ]
 }
 ```
@@ -412,6 +445,7 @@ PENDING ──approve──> APPROVED ──complete──> COMPLETED
 | PATCH | `/returns/:id/reject` | owner, inventory_manager | `PENDING → REJECTED` |
 | PATCH | `/returns/:id/cancel` | all three | `PENDING → CANCELLED` |
 | PATCH | `/returns/:id/complete` | all three | `APPROVED → COMPLETED`; applies stock and refund |
+| PATCH | `/returns/:id/reverse` | owner, inventory_manager | `COMPLETED → REVERSED`; deducts GOOD stock again, restores returned quantities, reverses the refund |
 
 Invalid transitions return `409`; an unknown return returns `404`.
 
@@ -443,6 +477,27 @@ not exceed the net amount paid.
 
 No DELETE. Reversing a completed return is not implemented.
 
+## Purchase returns
+
+Source: `server/src/modules/purchaseReturn/routes/purchaseReturn.routes.ts`
+
+Supplier returns deduct batch stock and record a supplier credit.
+
+| Method | Path | Purpose | Input | Success |
+|---|---|---|---|---|
+| POST | `/purchase-returns` | Create a pending return | `purchaseOrderId`, `returnReason`, `returnDate`, `items[{batchId, quantity, remarks?}]` | `201`; `400` if the batch/quantity is invalid |
+| GET | `/purchase-returns` | List | `cursor?`, `limit?`, `status?`, `supplierId?`, `purchaseOrderId?`, `from?`, `to?` | `200` `{ items, nextCursor }` |
+| GET | `/purchase-returns/:id` | Detail | ObjectId `id` | `200` / `404` |
+| PATCH | `/purchase-returns/:id/approve` | Approve | — | `200`; `409` unless pending |
+| PATCH | `/purchase-returns/:id/reject` | Reject | — | `200`; `409` unless pending |
+| PATCH | `/purchase-returns/:id/cancel` | Cancel | — | `200`; `409` unless pending |
+| PATCH | `/purchase-returns/:id/complete` | Deduct stock and write supplier credit | — | `200`; `409` unless approved |
+| GET | `/purchase-returns/suppliers/:supplierId/ledger` | Supplier credit ledger | — | `200` balance + entries |
+
+Only received purchase orders can be returned. Each batch must belong to the
+order and the quantity cannot exceed `quantityRemaining`. Completion writes one
+`PURCHASE_RETURN` movement per line.
+
 ## Batches
 
 Source: `server/src/modules/batch/routes/batch.routes.ts`
@@ -472,6 +527,21 @@ Important: the destructive `GET /batches/medicine/:medicineId/allocate` endpoint
 
 Details: [batches.md](../modules/batches.md).
 
+## Stocktakes
+
+Source: `server/src/modules/stocktake/routes/stocktake.routes.ts`
+
+Owner/inventory-manager only.
+
+| Method | Path | Purpose | Input |
+|---|---|---|---|
+| POST | `/stocktakes` | Start a stocktake | `items[{batchId, countedQuantity, remarks?}]`, `notes?` |
+| GET | `/stocktakes` | List | `cursor?`, `limit?`, `status?` |
+| GET | `/stocktakes/:id` | Detail | ObjectId `id` |
+| PATCH | `/stocktakes/:id` | Replace counts/notes | `items?`, `notes?` |
+| POST | `/stocktakes/:id/complete` | Apply counts via `setBatchStock` and `ADJUSTMENT` movements | — |
+| POST | `/stocktakes/:id/cancel` | Cancel | — |
+
 ## Smart reorders
 
 Source: `server/src/modules/smartReorder/routes/smartReorder.routes.ts`
@@ -487,8 +557,9 @@ Router-level roles: all three. Additional checks:
 | GET | `/smart-reorders/pending` | Pending list | — | `200` | |
 | GET | `/smart-reorders/medicine/:medicineId` | By medicine | — | `200`; `404` medicine | Multiple recommendations possible |
 | GET | `/smart-reorders/:id` | Detail | — | `200`; `404` | |
-| PATCH | `/smart-reorders/:id/approve` | Approve | — | `200`; `400` if not pending; `404` | Status change only |
-| PATCH | `/smart-reorders/:id/reject` | Reject | — | `200`; `400` if not pending; `404` | Status change only |
+| POST | `/smart-reorders` | Manual recommendation | `medicineId`, `supplierId`, `suggestedQuantity`, `confidenceScore`, `recommendationReason` | `201` | Owner/inventory manager |
+| PATCH | `/smart-reorders/:id/approve` | Approve | `{ createPurchaseOrder?: boolean }` | `200`; `400` if not pending; `404` | Records approver/time; optional draft PO |
+| PATCH | `/smart-reorders/:id/reject` | Reject | `{ reason? }` | `200`; `400` if not pending; `404` | Records rejecter/time/reason |
 | POST | `/smart-reorders/generate` | Generate for all medicines | body ignored | `200` `{ results[] }` | Each item: `created` or `skipped` (with `reason`) |
 | POST | `/smart-reorders/generate/:medicineId` | Generate one | — | `201` recommendation | `400` not below ROP (cache miss) or no purchase history; `404` medicine; cached negative result returns `201` with `reorderNeeded: false` |
 | DELETE | `/smart-reorders/:id` | Delete | — | `200` `{ message }`; `404` | Owner only |
@@ -517,6 +588,11 @@ Source: `server/src/modules/notification/routes/notification.routes.ts`
 | GET | `/notifications/preferences/:userId` | Self or owner | — | `200`; `403` |
 | PATCH | `/notifications/preferences/:userId` | Owner only (validated body) | `email?`, `sms?` | `200`; `403` |
 | DELETE | `/notifications/:id` | Delete + recipients | — | `200` `{ success: true, message }`; `404` |
+
+Notification templates live at `/notification-templates`: owner-only create/
+update/delete, all roles read, and `POST /notification-templates/:id/render`
+with `{ data }` renders `{{placeholders}}`. Templates are not yet wired into
+notification creation.
 
 Create checks:
 
@@ -558,6 +634,10 @@ All endpoints are `GET`, return `{ success: true, data }`, and accept no body.
 | `/dashboard/purchases` | Purchase analytics | — | `totalPurchases`, `purchasesByStatus[]` |
 | `/dashboard/inventory` | Inventory analytics | — | `totalValue`, `inventoryHealth`, `lowStockCount`, `outOfStockCount`, `expiringSoonCount` |
 | `/dashboard/top-selling` | Top medicines | `limit` > 0 (default 10) | `medicineId`, `medicineName`, `strength`, `totalQuantitySold`, `totalRevenue` (net of returns) |
+| `/dashboard/range` | Range analytics | `from`, `to` | profit, sales/VAT, refunds |
+| `/dashboard/by-cashier` | Sales by cashier | `from`, `to` | cashier, total, count |
+| `/dashboard/by-category` | Sales by category | `from`, `to` | category, quantity, total |
+| `/dashboard/export` | CSV export | `type=sales\|purchases\|returns\|inventory`, `from`, `to` | `text/csv` attachment |
 
 Invalid `limit` or `year` → `400`; both must be whole numbers. Reporting periods
 use `REPORTING_TIMEZONE` (default `Asia/Kathmandu`). Only `/dashboard` is cached
@@ -567,9 +647,10 @@ Details: [reporting.md](../modules/reporting.md).
 
 ## Coverage notes
 
-- Some list endpoints have no way to filter by medicine, date range, or status.
-- `GET /users/active` and one duplicate status route cannot be reached; see [API overview](api-overview.md#9-route-ordering-caveats).
+- Most main lists support cursor pagination and common filters. Range analytics, CSV export, by-cashier/by-category breakdowns, and reconciliation are implemented under `/dashboard` and `/inventory`.
+- `GET /users/active` and the status routes are reachable; the duplicate/dead routes were removed in Phase 3.
 - Batch and inventory services now throw `AppError`, so ordinary "not found"/conflict conditions return 404/409 instead of 500.
+- Phase 6.1 added `POST /users/:id/reset-password`, `POST /users/:id/force-logout`, and the owner-only `GET /audit`.
 
 ## Related documents
 

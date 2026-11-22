@@ -7,6 +7,7 @@ import type {
 } from "../schema/user.schema.ts";
 import type { UserService } from "../service/user.service.js";
 import { toPublicUser } from "../utils/publicUser.ts";
+import { extractRequestContext } from "../../../shared/utils/requestContext.ts";
 
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -19,15 +20,25 @@ export class UserController {
     return role;
   }
 
+  private actor(req: Request): { role: string; userId?: string } {
+    return {
+      role: this.actorRole(req),
+      ...(req.user?.userId ? { userId: req.user.userId } : {}),
+    };
+  }
+
   async createUser(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
     try {
+      const actor = this.actor(req);
       const newUser = await this.userService.createUser(
         req.body,
-        this.actorRole(req),
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
       );
       res.status(201).json(toPublicUser(newUser));
     } catch (error) {
@@ -60,10 +71,13 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
+      const actor = this.actor(req);
       const updatedUser = await this.userService.updateUser(
         userId,
         req.body,
-        this.actorRole(req),
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
       );
       if (!updatedUser) {
         res.status(404).json({ message: "User not found" });
@@ -82,9 +96,12 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
+      const actor = this.actor(req);
       const deletedUser = await this.userService.deleteUser(
         userId,
-        this.actorRole(req),
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
       );
       if (!deletedUser) {
         res.status(404).json({ message: "User not found" });
@@ -232,9 +249,12 @@ export class UserController {
   ): Promise<void> {
     try {
       const userId = req.params.id as string;
+      const actor = this.actor(req);
       await this.userService.toggleUserActivation(
         userId,
-        this.actorRole(req),
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
       );
       res.status(200).json({ message: "User activation toggled successfully" });
     } catch (error) {
@@ -250,16 +270,59 @@ export class UserController {
     try {
       const userId = req.params.id as string;
       const { role } = req.body as ChangeUserRoleDto;
+      const actor = this.actor(req);
       const updatedUser = await this.userService.changeRole(
         userId,
         role,
-        this.actorRole(req),
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
       );
       if (!updatedUser) {
         res.status(404).json({ message: "User not found" });
         return;
       }
       res.status(200).json(toPublicUser(updatedUser));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetUserPassword(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const userId = req.params.id as string;
+      const actor = this.actor(req);
+      const result = await this.userService.adminResetPassword(
+        userId,
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forceLogout(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const userId = req.params.id as string;
+      const actor = this.actor(req);
+      const result = await this.userService.forceLogout(
+        userId,
+        actor.role,
+        actor.userId,
+        extractRequestContext(req),
+      );
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

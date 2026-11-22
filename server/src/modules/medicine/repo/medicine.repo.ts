@@ -21,7 +21,13 @@ export class MedicineRepo {
   }
 
   async findById(id: string): Promise<IMedicine | null> {
-    return this.medicineModel.findById(id).lean().exec();
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    return this.medicineModel
+      .findById(new Types.ObjectId(id))
+      .lean()
+      .exec();
   }
 
   async searchMedicines(query: string): Promise<IMedicine[]> {

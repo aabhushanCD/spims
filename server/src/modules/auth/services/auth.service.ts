@@ -17,12 +17,24 @@ import {
   getRefreshReuseGraceMs,
   getRefreshTokenTtlMs,
 } from "../utils/authConfig.ts";
+import { AUDIT_ACTIONS } from "../../audit/audit.constants.ts";
+import {
+  noopAuditRecorder,
+  noopLoginAttemptTracker,
+  noopSessionRevocation,
+  noopTokenVersionMaintenance,
+  type AuditRecorder,
+  type LoginAttemptTracker,
+  type SessionRevocation,
+  type TokenVersionMaintenance,
+} from "../../../shared/security/security.types.ts";
 import {
   compareTokenHash,
   generateAccessToken,
   generateOpaqueToken,
   generateRefreshToken,
   hashToken,
+  verifyAccessToken,
   verifyRefreshToken,
 } from "../utils/authTokens.ts";
 import {
@@ -66,6 +78,10 @@ export class AuthService {
     private readonly authSessionRepository: AuthSessionRepo,
     private readonly appError: typeof AppError,
     private readonly mailer: AuthMailer,
+    private readonly loginAttemptTracker: LoginAttemptTracker = noopLoginAttemptTracker,
+    private readonly audit: AuditRecorder = noopAuditRecorder,
+    private readonly sessionRevocation: SessionRevocation = noopSessionRevocation,
+    private readonly tokenVersionMaintenance: TokenVersionMaintenance = noopTokenVersionMaintenance,
   ) {}
 
   async registerUser(userData: RegisterInputDto) {
@@ -134,6 +150,13 @@ export class AuthService {
       emailVerificationExpiresAt: null,
     });
 
+    await this.audit.record({
+      actorId: String(user._id),
+      action: AUDIT_ACTIONS.AUTH_EMAIL_VERIFIED,
+      entityType: "User",
+      entityId: String(user._id),
+    });
+
     return {
       message: "Email verified successfully. You can now sign in.",
     };
@@ -171,9 +194,35 @@ export class AuthService {
     context: RequestContext,
   ): Promise<AuthResult> {
     const email = loginData.email.toLowerCase();
+
+    const lockout = await this.loginAttemptTracker.check(email);
+    if (lockout.locked) {
+      await this.recordLoginAudit({
+        action: AUDIT_ACTIONS.AUTH_LOGIN_LOCKED,
+        email,
+        context,
+        status: "FAILURE",
+        reason: "account_locked",
+      });
+      throw this.accountLockedError(lockout.retryAfterSeconds);
+    }
+
     const user = await this.userRepository.findByEmailWithPassword(email);
 
     if (!user || !user.password) {
+      const state = await this.loginAttemptTracker.recordFailure(email);
+      await this.recordLoginAudit({
+        action: state.locked
+          ? AUDIT_ACTIONS.AUTH_LOGIN_LOCKED
+          : AUDIT_ACTIONS.AUTH_LOGIN_FAILURE,
+        email,
+        context,
+        status: "FAILURE",
+        reason: state.locked ? "account_locked" : "invalid_credentials",
+      });
+      if (state.locked) {
+        throw this.accountLockedError(state.retryAfterSeconds);
+      }
       throw this.appError.unauthorized("Invalid email or password");
     }
 
@@ -183,12 +232,40 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
+      const state = await this.loginAttemptTracker.recordFailure(email);
+      await this.recordLoginAudit({
+        action: state.locked
+          ? AUDIT_ACTIONS.AUTH_LOGIN_LOCKED
+          : AUDIT_ACTIONS.AUTH_LOGIN_FAILURE,
+        email,
+        userId: String(user._id),
+        role: user.role,
+        context,
+        status: "FAILURE",
+        reason: state.locked ? "account_locked" : "invalid_credentials",
+      });
+      if (state.locked) {
+        throw this.accountLockedError(state.retryAfterSeconds);
+      }
       throw this.appError.unauthorized("Invalid email or password");
     }
+
+    // A correct password clears the failure counter even if the account is
+    // later rejected for being deactivated or unverified.
+    await this.loginAttemptTracker.recordSuccess(email);
 
     // Status checks deliberately happen after the password comparison so an
     // attacker cannot enumerate deactivated or unverified accounts.
     if (!user.isActive) {
+      await this.recordLoginAudit({
+        action: AUDIT_ACTIONS.AUTH_LOGIN_FAILURE,
+        email,
+        userId: String(user._id),
+        role: user.role,
+        context,
+        status: "FAILURE",
+        reason: "account_deactivated",
+      });
       throw this.appError.forbidden(
         "This account has been deactivated. Contact an administrator.",
         "ACCOUNT_DEACTIVATED",
@@ -196,6 +273,15 @@ export class AuthService {
     }
 
     if (user.emailVerified === false) {
+      await this.recordLoginAudit({
+        action: AUDIT_ACTIONS.AUTH_LOGIN_FAILURE,
+        email,
+        userId: String(user._id),
+        role: user.role,
+        context,
+        status: "FAILURE",
+        reason: "email_not_verified",
+      });
       throw new AppError(
         "Please verify your email address before signing in",
         403,
@@ -209,6 +295,14 @@ export class AuthService {
     });
 
     const tokens = await this.issueSession(user, context);
+
+    await this.recordLoginAudit({
+      action: AUDIT_ACTIONS.AUTH_LOGIN_SUCCESS,
+      email,
+      userId: String(user._id),
+      role: user.role,
+      context,
+    });
 
     return {
       user: toPublicUser({ ...user, lastLogin: loginAt }),
@@ -264,6 +358,15 @@ export class AuthService {
       // The token is valid but does not match the current or recently rotated
       // hash. Treat it as possible reuse/theft and revoke the whole session.
       await this.authSessionRepository.revoke(String(session._id));
+      await this.audit.record({
+        actorId: payload.userId,
+        action: AUDIT_ACTIONS.AUTH_REFRESH_REUSE_DETECTED,
+        entityType: "AuthSession",
+        entityId: String(session._id),
+        status: "FAILURE",
+        ip: context.ip,
+        userAgent: context.userAgent,
+      });
       throw this.appError.unauthorized(
         "Your session has expired. Please sign in again.",
         "INVALID_REFRESH_TOKEN",
@@ -290,6 +393,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       sessionId,
+      ver: user.tokenVersion ?? 0,
     });
     const now = Date.now();
 
@@ -317,22 +421,64 @@ export class AuthService {
     };
   }
 
-  async logoutSession(refreshToken?: string) {
+  async logoutSession(refreshToken?: string, accessToken?: string) {
     if (refreshToken) {
       try {
         const payload = verifyRefreshToken(refreshToken);
         await this.authSessionRepository.revoke(payload.sessionId);
+        await this.sessionRevocation.revokeSessionAccessToken(
+          payload.sessionId,
+        );
+        await this.audit.record({
+          actorId: payload.userId,
+          action: AUDIT_ACTIONS.AUTH_LOGOUT,
+          entityType: "AuthSession",
+          entityId: payload.sessionId,
+        });
+        return { message: "User logged out successfully" };
       } catch {
-        // An expired or malformed refresh token still results in cleared
-        // cookies; there is nothing else to revoke.
+        // Fall through to the access-token path below. An expired or malformed
+        // refresh token must not prevent revoking a still-valid access token.
+      }
+    }
+
+    if (accessToken) {
+      try {
+        const payload = verifyAccessToken(accessToken);
+        if (payload.sessionId) {
+          await this.sessionRevocation.revokeSessionAccessToken(
+            payload.sessionId,
+          );
+          await this.audit.record({
+            actorId: payload.userId,
+            action: AUDIT_ACTIONS.AUTH_LOGOUT,
+            entityType: "AuthSession",
+            entityId: payload.sessionId,
+          });
+        }
+      } catch {
+        // Expired/malformed access tokens are already unusable.
       }
     }
 
     return { message: "User logged out successfully" };
   }
 
-  async logoutAllSessions(userId: string) {
+  async logoutAllSessions(userId: string, context?: RequestContext) {
     await this.authSessionRepository.revokeAllForUser(userId);
+    const tokenVersion = await this.userRepository.incrementTokenVersion(userId);
+    if (tokenVersion !== null) {
+      await this.tokenVersionMaintenance.invalidate(userId);
+    }
+    await this.audit.record({
+      actorId: userId,
+      action: AUDIT_ACTIONS.AUTH_LOGOUT_ALL,
+      entityType: "User",
+      entityId: userId,
+      ip: context?.ip,
+      userAgent: context?.userAgent,
+    });
+
     return { message: "All sessions have been signed out" };
   }
 
@@ -365,6 +511,13 @@ export class AuthService {
     }
 
     await this.authSessionRepository.revoke(sessionId);
+    await this.sessionRevocation.revokeSessionAccessToken(sessionId);
+    await this.audit.record({
+      actorId: userId,
+      action: AUDIT_ACTIONS.AUTH_SESSION_REVOKED,
+      entityType: "AuthSession",
+      entityId: sessionId,
+    });
 
     return {
       message: "Session revoked successfully",
@@ -389,6 +542,13 @@ export class AuthService {
       });
 
       const resetUrl = `${getClientUrl()}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+      await this.audit.record({
+        actorId: String(user._id),
+        action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_REQUESTED,
+        entityType: "User",
+        entityId: String(user._id),
+      });
 
       try {
         await this.mailer.sendPasswordResetEmail({
@@ -435,6 +595,17 @@ export class AuthService {
     // merely signed out and can retry with the same reset link.
     await this.authSessionRepository.revokeAllForUser(String(user._id));
 
+    // Invalidate access tokens before changing the password. If the password
+    // write then fails, the user is merely signed out and can reuse the reset
+    // link; the reverse order could leave old tokens valid after a successful
+    // password change.
+    const tokenVersion = await this.userRepository.incrementTokenVersion(
+      String(user._id),
+    );
+    if (tokenVersion !== null) {
+      await this.tokenVersionMaintenance.invalidate(String(user._id));
+    }
+
     await this.userRepository.updateAuthFields(String(user._id), {
       password,
       emailVerified: true,
@@ -444,6 +615,13 @@ export class AuthService {
       passwordResetExpiresAt: null,
       refreshToken: null,
       refreshTokenExpiresAt: null,
+    });
+
+    await this.audit.record({
+      actorId: String(user._id),
+      action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_COMPLETED,
+      entityType: "User",
+      entityId: String(user._id),
     });
 
     return {
@@ -462,6 +640,39 @@ export class AuthService {
     return toPublicUser(user);
   }
 
+  private accountLockedError(retryAfterSeconds: number): AppError {
+    return this.appError.locked(
+      "Too many failed sign-in attempts. This account is temporarily locked.",
+      "ACCOUNT_LOCKED",
+      retryAfterSeconds,
+    );
+  }
+
+  private async recordLoginAudit(input: {
+    action: string;
+    email: string;
+    context: RequestContext;
+    userId?: string;
+    role?: string;
+    status?: "SUCCESS" | "FAILURE";
+    reason?: string;
+  }): Promise<void> {
+    await this.audit.record({
+      actorId: input.userId,
+      actorRole: input.role,
+      action: input.action,
+      entityType: "User",
+      entityId: input.userId,
+      status: input.status ?? "SUCCESS",
+      ip: input.context.ip,
+      userAgent: input.context.userAgent,
+      metadata: {
+        email: input.email,
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
+    });
+  }
+
   private async issueSession(
     user: IUser,
     context: RequestContext,
@@ -474,6 +685,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       sessionId,
+      ver: user.tokenVersion ?? 0,
     });
     const now = Date.now();
 

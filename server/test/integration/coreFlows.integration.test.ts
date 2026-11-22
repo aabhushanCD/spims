@@ -26,12 +26,28 @@ const { fakeRedis } = vi.hoisted(() => {
         if (exIndex >= 0) {
           expiries.set(key, Date.now() + Number(args[exIndex + 1]) * 1000);
         }
+        const pxIndex = args.indexOf("PX");
+        if (pxIndex >= 0) {
+          expiries.set(key, Date.now() + Number(args[pxIndex + 1]));
+        }
         return "OK";
       },
-      async del(key: string) {
-        store.delete(key);
-        expiries.delete(key);
-        return 1;
+      async del(...keys: string[]) {
+        for (const key of keys) {
+          store.delete(key);
+          expiries.delete(key);
+        }
+        return keys.length;
+      },
+      async exists(key: string) {
+        return live(key) && store.has(key) ? 1 : 0;
+      },
+      async ttl(key: string) {
+        if (!live(key) || !store.has(key)) {
+          return -2;
+        }
+        const expiry = expiries.get(key);
+        return expiry ? Math.max(0, Math.ceil((expiry - Date.now()) / 1000)) : -1;
       },
       async incr(key: string) {
         const next = Number(store.get(key) ?? 0) + 1;
@@ -72,6 +88,7 @@ import Inventory from "../../src/modules/inventory/model/inventory.model.ts";
 import InventoryMovement from "../../src/modules/inventory/model/inventoryMovement.model.ts";
 import PurchaseOrder from "../../src/modules/purchase/model/purchaseOrder.model.ts";
 import SmartReorder from "../../src/modules/smartReorder/model/smartReorder.model.ts";
+import AuditLog from "../../src/modules/audit/model/auditLog.model.ts";
 import { generateAccessToken } from "../../src/modules/auth/utils/authTokens.ts";
 
 let replSet: MongoMemoryReplSet | undefined;
@@ -94,6 +111,7 @@ async function seedOwner(): Promise<void> {
     email: owner.email,
     role: "owner",
     sessionId: new Types.ObjectId().toString(),
+    ver: 0,
   });
   authCookie = `token=${token}`;
 }
@@ -207,6 +225,7 @@ beforeAll(async () => {
     InventoryMovement.init(),
     PurchaseOrder.init(),
     SmartReorder.init(),
+    AuditLog.init(),
   ]);
   const { createApp } = await import("../../src/app/createApp.ts");
   app = createApp({
@@ -234,6 +253,25 @@ beforeEach(async () => {
 });
 
 describe("HTTP integration flows", () => {
+  it("sets Helmet security headers on public routes", async () => {
+    const response = await request(app).get("/health");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["x-frame-options"]).toBeDefined();
+  });
+
+  it("serves the OpenAPI JSON and Swagger UI outside production", async () => {
+    const json = await request(app).get("/api-docs/openapi.json");
+    expect(json.status).toBe(200);
+    expect(json.body.paths["/auth/login"]).toBeDefined();
+    expect(json.body.components.securitySchemes.cookieAuth).toBeDefined();
+
+    const ui = await request(app).get("/api-docs/");
+    expect(ui.status).toBe(200);
+    expect(ui.headers["content-type"]).toContain("text/html");
+  });
+
   it("completes a purchase receipt with batch, aggregate, and movement", async () => {
     const medicineId = await seedMedicine();
     const supplierId = await seedSupplier();
@@ -452,6 +490,59 @@ describe("HTTP integration flows", () => {
     expect(inventory?.currentStock).toBe(0);
   });
 
+  it("links a customer, settles a credit sale, and returns an invoice payload", async () => {
+    const medicineId = await seedMedicine("Customer Sale Medicine");
+    await seedReceivedStock(medicineId, 10);
+
+    const customer = await authenticated(
+      request(app).post("/api/customers"),
+    ).send({
+      name: "Registered Customer",
+      phone: "+9779800000000",
+    });
+    expect(customer.status).toBe(201);
+    const customerId = customer.body.data._id as string;
+
+    const sale = await authenticated(request(app).post("/api/sales")).send({
+      customerId,
+      paymentMethod: "CREDIT",
+      saleDate: new Date().toISOString(),
+      items: [{ medicineId, quantity: 2 }],
+    });
+    expect(sale.status).toBe(201);
+    expect(sale.body.data.customerName).toBe("Registered Customer");
+    const saleId = sale.body.data._id as string;
+    expect(sale.body.data.customerId).toBe(customerId);
+
+    const invoice = await authenticated(
+      request(app).get(`/api/sales/${saleId}/invoice`),
+    );
+    expect(invoice.status).toBe(200);
+    expect(invoice.body.data.sale.customerId.name).toBe(
+      "Registered Customer",
+    );
+    expect(invoice.body.data.items[0].medicineId.medicineName).toBe(
+      "Customer Sale Medicine",
+    );
+    expect(invoice.body.data.summary.amountDue).toBe(
+      sale.body.data.totalAmount,
+    );
+
+    const payment = await authenticated(
+      request(app).post(`/api/sales/${saleId}/payments`),
+    ).send({
+      amount: sale.body.data.totalAmount,
+      method: "CASH",
+    });
+    expect(payment.status).toBe(201);
+
+    const settled = await authenticated(
+      request(app).get(`/api/sales/${saleId}/payments`),
+    );
+    expect(settled.status).toBe(200);
+    expect(settled.body.data.summary.amountDue).toBe(0);
+  });
+
   it("generates one recommendation per medicine and keeps negative cache semantics", async () => {
     const medicineId = await seedMedicine("Reorder Medicine");
     const supplierId = await seedSupplier();
@@ -523,5 +614,48 @@ describe("HTTP integration flows", () => {
       request(app).post(`/api/smart-reorders/generate/${overstockedId}`),
     );
     expect(negativeSecond.status).toBe(400);
+  });
+
+  it("invalidates access tokens on force logout and writes an audit row", async () => {
+    const target = await User.create({
+      name: "Force Logout Target",
+      email: `target-${new Types.ObjectId().toString()}@test.local`,
+      password: "not-used-by-token-tests",
+      role: "pharmacist",
+      emailVerified: true,
+      isActive: true,
+      tokenVersion: 0,
+    });
+    const targetId = target._id.toString();
+    const targetToken = generateAccessToken({
+      userId: targetId,
+      email: target.email,
+      role: "pharmacist",
+      sessionId: new Types.ObjectId().toString(),
+      ver: 0,
+    });
+    const targetCookie = `token=${targetToken}`;
+
+    const before = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", targetCookie);
+    expect(before.status).toBe(200);
+
+    const response = await authenticated(
+      request(app).post(`/api/users/${targetId}/force-logout`),
+    ).send({});
+    expect(response.status).toBe(200);
+
+    const after = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", targetCookie);
+    expect(after.status).toBe(401);
+    expect(after.body).toMatchObject({ code: "SESSION_REVOKED" });
+
+    const audit = await AuditLog.findOne({
+      action: "USER_FORCE_LOGOUT",
+      entityId: targetId,
+    }).lean();
+    expect(audit).not.toBeNull();
   });
 });

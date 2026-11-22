@@ -23,6 +23,13 @@ export class InventoryController {
     return this.inventoryMovementService;
   }
 
+  getReconciliationReport = asyncHandler(
+    async (_req: Request, res: Response) => {
+      const data = await this.inventoryService.getReconciliationReport();
+      res.status(200).json({ success: true, data });
+    },
+  );
+
   getMovements = asyncHandler(async (req: Request, res: Response) => {
     const page = await this.requireMovementService().getMovementsPage(
       req.query as unknown as InventoryMovementListQuery,

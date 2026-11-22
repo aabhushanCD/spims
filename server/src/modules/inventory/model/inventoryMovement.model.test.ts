@@ -12,6 +12,7 @@ const REFERENCE_TYPES = [
   "ADJUSTMENT",
   "RESERVE",
   "RELEASE",
+  "PURCHASE_RETURN",
   "SYSTEM",
 ] as const;
 

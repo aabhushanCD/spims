@@ -21,6 +21,7 @@ export interface IUser extends Document {
   emailVerificationExpiresAt?: Date | null;
   passwordResetTokenHash?: string | null;
   passwordResetExpiresAt?: Date | null;
+  tokenVersion: number;
   provider: "local" | "google";
   createdAt: Date;
   updatedAt: Date;
@@ -124,6 +125,14 @@ const UserSchema = new Schema<IUser>(
       type: Date,
       default: null,
       select: false,
+    },
+
+    // Included in access tokens so a role change, password reset, or admin
+    // force-logout can invalidate every access token before its TTL expires.
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

@@ -7,6 +7,7 @@ import type { UserRepository } from "../../user/repo/user.repo.js";
 import type { AuthSessionRepo } from "../repo/authSession.repo.ts";
 import type { AuthMailer } from "./auth.mailer.ts";
 import {
+  generateAccessToken,
   generateRefreshToken,
   hashToken,
 } from "../utils/authTokens.ts";
@@ -58,6 +59,7 @@ describe("AuthService", () => {
     findById: vi.fn(),
     create: vi.fn(),
     updateAuthFields: vi.fn(),
+    incrementTokenVersion: vi.fn(),
     findByPasswordResetTokenHash: vi.fn(),
     findByEmailVerificationTokenHash: vi.fn(),
   };
@@ -77,12 +79,26 @@ describe("AuthService", () => {
     sendPasswordResetEmail: vi.fn(),
   };
 
+  const loginAttemptTracker = {
+    check: vi.fn(),
+    recordFailure: vi.fn(),
+    recordSuccess: vi.fn(),
+  };
+
+  const audit = { record: vi.fn() };
+  const sessionRevocation = { revokeSessionAccessToken: vi.fn() };
+  const tokenVersionMaintenance = { invalidate: vi.fn() };
+
   const createService = () =>
     new AuthService(
       userRepository as unknown as UserRepository,
       authSessionRepository as unknown as AuthSessionRepo,
       AppError,
       mailer as unknown as AuthMailer,
+      loginAttemptTracker,
+      audit,
+      sessionRevocation,
+      tokenVersionMaintenance,
     );
 
   beforeEach(() => {
@@ -98,6 +114,19 @@ describe("AuthService", () => {
     authSessionRepository.revokeAllForUser.mockResolvedValue(undefined);
     authSessionRepository.revokeOldestForUser.mockResolvedValue(undefined);
     userRepository.updateAuthFields.mockResolvedValue(null);
+    userRepository.incrementTokenVersion.mockResolvedValue(1);
+    loginAttemptTracker.check.mockResolvedValue({
+      locked: false,
+      retryAfterSeconds: 0,
+    });
+    loginAttemptTracker.recordFailure.mockResolvedValue({
+      locked: false,
+      retryAfterSeconds: 0,
+    });
+    loginAttemptTracker.recordSuccess.mockResolvedValue(undefined);
+    audit.record.mockResolvedValue(undefined);
+    sessionRevocation.revokeSessionAccessToken.mockResolvedValue(undefined);
+    tokenVersionMaintenance.invalidate.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -285,6 +314,82 @@ describe("AuthService", () => {
       });
       expect(result.user).not.toHaveProperty("password");
       expect(result.user).not.toHaveProperty("refreshToken");
+    });
+
+    it("rejects a locked account before checking credentials", async () => {
+      loginAttemptTracker.check.mockResolvedValue({
+        locked: true,
+        retryAfterSeconds: 120,
+      });
+
+      await expect(
+        createService().loginUser(
+          { email: "asha@example.com", password: "password123" },
+          requestContext,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 423,
+        code: "ACCOUNT_LOCKED",
+        headers: { "Retry-After": "120" },
+      });
+
+      expect(userRepository.findByEmailWithPassword).not.toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "AUTH_LOGIN_LOCKED" }),
+      );
+    });
+
+    it("records a failure and locks when the threshold is reached", async () => {
+      userRepository.findByEmailWithPassword.mockResolvedValue(buildUser());
+      vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+      loginAttemptTracker.recordFailure.mockResolvedValue({
+        locked: true,
+        retryAfterSeconds: 900,
+      });
+
+      await expect(
+        createService().loginUser(
+          { email: "asha@example.com", password: "wrong-password" },
+          requestContext,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 423,
+        code: "ACCOUNT_LOCKED",
+      });
+
+      expect(loginAttemptTracker.recordFailure).toHaveBeenCalledWith(
+        "asha@example.com",
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "AUTH_LOGIN_LOCKED",
+          status: "FAILURE",
+        }),
+      );
+    });
+
+    it("clears the failure counter and audits a successful login", async () => {
+      const userId = "507f1f77bcf86cd799439011";
+      userRepository.findByEmailWithPassword.mockResolvedValue(
+        buildUser({ _id: userId }),
+      );
+      vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+
+      await createService().loginUser(
+        { email: "asha@example.com", password: "password123" },
+        requestContext,
+      );
+
+      expect(loginAttemptTracker.recordSuccess).toHaveBeenCalledWith(
+        "asha@example.com",
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "AUTH_LOGIN_SUCCESS",
+          actorId: userId,
+          status: "SUCCESS",
+        }),
+      );
     });
   });
 
@@ -539,6 +644,17 @@ describe("AuthService", () => {
       expect(
         authSessionRepository.revokeAllForUser,
       ).toHaveBeenCalledWith("user-1");
+      expect(userRepository.incrementTokenVersion).toHaveBeenCalledWith(
+        "user-1",
+      );
+      expect(tokenVersionMaintenance.invalidate).toHaveBeenCalledWith(
+        "user-1",
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "AUTH_PASSWORD_RESET_COMPLETED",
+        }),
+      );
     });
   });
 
@@ -602,6 +718,42 @@ describe("AuthService", () => {
 
       expect(authSessionRepository.revoke).toHaveBeenCalledWith(
         "session-1",
+      );
+      expect(
+        sessionRevocation.revokeSessionAccessToken,
+      ).toHaveBeenCalledWith("session-1");
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "AUTH_LOGOUT",
+          entityId: "session-1",
+        }),
+      );
+    });
+
+    it("revokes the access token even when the refresh cookie is missing", async () => {
+      const accessToken = generateAccessToken({
+        userId: "user-1",
+        email: "asha@example.com",
+        role: "pharmacist",
+        sessionId: "session-1",
+        ver: 0,
+      });
+
+      await expect(
+        createService().logoutSession(undefined, accessToken),
+      ).resolves.toMatchObject({
+        message: "User logged out successfully",
+      });
+
+      expect(
+        sessionRevocation.revokeSessionAccessToken,
+      ).toHaveBeenCalledWith("session-1");
+      expect(authSessionRepository.revoke).not.toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "AUTH_LOGOUT",
+          entityId: "session-1",
+        }),
       );
     });
   });

@@ -22,7 +22,7 @@ export class SalesController {
         throw AppError.unauthorized("Authenticated user required");
       }
 
-      const { customerName, paymentMethod, saleDate, items } =
+      const { customerId, customerName, paymentMethod, saleDate, items } =
         req.body as CreateSaleDto;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -44,7 +44,8 @@ export class SalesController {
       }
 
       const sale = await this.salesService.createSale({
-        customerName,
+        ...(customerId ? { customerId } : {}),
+        ...(customerName ? { customerName } : {}),
         paymentMethod,
         saleDate,
         cashierId: req.user!.userId,
@@ -68,6 +69,18 @@ export class SalesController {
     }
   }
 
+  // GET /sales/:id/invoice
+  async getInvoice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const invoice = await this.salesService.getInvoice(
+        req.params.id as string,
+      );
+      res.status(200).json({ success: true, data: invoice });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // GET /sales
   async getAllSales(req: Request, res: Response, next: NextFunction) {
     try {
@@ -84,12 +97,13 @@ export class SalesController {
   // body: { customerName?, paymentMethod? } — financial/quantity fields are NOT editable here
   async updateSale(req: Request, res: Response, next: NextFunction) {
     try {
-      const { customerName, paymentMethod } = req.body;
+      const { customerId, customerName, paymentMethod } = req.body;
       const updated = await this.salesService.updateSale(
         req.params.id as string,
         {
-          customerName,
-          paymentMethod,
+          ...(customerId !== undefined ? { customerId } : {}),
+          ...(customerName !== undefined ? { customerName } : {}),
+          ...(paymentMethod !== undefined ? { paymentMethod } : {}),
         },
       );
       res.status(200).json({ success: true, data: updated });

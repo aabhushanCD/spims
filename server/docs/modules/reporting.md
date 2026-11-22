@@ -261,12 +261,12 @@ sequenceDiagram
 | Returned units not excluded from top selling | Fixed | — |
 | `getInventoryHealth.expiringSoonCount` always 0 | Fixed (batch repository) | — |
 | No timezone strategy | Fixed (`REPORTING_TIMEZONE`, default `Asia/Kathmandu`) | — |
-| Refunds recognised by `returnDate`, not completion date | Accepted limitation | Phase 6 |
-| Legacy sale items (pre-snapshot) still use the current batch price for COGS | Accepted limitation | Phase 6 |
-| No arbitrary date-range analytics | Needs decision | Phase 6 |
-| No export (CSV/PDF) | Needs decision | Phase 6 |
+| Refunds recognised by `returnDate`, not completion date | Fixed: `completedAt` with legacy `returnDate` fallback | — |
+| Legacy sale items (pre-snapshot) still use the current batch price for COGS | Partially fixed: migration backfills surviving batches; legacy rows with deleted batches remain | — |
+| No arbitrary date-range analytics | Fixed: `/dashboard/range`, `/by-cashier`, `/by-category` | — |
+| No CSV export | Fixed: `/dashboard/export` for sales/purchases/returns/inventory | — |
 | Dashboard cache not invalidated | Fixed: writes invalidate the cache | — |
-| No per-cashier or per-category breakdown | Needs decision | Phase 6 |
+| No per-cashier or per-category breakdown | Fixed: `/dashboard/by-cashier` and `/by-category` | — |
 
 ## Related documents
 

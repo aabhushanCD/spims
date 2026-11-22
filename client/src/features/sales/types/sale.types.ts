@@ -80,6 +80,44 @@ export interface SaleDetailsItem {
   total: number;
 }
 
+export interface InvoiceItemPayload {
+  _id: string;
+  medicineId: {
+    _id: string;
+    medicineName: string;
+    strength?: string;
+    dosageForm?: string;
+  };
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  totalPrice: number;
+  vatRate?: number;
+}
+
+export interface SaleInvoicePayload {
+  sale: {
+    _id: string;
+    invoiceNumber: string;
+    customerName: string;
+    customerId?: { name?: string; phone?: string; email?: string } | null;
+    cashierId?: { name?: string };
+    paymentMethod: PaymentMethod;
+    status: SaleStatus;
+    saleDate: string;
+    subTotal: number;
+    discount: number;
+    VAT: number;
+    totalAmount: number;
+  };
+  items: InvoiceItemPayload[];
+  summary: {
+    totalAmount: number;
+    paidAmount: number;
+    amountDue: number;
+  };
+}
+
 export interface SaleDetails {
   _id: string;
   id: string;

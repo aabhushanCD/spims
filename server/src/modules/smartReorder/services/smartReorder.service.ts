@@ -14,6 +14,7 @@ import {
   type CacheInvalidator,
 } from "../../../shared/provider/cacheInvalidator.ts";
 import type { ISmartReorder } from "../model/smartReorder.model.ts";
+import type { PurchaseOrderService } from "../../purchase/services/purchaseOrder.service.ts";
 import { logger } from "../../../shared/logger.ts";
 import {
   calculateWADS,
@@ -28,6 +29,7 @@ import {
 
 export interface CreateSmartReorderDto {
   medicineId: string;
+  supplierId: string;
   suggestedQuantity: number;
   confidenceScore: number;
   recommendationReason: string;
@@ -53,6 +55,7 @@ export class SmartReorderService {
     private readonly supplierRepo: SupplierRepo,
     private readonly appError: typeof AppError,
     private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
+    private readonly purchaseOrderService?: PurchaseOrderService,
   ) {}
 
   // Manual/admin-authored recommendation — bypasses the algorithm entirely.
@@ -73,13 +76,26 @@ export class SmartReorderService {
       );
     }
 
+    const supplier = await this.supplierRepo.findById(dto.supplierId);
+    if (!supplier) {
+      throw this.appError.notFound("Supplier not found");
+    }
+
     const created = await this.smartReorderRepo.create({
       medicineId: new Types.ObjectId(dto.medicineId),
+      supplierId: new Types.ObjectId(dto.supplierId),
       suggestedQuantity: dto.suggestedQuantity,
       confidenceScore: dto.confidenceScore,
       recommendationReason: dto.recommendationReason,
       generatedAt: new Date(),
       status: "PENDING",
+      WADS: 0,
+      demandStdDev: 0,
+      adjustedLeadTime: 0,
+      safetyStock: 0,
+      reorderPoint: 0,
+      currentStock: 0,
+      expiryRiskUnits: 0,
     });
     await this.invalidateDashboard();
     return created;
@@ -214,14 +230,19 @@ export class SmartReorderService {
     }
 
     // 6. Recommended order quantity
-    const roq = calculateROQ({
+    const baseRoq = calculateROQ({
       wads,
       adjustedLeadTime: alt,
       reviewPeriod: REVIEW_PERIOD_DAYS,
       safetyStock,
       currentStock,
       expiryRiskUnits,
+      ...(medicine.moq && medicine.moq > 0 ? { moq: medicine.moq } : {}),
     });
+    const roq =
+      medicine.packSize && medicine.packSize > 1
+        ? Math.ceil(baseRoq / medicine.packSize) * medicine.packSize
+        : baseRoq;
 
     // 7. Confidence score. With no valid delivery delays, fall back to the
     // supplier's persisted score (or full confidence) instead of treating the
@@ -363,7 +384,11 @@ export class SmartReorderService {
     return await this.smartReorderRepo.findByStatus("PENDING");
   }
 
-  async approve(id: string) {
+  async approve(
+    id: string,
+    performedBy?: string,
+    createPurchaseOrder = false,
+  ) {
     const reorder = await this.smartReorderRepo.findById(id);
     if (!reorder) {
       throw this.appError.notFound("Smart reorder recommendation not found");
@@ -373,14 +398,67 @@ export class SmartReorderService {
         `Cannot approve a recommendation with status ${reorder.status}`,
       );
     }
+
+    let purchaseOrderId: Types.ObjectId | undefined;
+    if (createPurchaseOrder) {
+      if (
+        !this.purchaseOrderService ||
+        process.env.SMART_REORDER_AUTO_PO !== "true"
+      ) {
+        throw this.appError.badRequest(
+          "Automatic purchase order creation is disabled or not configured",
+        );
+      }
+      const supplier = await this.supplierRepo.findById(
+        reorder.supplierId.toString(),
+      );
+      if (!supplier || supplier.status !== "active") {
+        throw this.appError.badRequest(
+          "Recommendation supplier is missing or inactive",
+        );
+      }
+      const batches = await this.batchRepo.findAllByMedicineId(
+        reorder.medicineId.toString(),
+      );
+      const purchasePrice = batches[0]?.purchasePrice;
+      if (!purchasePrice || purchasePrice <= 0) {
+        throw this.appError.badRequest(
+          "Cannot auto-create a purchase order without a batch purchase price",
+        );
+      }
+      const purchaseOrder = await this.purchaseOrderService.createPurchaseOrder({
+        supplierId: reorder.supplierId.toString(),
+        orderDate: new Date(),
+        invoiceNumber: `AUTO-${reorder._id.toString()}`,
+        invoiceFile: "",
+        discount: 0,
+        VAT: 13,
+        items: [
+          {
+            medicineId: reorder.medicineId.toString(),
+            quantity: reorder.suggestedQuantity,
+            purchasePrice,
+          },
+        ],
+      });
+      purchaseOrderId = purchaseOrder._id;
+    }
+
     const updated = await this.smartReorderRepo.update(id, {
       status: "APPROVED",
+      ...(performedBy
+        ? {
+            approvedBy: new Types.ObjectId(performedBy),
+            approvedAt: new Date(),
+          }
+        : {}),
+      ...(purchaseOrderId ? { purchaseOrderId } : {}),
     });
     await this.invalidateDashboard();
     return updated;
   }
 
-  async reject(id: string) {
+  async reject(id: string, performedBy?: string, reason?: string) {
     const reorder = await this.smartReorderRepo.findById(id);
     if (!reorder) {
       throw this.appError.notFound("Smart reorder recommendation not found");
@@ -392,6 +470,13 @@ export class SmartReorderService {
     }
     const updated = await this.smartReorderRepo.update(id, {
       status: "REJECTED",
+      ...(performedBy
+        ? {
+            rejectedBy: new Types.ObjectId(performedBy),
+            rejectedAt: new Date(),
+          }
+        : {}),
+      ...(reason ? { rejectionReason: reason } : {}),
     });
     await this.invalidateDashboard();
     return updated;

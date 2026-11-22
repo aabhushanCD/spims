@@ -2,14 +2,23 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
   public readonly code?: string;
+  public readonly headers?: Record<string, string>;
 
-  constructor(message: string, statusCode: number, code?: string) {
+  constructor(
+    message: string,
+    statusCode: number,
+    code?: string,
+    headers?: Record<string, string>,
+  ) {
     super(message);
 
     this.statusCode = statusCode;
     this.isOperational = true;
     if (code !== undefined) {
       this.code = code;
+    }
+    if (headers !== undefined) {
+      this.headers = headers;
     }
 
     Object.setPrototypeOf(this, new.target.prototype);
@@ -59,6 +68,22 @@ export class AppError extends Error {
   // 422
   static unprocessableEntity(message = "Validation failed"): AppError {
     return new AppError(message, 422);
+  }
+
+  // 423
+  static locked(
+    message = "Account temporarily locked",
+    code?: string,
+    retryAfterSeconds?: number,
+  ): AppError {
+    return new AppError(
+      message,
+      423,
+      code,
+      retryAfterSeconds !== undefined
+        ? { "Retry-After": String(Math.max(1, retryAfterSeconds)) }
+        : undefined,
+    );
   }
 
   // 429

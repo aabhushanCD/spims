@@ -84,13 +84,21 @@ The backend implements:
 
 ## Infrastructure Security
 
-SPIMS uses:
+Implemented:
+
+- Environment-based configuration management
+- CI security checks (dependency audit, Gitleaks, CodeQL)
+- Helmet security headers and a CORS/WebSocket origin allow-list
+- Redis-backed auth rate limiting and account lockout
+- Immediate access-token revocation on logout, password reset, role change,
+  deactivation, and owner force-logout
+- Owner-only audit log for authentication and user-admin actions
+
+Not planned for this project (declined):
 
 - Docker containerization
 - NGINX reverse proxy
-- HTTPS support in production environments
-- Environment-based configuration management
-- CI/CD pipeline security checks
+- HTTPS termination and deployment manifests
 
 ---
 

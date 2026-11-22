@@ -20,7 +20,7 @@ Run from the repository root:
 | `npm run lint` | ESLint for server and client |
 | `npm run lint:fix` | ESLint with autofix (does not auto-run in CI) |
 | `npm run typecheck` | `tsc --noEmit` (server) and `tsc -b` (client) |
-| `npm test` | Vitest single run (server) |
+| `npm test` | Unit tests + HTTP/migration integration tests |
 | `npm run test:watch` | Vitest watch mode (server) |
 | `npm run test:coverage` | Vitest with V8 coverage (server) |
 | `npm run build` | `tsc` (server) and `tsc -b && vite build` (client) |
@@ -100,6 +100,7 @@ See `docs/testing.md` for current coverage and integration-testing limitations.
 | Returns/refunds | `server/src/modules/sales/services/return.service.ts` |
 | Reorder math | `server/src/modules/smartReorder/utils/smartReorder.Calculatro.ts` |
 | Authorization | `server/src/shared/middleware/authorize.ts` |
+| Migrations/seeders | `server/src/database/migrations`, `server/src/database/seeders` |
 | CI/CD | `docs/ci-cd.md` |
 | Security policy | `docs/security.md` |
 

@@ -6,13 +6,17 @@ import type {
   UpdatePurchaseOrderItemDto,
 } from "../schema/purchaseOrderItem.schema.js";
 
+export type CreatePurchaseOrderItemInput = CreatePurchaseOrderItemDto & {
+  vatRate?: number;
+};
+
 export class PurchaseOrderItemRepo {
   constructor(
     private readonly purchaseOrderItemModel: typeof PurchaseOrderItem,
   ) {}
 
   async create(
-    purchaseOrderItemData: CreatePurchaseOrderItemDto,
+    purchaseOrderItemData: CreatePurchaseOrderItemInput,
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem> {
     const purchaseOrderItem = new this.purchaseOrderItemModel(
@@ -63,12 +67,16 @@ export class PurchaseOrderItemRepo {
   }
   async update(
     id: string,
-    updateData: UpdatePurchaseOrderItemDto,
+    updateData: UpdatePurchaseOrderItemDto & { receivedQuantity?: number },
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrderItem | null> {
     // Build the update document from known fields only; never pass the raw
     // request body to Mongoose, which would allow operator injection.
-    const update: { quantity?: number; purchasePrice?: number } = {};
+    const update: {
+      quantity?: number;
+      purchasePrice?: number;
+      receivedQuantity?: number;
+    } = {};
     const quantity = Number(updateData.quantity);
     const purchasePrice = Number(updateData.purchasePrice);
     if (Number.isFinite(quantity) && quantity > 0) {
@@ -76,6 +84,13 @@ export class PurchaseOrderItemRepo {
     }
     if (Number.isFinite(purchasePrice) && purchasePrice > 0) {
       update.purchasePrice = purchasePrice;
+    }
+    if (
+      updateData.receivedQuantity !== undefined &&
+      Number.isInteger(updateData.receivedQuantity) &&
+      updateData.receivedQuantity >= 0
+    ) {
+      update.receivedQuantity = updateData.receivedQuantity;
     }
 
     if (session) {

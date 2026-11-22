@@ -6,11 +6,16 @@ import UserDialog from "./UserDialog";
 
 interface Props {
   search: string;
+  canManage?: boolean;
 
   setSearch: (value: string) => void;
 }
 
-export function UserToolbar({ search, setSearch }: Props) {
+export function UserToolbar({
+  search,
+  canManage = false,
+  setSearch,
+}: Props) {
   return (
     <div className="flex justify-between gap-4">
       <Input
@@ -21,7 +26,7 @@ export function UserToolbar({ search, setSearch }: Props) {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <UserDialog />
+      {canManage ? <UserDialog /> : null}
     </div>
   );
 }

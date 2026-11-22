@@ -10,31 +10,39 @@
 | Connection file | `server/src/config/db.config.ts` |
 | Failure behavior | Logs the error and calls `process.exit(1)` |
 | Transactions | Used in several multi-collection flows; requires a replica set |
-| Migrations | None |
-| Seeders | None |
+| Migrations | `src/database/migrations` runner + `migrations` ledger |
+| Seeders | `src/database/seeders` baseline owner/lookups |
 | Schema sync | Mongoose model registration; default `autoIndex` behavior |
 
 Source: `server/src/config/db.config.ts`
 
-There is no migration framework, no schema version field, and no seed command. Collections and indexes are created by Mongoose when a model is first used (subject to `autoIndex`, which is enabled by default and is not overridden anywhere).
+Collections and indexes are created by Mongoose when a model is first used
+(subject to `autoIndex`, which is enabled by default and is not overridden
+anywhere). Ordered data migrations run only when `npm run db:migrate` is
+invoked; they are not executed at application boot. Each applied migration is
+recorded in the `migrations` collection.
 
-One-off data fixes use scripts under `server/src/scripts/` (run through `tsx`
-package scripts, e.g. `npm --prefix server run notification:backfill`). They are
-idempotent, support `--dry-run`, and are documented next to the feature that
-needs them. They are not migrations: there is no ordering, ledger, or automatic
-execution at boot.
+The baseline seeder is idempotent and creates default units/categories/brands/
+generic names plus the first owner. The owner password must be supplied through
+`SEED_OWNER_PASSWORD`; there is no default password. See
+[migrations and seeding](../development/migrations-and-seeding.md).
+
+One-off operational fixes still live under `server/src/scripts/` (for example
+`npm --prefix server run notification:backfill`). New ordered data changes
+should be added as migrations instead.
 
 ## 2. Collections
 
-22 models are registered:
+26 models are registered:
 
 | Domain | Collections |
 |---|---|
 | Identity | `users`, `authsessions` |
+| Audit | `auditlogs` |
 | Catalog | `medicines`, `brands`, `categories`, `genericnames`, `units` |
-| Supply | `suppliers`, `purchaseorders`, `purchaseorderitems` |
+| Supply | `suppliers`, `purchaseorders`, `purchaseorderitems`, `purchasereturns` |
 | Inventory | `batches`, `inventories`, `inventorymovements`, `stockadjustments` |
-| Sales | `sales`, `salesitems`, `returns`, `counters` |
+| Sales | `sales`, `salesitems`, `returns`, `counters`, `customers`, `payments` |
 | Recommendations | `smartreorders` |
 | Notifications | `notifications`, `notificationrecipients` |
 | Operations | `backgroundjobs` |
@@ -43,7 +51,7 @@ execution at boot.
 
 - All schemas are declared in TypeScript with an `I<Name> extends Document` interface.
 - `authsessions` has a TTL index on `expiresAt` and an index on `userId`. The user collection has sparse indexes on the verification and reset token hashes.
-- Most schemas use `{ timestamps: true }`. Three do not: `Inventory`, `SmartReorder`, and `BackgroundJob`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field.
+- Most schemas use `{ timestamps: true }`. `Inventory`, `SmartReorder`, and `BackgroundJob` do not; `AuditLog` records only `createdAt`. `StockAdjustment` has both `timestamps: true` and its own `adjustedAt` field, but the model/service is currently unreachable.
 - No schema uses Mongoose `strict: false`; unknown fields are dropped.
 - No schema uses `versionKey: false`; documents carry `__v`.
 - Enums are enforced by Mongoose validators for document `save()` calls. Updates through `findByIdAndUpdate` do **not** run validators unless `runValidators: true` is set, and no repository sets it.

@@ -32,6 +32,7 @@ describe("inventory movement schema", () => {
       "ADJUSTMENT",
       "RESERVE",
       "RELEASE",
+      "PURCHASE_RETURN",
       "SYSTEM",
     ]) {
       expect(

@@ -18,13 +18,18 @@ import type { User } from "@/features/auth/context/authContext";
 
 interface Props {
   users?: User[];
-
+  canManage?: boolean;
   onEdit: (id: string) => void;
 
   onDelete: (id: string) => void;
 }
 
-export function UserTable({ users, onEdit, onDelete }: Props) {
+export function UserTable({
+  users,
+  canManage = false,
+  onEdit,
+  onDelete,
+}: Props) {
     
   return (
     <div className="rounded-md border">
@@ -59,13 +64,17 @@ export function UserTable({ users, onEdit, onDelete }: Props) {
               </TableCell>
 
               <TableCell>
-                <UserActions
-                  id={user._id}
-
-                  onEdit={onEdit}
-
-                  onDelete={() => onDelete(user._id)}
-                />
+                {canManage ? (
+                  <UserActions
+                    id={user._id}
+                    onEdit={onEdit}
+                    onDelete={() => onDelete(user._id)}
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Read only
+                  </span>
+                )}
               </TableCell>
             </TableRow>
           ))}

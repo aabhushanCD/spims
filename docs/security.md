@@ -32,11 +32,24 @@ a disabled check; it is the gate for code that reaches production.
 
 ## Current status
 
-At the time of this change, both packages report **0 vulnerabilities** for
-production dependencies. The full audits still report high-severity advisories
-in development tooling (Vite/ESLint transitive packages such as `picomatch` and
-`tinyglobby`). Those are tracked as informational and updated through
-Dependabot.
+Both packages report **0 vulnerabilities** for production dependencies. The
+full audits still report high-severity advisories in development tooling
+(Vite/ESLint transitive packages such as `picomatch` and `tinyglobby`). Those
+are tracked as informational and updated through Dependabot.
+
+## Application security controls (Phase 6.1)
+
+- Redis account lockout: 5 failed sign-ins / 15m window / 15m lock; `423` with
+  `Retry-After`; success clears the counter.
+- Redis session deny-list plus `User.tokenVersion`: logout revokes the current
+  access token; password reset, admin reset, role change, deactivation, and
+  owner force-logout invalidate every access token.
+- Owner-only admin reset and force-logout; reset uses a one-time email link and
+  never returns a password.
+- Helmet headers, global CSRF double-submit protection, and a shared CORS/
+  WebSocket origin allow-list (production requires an `Origin`).
+- Best-effort `AuditLog` for auth/admin actions, readable only by owners.
+- MFA, Google OAuth, and geo-IP lookup remain deferred (Phase 6.1b/6.8).
 
 ## Secret scanning
 

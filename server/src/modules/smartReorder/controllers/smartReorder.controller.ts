@@ -39,10 +39,20 @@ export class SmartReorderController {
     res.status(200).json({ success: true, data: reorder });
   });
 
+  // POST /smart-reorders — manual recommendation
+  create = asyncHandler(async (req: Request, res: Response) => {
+    const created = await this.smartReorderService.createRecommendation(
+      req.body,
+    );
+    res.status(201).json({ success: true, data: created });
+  });
+
   // PATCH /smart-reorders/:id/approve
   approve = asyncHandler(async (req: Request, res: Response) => {
     const updated = await this.smartReorderService.approve(
       req.params.id as string,
+      req.user?.userId,
+      req.body?.createPurchaseOrder === true,
     );
     res.status(200).json({ success: true, data: updated });
   });
@@ -51,6 +61,8 @@ export class SmartReorderController {
   reject = asyncHandler(async (req: Request, res: Response) => {
     const updated = await this.smartReorderService.reject(
       req.params.id as string,
+      req.user?.userId,
+      req.body?.reason as string | undefined,
     );
     res.status(200).json({ success: true, data: updated });
   });

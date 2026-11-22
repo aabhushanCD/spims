@@ -1,6 +1,8 @@
 import mongoose, { Types } from "mongoose";
 
 import { calculateVat, roundCurrency } from "../../../shared/finance/money.ts";
+import { getVatPercent } from "../../../config/vat.config.ts";
+import type { PaymentService } from "../../payment/service/payment.service.ts";
 import type { AppError } from "../../../shared/error.ts";
 import type { InventoryService } from "../../inventory/services/inventory.service.ts";
 import type { CounterRepository } from "../repo/counter.repo.ts";
@@ -28,6 +30,7 @@ export interface ReturnItemInput {
   quantity: number;
   condition: ReturnCondition;
   remarks?: string;
+  restockingFee?: number;
 }
 
 export interface CreateReturnDto {
@@ -63,6 +66,7 @@ export class ReturnService {
     private readonly counterRepo: CounterRepository,
     private readonly connection: mongoose.Connection,
     private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
+    private readonly paymentService?: PaymentService,
   ) {}
 
   private async invalidateDashboard(): Promise<void> {
@@ -141,7 +145,14 @@ export class ReturnService {
     soldItem: SaleItemPricing,
     quantity: number,
     allocation: SaleAllocation,
-  ): { discountShare: number; vat: number; refundAmount: number } {
+    vatPercent: number,
+    restockingFee = 0,
+  ): {
+    discountShare: number;
+    vat: number;
+    refundAmount: number;
+    restockingFee: number;
+  } {
     const gross = roundCurrency(soldItem.unitPrice * quantity);
     const lineDiscountShare =
       soldItem.quantity > 0
@@ -165,12 +176,22 @@ export class ReturnService {
       lineDiscountShare + invoiceDiscountShare,
     );
     const net = roundCurrency(gross - discountShare);
-    const vat = calculateVat(net);
+    const fee = roundCurrency(Math.max(0, restockingFee));
+
+    if (fee > net) {
+      throw this.appError.badRequest(
+        "Restocking fee cannot exceed the line net value",
+      );
+    }
+
+    const netAfterFee = roundCurrency(net - fee);
+    const vat = calculateVat(netAfterFee, vatPercent / 100);
 
     return {
       discountShare,
       vat,
-      refundAmount: roundCurrency(net + vat),
+      restockingFee: fee,
+      refundAmount: roundCurrency(netAfterFee + vat),
     };
   }
 
@@ -217,6 +238,7 @@ export class ReturnService {
         }
 
         const allocation = this.calculateSaleAllocation(sale, saleItems);
+        const vatPercent = sale.vatRate ?? getVatPercent();
 
         const outstandingRows =
           await this.returnRepo.sumOutstandingBySaleItemIds(
@@ -260,8 +282,21 @@ export class ReturnService {
             alreadyRequested + item.quantity,
           );
 
-          const { discountShare, vat, refundAmount } =
-            this.calculateLineRefund(soldItem, item.quantity, allocation);
+          const restockingFee = item.restockingFee ?? 0;
+          if (restockingFee > 0 && item.condition !== "GOOD") {
+            throw this.appError.badRequest(
+              "A restocking fee can only be applied to GOOD returns",
+            );
+          }
+
+          const { discountShare, vat, refundAmount, restockingFee: fee } =
+            this.calculateLineRefund(
+              soldItem,
+              item.quantity,
+              allocation,
+              vatPercent,
+              restockingFee,
+            );
           refundTotal += refundAmount;
 
           returnItems.push({
@@ -270,8 +305,10 @@ export class ReturnService {
             batchId: soldItem.batchId,
             quantity: item.quantity,
             unitPrice: soldItem.unitPrice,
+            vatRate: vatPercent,
             discount: discountShare,
             VAT: vat,
+            restockingFee: fee,
             refundAmount,
             condition: item.condition,
             ...(item.remarks ? { remarks: item.remarks } : {}),
@@ -285,6 +322,7 @@ export class ReturnService {
             returnedBy: new Types.ObjectId(dto.returnedBy),
             status: "PENDING",
             returnReason: dto.returnReason,
+            vatRate: vatPercent,
             refundAmount: roundCurrency(refundTotal),
             returnDate,
             returnItems,
@@ -381,6 +419,7 @@ export class ReturnService {
           ]),
         );
         const allocation = this.calculateSaleAllocation(sale, saleItems);
+        const vatPercent = existing.vatRate ?? sale.vatRate ?? getVatPercent();
 
         let refundTotal = 0;
         const finalItems: ReturnItem[] = [];
@@ -429,8 +468,14 @@ export class ReturnService {
             session,
           );
 
-          const { discountShare, vat, refundAmount } =
-            this.calculateLineRefund(soldItem, line.quantity, allocation);
+          const { discountShare, vat, refundAmount, restockingFee } =
+            this.calculateLineRefund(
+              soldItem,
+              line.quantity,
+              allocation,
+              vatPercent,
+              line.restockingFee ?? 0,
+            );
           refundTotal += refundAmount;
 
           finalItems.push({
@@ -439,8 +484,10 @@ export class ReturnService {
             batchId: soldItem.batchId,
             quantity: line.quantity,
             unitPrice: soldItem.unitPrice,
+            vatRate: vatPercent,
             discount: discountShare,
             VAT: vat,
+            restockingFee,
             refundAmount,
             condition: line.condition,
             ...(line.remarks ? { remarks: line.remarks } : {}),
@@ -464,6 +511,8 @@ export class ReturnService {
           {
             refundAmount: roundCurrency(refundTotal),
             status: "COMPLETED",
+            vatRate: vatPercent,
+            completedAt: new Date(),
             returnItems: finalItems,
           },
           session,
@@ -481,10 +530,156 @@ export class ReturnService {
           { status: fullyReturned ? "RETURNED" : "PARTIALLY_RETURNED" },
           session,
         );
+
+        if (this.paymentService && refundTotal > 0) {
+          await this.paymentService.recordRefund(
+            {
+              saleId: sale._id,
+              returnId: existing._id,
+              amount: roundCurrency(refundTotal),
+              method: sale.paymentMethod,
+              performedBy,
+            },
+            session,
+          );
+        }
       });
 
       await this.invalidateDashboard();
       return completedReturn;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /**
+   * Reverses a completed return. GOOD stock is deducted again, returned
+   * quantities are reduced, the refund is reversed in the payment ledger, and
+   * the sale status is recomputed. Write-off lines never changed stock, so
+   * only the returned quantity and refund are reversed for them.
+   */
+  async reverseReturn(id: string, performedBy: string, reason?: string) {
+    if (!performedBy) {
+      throw this.appError.unauthorized("Authenticated user required");
+    }
+
+    const session = await this.connection.startSession();
+
+    try {
+      let reversed:
+        | Awaited<ReturnType<ReturnRepo["update"]>>
+        | undefined;
+
+      await session.withTransaction(async () => {
+        const existing = await this.returnRepo.findByIdRaw(id, session);
+        if (!existing) {
+          throw this.appError.notFound("Return not found");
+        }
+        if (existing.status !== "COMPLETED" || existing.reversedAt) {
+          throw this.appError.conflict(
+            "Only completed, non-reversed returns can be reversed",
+          );
+        }
+
+        const salesId = existing.salesId.toString();
+        const sale = await this.salesRepo.findById(salesId, session);
+        if (!sale) {
+          throw this.appError.notFound("Sale not found");
+        }
+        const saleItems = await this.saleItemRepo.findBySalesId(
+          salesId,
+          session,
+        );
+        const saleMap = new Map(
+          saleItems.map((item) => [item._id.toString(), item]),
+        );
+        const returnedQtyAfter = new Map(
+          saleItems.map((item) => [
+            item._id.toString(),
+            item.returnedQuantity,
+          ]),
+        );
+
+        for (const line of existing.returnItems) {
+          const saleItemId = line.saleItemId.toString();
+          const soldItem = saleMap.get(saleItemId);
+          if (!soldItem) {
+            throw this.appError.badRequest("Invalid Sale Item");
+          }
+
+          const currentReturned =
+            returnedQtyAfter.get(saleItemId) ?? soldItem.returnedQuantity;
+          if (currentReturned < line.quantity) {
+            throw this.appError.conflict(
+              "Returned quantity is lower than the return line",
+            );
+          }
+
+          if (line.condition === "GOOD") {
+            await this.inventoryService.decreaseStock(
+              soldItem.medicineId.toString(),
+              line.quantity,
+              {
+                batchId: soldItem.batchId.toString(),
+                movementType: "ADJUSTMENT",
+                referenceType: "SALES_RETURN",
+                referenceId: existing._id.toString(),
+                performedBy,
+                remarks: `Return ${existing.returnNumber} reversed`,
+              },
+              session,
+            );
+          }
+
+          await this.saleItemRepo.update(
+            saleItemId,
+            { returnedQuantity: currentReturned - line.quantity },
+            session,
+          );
+          returnedQtyAfter.set(
+            saleItemId,
+            currentReturned - line.quantity,
+          );
+        }
+
+        reversed = await this.returnRepo.update(
+          id,
+          {
+            status: "REVERSED",
+            reversedAt: new Date(),
+            reversalReason: reason?.trim() || null,
+          },
+          session,
+        );
+        if (!reversed) {
+          throw this.appError.conflict("Return changed while reversing");
+        }
+
+        if (this.paymentService && existing.refundAmount > 0) {
+          await this.paymentService.recordRefundReversal(
+            {
+              saleId: sale._id,
+              returnId: existing._id,
+              amount: existing.refundAmount,
+              method: sale.paymentMethod,
+              performedBy,
+            },
+            session,
+          );
+        }
+
+        const fullyReversed = saleItems.every(
+          (item) => (returnedQtyAfter.get(item._id.toString()) ?? 0) === 0,
+        );
+        await this.salesRepo.update(
+          salesId,
+          { status: fullyReversed ? "COMPLETED" : "PARTIALLY_RETURNED" },
+          session,
+        );
+      });
+
+      await this.invalidateDashboard();
+      return reversed;
     } finally {
       await session.endSession();
     }

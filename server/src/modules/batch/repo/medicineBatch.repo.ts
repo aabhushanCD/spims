@@ -64,10 +64,18 @@ export class MedicineBatchRepo {
     id: string,
     session?: mongoose.ClientSession,
   ): Promise<IBatch | null> {
-    if (session) {
-      return await this.batchModel.findById(id).session(session).lean().exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
     }
-    return await this.batchModel.findById(id).lean().exec();
+    const objectId = new mongoose.Types.ObjectId(id);
+    if (session) {
+      return await this.batchModel
+        .findById(objectId)
+        .session(session)
+        .lean()
+        .exec();
+    }
+    return await this.batchModel.findById(objectId).lean().exec();
   }
 
   async findAll(session?: mongoose.ClientSession): Promise<IBatch[]> {

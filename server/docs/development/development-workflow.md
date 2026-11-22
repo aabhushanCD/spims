@@ -100,25 +100,26 @@ flowchart LR
 
 ## 7. Database changes
 
-There is no migration system.
-
 - Adding a field: update the Mongoose schema; existing documents lack it until read/write. Defaults apply only on new documents.
-- Adding an index: declaring it in the schema triggers creation on startup (autoIndex). Large collections may experience startup delay.
-- Renaming a field: requires a manual backfill script; none exists in the repository.
+- Adding an index: declaring it in the schema triggers creation on startup (autoIndex). Large collections may experience startup delay; run `npm run index:check` before deploying unique indexes.
+- Renaming a field or backfilling data: add an ordered migration under `server/src/database/migrations/`, register it, run `npm run db:migrate:dry-run`, then `npm run db:migrate`.
 - Changing an enum: old documents remain; validators run on save only.
 
-Any data change must be performed manually or with a one-off script kept outside the application (this repository has none).
+Migrations are explicit, idempotent, and recorded in the `migrations` collection;
+they are not executed at boot. Seed the first owner and baseline lookups with
+`npm run db:seed` (see [migrations and seeding](migrations-and-seeding.md)).
+Never commit real seed credentials.
 
 ## 8. CI
 
-`.github/workflows/main.yml`:
+`.github/workflows/ci.yml`:
 
 | Job | Steps |
 |---|---|
-| backend | checkout, Node 22, `npm ci`, `npm run build --if-present` |
-| client | checkout, Node 22, `npm ci`, `npm run build --if-present` |
+| backend | checkout, Node 22, `npm ci`, lint, typecheck, unit/coverage tests, HTTP integration tests, build |
+| client | checkout, Node 22, `npm ci`, lint, typecheck, tests, build |
 
-It does **not** run tests, lint, type tests, or security scans. A failing test will not block a merge. A failing build will.
+`security.yml` adds the production dependency audit, Gitleaks, and CodeQL. A failing test, lint, typecheck, build, audit, or secret scan blocks the required checks.
 
 ## 9. Code style observations
 

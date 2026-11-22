@@ -11,6 +11,23 @@ const asyncHandler =
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
+  private parseRange(req: Request): { from: Date; to: Date } {
+    const from = req.query.from ? new Date(req.query.from as string) : null;
+    const to = req.query.to ? new Date(req.query.to as string) : null;
+    if (
+      !from ||
+      !to ||
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      from > to
+    ) {
+      throw AppError.badRequest(
+        "from and to are required valid dates, and from must not be after to",
+      );
+    }
+    return { from, to };
+  }
+
   // GET /dashboard — single cached call, everything the landing page needs
   getFullDashboard = asyncHandler(async (_req: Request, res: Response) => {
     const data = await this.dashboardService.getFullDashboard();
@@ -100,6 +117,52 @@ export class DashboardController {
   getInventoryAnalytics = asyncHandler(async (_req: Request, res: Response) => {
     const data = await this.dashboardService.getInventoryAnalytics();
     res.status(200).json({ success: true, data });
+  });
+
+  // GET /dashboard/range?from=&to=
+  getRangeAnalytics = asyncHandler(async (req: Request, res: Response) => {
+    const { from, to } = this.parseRange(req);
+    const data = await this.dashboardService.getRangeAnalytics(from, to);
+    res.status(200).json({ success: true, data });
+  });
+
+  // GET /dashboard/by-cashier?from=&to=
+  getSalesByCashier = asyncHandler(async (req: Request, res: Response) => {
+    const { from, to } = this.parseRange(req);
+    const data = await this.dashboardService.getSalesByCashier(from, to);
+    res.status(200).json({ success: true, data });
+  });
+
+  // GET /dashboard/by-category?from=&to=
+  getSalesByCategory = asyncHandler(async (req: Request, res: Response) => {
+    const { from, to } = this.parseRange(req);
+    const data = await this.dashboardService.getSalesByCategory(from, to);
+    res.status(200).json({ success: true, data });
+  });
+
+  // GET /dashboard/export?type=sales|purchases|returns|inventory&from=&to=
+  exportCsv = asyncHandler(async (req: Request, res: Response) => {
+    const type = req.query.type as string;
+    if (!["sales", "purchases", "returns", "inventory"].includes(type)) {
+      throw AppError.badRequest(
+        "type must be sales, purchases, returns, or inventory",
+      );
+    }
+    const csvType = type as "sales" | "purchases" | "returns" | "inventory";
+    const range = csvType === "inventory" ? null : this.parseRange(req);
+    const csv = await this.dashboardService.getCsvExport(
+      csvType,
+      range?.from,
+      range?.to,
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      csvType === "inventory"
+        ? `attachment; filename="inventory-snapshot.csv"`
+        : `attachment; filename="${csvType}-${range!.from.toISOString().slice(0, 10)}-${range!.to.toISOString().slice(0, 10)}.csv"`,
+    );
+    res.status(200).send(csv);
   });
 
   // GET /dashboard/top-selling?limit=10

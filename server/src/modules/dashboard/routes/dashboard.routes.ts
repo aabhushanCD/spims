@@ -17,5 +17,9 @@ router.get("/sales", dashboardController.getSalesAnalytics);
 router.get("/purchases", dashboardController.getPurchaseAnalytics);
 router.get("/inventory", dashboardController.getInventoryAnalytics);
 router.get("/top-selling", dashboardController.getTopSellingMedicines);
+router.get("/range", dashboardController.getRangeAnalytics);
+router.get("/by-cashier", dashboardController.getSalesByCashier);
+router.get("/by-category", dashboardController.getSalesByCategory);
+router.get("/export", dashboardController.exportCsv);
 
 export default router;

@@ -18,8 +18,9 @@ current-user and session-management endpoints used by every protected route.
 - Rate-limit sensitive auth endpoints with Redis.
 - Provide the current user profile and active-session list.
 
-It does **not** implement Google OAuth, MFA, account lockout, or admin
-impersonation.
+It implements Redis account lockout, immediate access-token revocation, and
+owner-triggered password resets, but does **not** implement Google OAuth, MFA,
+geo-IP lookup, or admin impersonation.
 
 ## 3. Structure
 
@@ -160,16 +161,23 @@ verification/reset fields:
 5. A refresh token is accepted only if its SHA-256 hash matches the current
    session hash, or the immediately previous hash inside the 60-second grace
    window.
-6. Logout revokes only the current refresh session; `logout-all` revokes all.
-7. Password reset revokes every refresh session.
+6. Logout revokes the current refresh session and adds its access token to a
+   Redis deny-list for the remaining access-token TTL; `logout-all` revokes all
+   sessions and bumps `User.tokenVersion`.
+7. Password reset, admin reset, role change, deactivation, and force-logout
+   revoke refresh sessions and bump `User.tokenVersion`, invalidating every
+   access token on its next request.
 8. Public registration always creates a `pharmacist`.
 9. Existing users without an `emailVerified` field are treated as verified;
    new local registrations must verify.
 10. Deactivated users cannot log in or refresh.
 11. At most `MAX_SESSIONS_PER_USER` active sessions are kept; the oldest are
     revoked after a new login.
-12. Access tokens already issued remain valid until they expire, even after a
-    reset or logout. The maximum exposure is the access-token lifetime.
+12. Five failed sign-ins within 15 minutes lock the account for 15 minutes
+    (`423 ACCOUNT_LOCKED` with `Retry-After`); a successful sign-in clears the
+    failure counter. IP and IP+email rate limits still apply.
+13. Access tokens issued before the `ver` claim existed are allowed to expire
+    naturally; every new token is version-checked.
 
 ## 11. Dependencies
 
@@ -230,9 +238,12 @@ sequenceDiagram
 | Inactive-account checks | Login and refresh |
 | Email enumeration on login | Generic `401`; status checks after password compare |
 | Email enumeration on reset | Generic `200` |
-| Rate limiting | Redis fixed window on register/login/refresh/reset/verification |
+| Rate limiting | Redis fixed window on register/login/refresh/reset/verification; lockout is a separate per-account counter |
 | CSRF/Origin hardening | Global double-submit CSRF middleware plus `verifyOrigin` on auth routes |
-| Token revocation | Refresh sessions revocable; access tokens expire in 15m |
+| Account lockout | Redis; 5 failures / 15m window / 15m lock, configurable; fails open on Redis errors |
+| Token revocation | Redis session deny-list + `User.tokenVersion`; all-session revocation on reset/role change/deactivation/force-logout |
+| Security headers | Helmet; WebSocket upgrade uses the same origin allow-list |
+| Audit log | Auth and user-admin actions written best-effort to `AuditLog`; owner-only read |
 | Email verification | Implemented |
 
 ## 14. Limitations and status
@@ -246,11 +257,14 @@ sequenceDiagram
 | Password reset | Implemented | — |
 | Email verification | Implemented | — |
 | Rate limiting | Implemented (IP-based, Redis) | — |
-| Google OAuth | Still open | Phase 6 |
-| MFA | Still open | Phase 6 |
-| Account lockout | Still open | Phase 6 |
-| Immediate access-token revocation | Still open | Phase 6 |
-| Geo-IP location database | Needs decision | Phase 6 |
+| Account lockout | Implemented | — |
+| Immediate access-token revocation | Implemented | — |
+| Admin password reset / force logout | Implemented (owner-only) | — |
+| Audit log | Implemented (auth/admin) | — |
+| Security headers / WS origin | Implemented | — |
+| Google OAuth | Still open | Phase 6.1b |
+| MFA | Still open | Phase 6.1b |
+| Geo-IP location database | Needs decision | Phase 6.8 |
 
 ## Related documents
 

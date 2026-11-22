@@ -4,7 +4,7 @@ import type {
   CreateSupplierDto,
   UpdateSupplierDto,
 } from "../schema/supplier.schema.js";
-import type mongoose from "mongoose";
+import mongoose from "mongoose";
 
 export class SupplierRepo {
   constructor(private supplierModel: Model<ISupplier>) {}
@@ -15,7 +15,13 @@ export class SupplierRepo {
   }
 
   async findById(id: string): Promise<ISupplier | null> {
-    return this.supplierModel.findById(id).lean().exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    return this.supplierModel
+      .findById(new mongoose.Types.ObjectId(id))
+      .lean()
+      .exec();
   }
 
   async findByEmail(email: string): Promise<ISupplier | null> {

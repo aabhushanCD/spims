@@ -7,6 +7,12 @@ export interface ISmartReorder extends Document {
   recommendationReason: string;
   generatedAt: Date;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  approvedBy?: Types.ObjectId | null;
+  approvedAt?: Date | null;
+  rejectedBy?: Types.ObjectId | null;
+  rejectedAt?: Date | null;
+  rejectionReason?: string | null;
+  purchaseOrderId?: Types.ObjectId | null;
 
   WADS: number;
   demandStdDev: number;
@@ -43,10 +49,27 @@ const SmartReorderSchema = new Schema<ISmartReorder>({
     enum: ["PENDING", "APPROVED", "REJECTED"],
     default: "PENDING",
   },
+  approvedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+  approvedAt: { type: Date, default: null },
+  rejectedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+  rejectedAt: { type: Date, default: null },
+  rejectionReason: { type: String, maxlength: 500, default: null },
+  purchaseOrderId: {
+    type: Schema.Types.ObjectId,
+    ref: "PurchaseOrder",
+    default: null,
+  },
 });
 
 SmartReorderSchema.index({ medicineId: 1, status: 1, generatedAt: -1 });
 SmartReorderSchema.index({ status: 1, generatedAt: -1 });
+SmartReorderSchema.index(
+  { purchaseOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { purchaseOrderId: { $type: "objectId" } },
+  },
+);
 SmartReorderSchema.index(
   { medicineId: 1 },
   {

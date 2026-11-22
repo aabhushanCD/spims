@@ -197,9 +197,10 @@ flowchart TB
 | Inventory/batch drift on manual operations | Fixed for wired mutations; expiry flagging still needs a sync | Phase 2 |
 | Duplicate inventory rows possible | Fixed (unique index; dedupe before deploy) | — |
 | No validation middleware | Already fixed (body/params/query and movement DTO schemas) | — |
-| `StockAdjustment` unreachable | Needs decision | Phase 6 |
+| `StockAdjustment` unreachable | Superseded by the stocktake module | — |
 | Movement read endpoints absent | Fixed: `GET /inventory/movements` and `/:id`, with filters/cursor | — |
-| No stocktake/bulk adjustment workflow | Needs decision | Phase 6 |
+| No stocktake/bulk adjustment workflow | Fixed: `/stocktakes` create/edit/complete/cancel using `setBatchStock` | — |
+| No reconciliation report | Fixed: `GET /inventory/reconciliation` | — |
 | No optimistic concurrency on aggregate updates | Fixed: version compare-and-swap with conflict detection | — |
 | Inventory list is unpaginated | Fixed: cursor pagination, search, stock-status filter | — |
 

@@ -214,7 +214,20 @@ Sales.discount = invoiceDiscount + lineDiscounts
 
 ### Payment
 
-`paymentMethod` is stored as a string. There is no payment record, gateway call, or paid/unpaid state.
+`paymentMethod` is stored on the sale and a payment ledger record is created in
+the same transaction. Cash/card/QR/mobile sales are fully settled at creation;
+`CREDIT` sales start unpaid and are settled through
+`POST /sales/:id/payments`. Refunds and refund reversals are ledger rows, and
+`GET /sales/:id/payments` returns `totalAmount`, `paidAmount`, and `amountDue`.
+There is no external gateway call.
+
+### Customer and invoice
+
+`customerId` optionally links a customer; `customerName` remains a snapshot so
+historical invoices do not change when the customer record is edited.
+`GET /sales/:id/invoice` returns the sale, populated items/cashier/customer,
+payment rows, and payment summary. The client print view still needs to consume
+the new payload (Phase 6.7).
 
 ## 11. Dependencies
 
@@ -259,10 +272,11 @@ Sales.discount= 40
 | Issue | Status | Phase |
 |---|---|---|
 | Sale creation session leak | Already fixed (`createSale` ends the session in `finally`) | — |
-| No payment ledger/gateway | Needs decision | Phase 6 |
+| No payment ledger | Fixed: `PAYMENT`/`REFUND`/`REFUND_REVERSAL` ledger, credit settlement, amount due | — |
+| No payment gateway | Deferred | Phase 6.8 |
 | Historical COGS depends on the batch still existing | Fixed (cost snapshot on `SalesItem`; batch deletion blocked when referenced) | — |
-| No customer entity | Needs decision | Phase 6 |
-| No invoice PDF/print endpoint | Needs decision | Phase 6 |
+| No customer entity | Fixed: `Customer` module, optional `customerId` + name snapshot | — |
+| No invoice PDF/print endpoint | Fixed: populated invoice-data endpoint; client print view is Phase 6.7 | — |
 | Delete restores aggregate but not batches | Fixed (restores `quantity - returnedQuantity` to the original batch) | — |
 | Sale item correction does not recompute line or sale totals | Fixed (line + parent totals, transaction) | — |
 | Invoice discount can exceed the post-line-discount subtotal; `discountPercentage` unbounded | Fixed (`400` beyond the discounted subtotal; 0–100 cap) | — |
@@ -272,7 +286,7 @@ Sales.discount= 40
 | No idempotency key | Fixed: `Idempotency-Key` header with a partial unique index on string keys and replay | — |
 | No pagination/date filters | Fixed: cursor pagination, search, status, cashier, date range | — |
 | No prescription linkage | Needs decision | Phase 6 |
-| VAT rate is a code constant (`VAT_RATE = 0.13`) rather than configuration | Needs decision | Phase 6 |
+| VAT rate is a code constant | Fixed: `VAT_PERCENT` config, snapshotted on each sale and used by corrections/refunds | — |
 
 ## Related documents
 

@@ -41,8 +41,6 @@ const defaultValues: SaleFormValues = {
   customerPhone: "",
   paymentMethod: "CASH",
   discount: 0,
-
-  paidAmount: undefined,
   discountPercentage: 0,
   notes: "",
   items: [],

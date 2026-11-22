@@ -6,6 +6,8 @@ export interface ISalesItem extends Document {
   medicineId: Types.ObjectId;
   quantity: number;
   unitPrice: number;
+  /** VAT percentage applied to this line at sale time. */
+  vatRate?: number;
   /** Cost snapshot at sale time; keeps COGS stable if the batch is edited. */
   purchasePrice?: number;
   discount: number;
@@ -28,6 +30,7 @@ const salesItemSchema = new Schema<ISalesItem>(
     quantity: { type: Number, required: true },
     returnedQuantity: { type: Number, default: 0 },
     unitPrice: { type: Number, required: true },
+    vatRate: { type: Number, default: 13, min: 0, max: 100 },
     // Optional for legacy sale items; new items always carry the snapshot.
     purchasePrice: { type: Number, required: false },
     discount: { type: Number, required: true },

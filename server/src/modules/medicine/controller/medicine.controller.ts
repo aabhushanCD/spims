@@ -14,6 +14,21 @@ export class MedicineController {
     }
   }
 
+  async getMedicineByBarcode(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const medicine = await this.medicineService.getMedicineByBarcode(
+        req.params.barcode as string,
+      );
+      res.status(200).json(medicine);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getMedicineById(req: Request, res: Response,next:NextFunction) {
     try {
       const { id } = req.params as { id: string };

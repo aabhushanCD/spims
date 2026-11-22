@@ -5,7 +5,6 @@ import {
   Truck,
   ShoppingCart,
   Receipt,
-  BarChart3,
   Users,
   Settings,
   LogOut,
@@ -48,11 +47,6 @@ const menuItems = [
     title: "Sales",
     icon: Receipt,
     path: "/sales",
-  },
-  {
-    title: "Reports",
-    icon: BarChart3,
-    path: "/reports",
   },
   {
     title: "Users",

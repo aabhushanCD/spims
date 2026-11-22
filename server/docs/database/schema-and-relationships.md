@@ -41,7 +41,7 @@ erDiagram
   UNIT ||--o{ MEDICINE : measuredIn
 ```
 
-`RETURN_ITEM` is an embedded array inside `RETURN`, not a separate collection. `INVENTORY` is intended to be one row per medicine but the unique constraint is not enforced.
+`RETURN_ITEM` is an embedded array inside `RETURN`, not a separate collection. `INVENTORY` is one row per medicine; the unique constraint is enforced (Phase 2).
 
 ## 2. Identity
 
@@ -62,6 +62,7 @@ Source: `server/src/modules/user/model/user.model.ts`
 | `isActive` | Boolean | D `true` | Login rejects deactivated accounts |
 | `lastLogin` | Date | D `null` | Updated on successful login |
 | `refreshToken` | String | D `null` | Unused |
+| `tokenVersion` | Number | D `0`, min 0 | Incremented on password/admin reset, role change, deactivation, and force-logout; included as `ver` in access tokens |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
 ### 2.2 `counters` — `Counter`
@@ -243,9 +244,11 @@ Source: `server/src/modules/sales/model/sales.model.ts`
 | Field | Type | Flags | Notes |
 |---|---|---|---|
 | `invoiceNumber` | String | R, unique | `INV-000001` format |
-| `customerName` | String | R | Free text, no customer entity |
+| `customerName` | String | R | Name snapshot; resolved from the customer when `customerId` is set |
+| `customerId` | ObjectId → `Customer` | O, null | Indexed with `saleDate` |
 | `subTotal` | Number | R | Sum of `unitPrice * quantity` before discounts |
 | `VAT` | Number | R | Computed tax amount |
+| `vatRate` | Number | D 13, 0–100 | VAT percentage snapshot used for this sale |
 | `discount` | Number | R | Sum of line discounts plus invoice discount |
 | `totalAmount` | Number | R | `(subTotal - discount) + VAT` |
 | `paymentMethod` | String | R | String, not enum at schema level; Zod restricts create |
@@ -279,11 +282,14 @@ Source: `server/src/modules/sales/model/return.model.ts`
 |---|---|---|---|
 | `salesId` | ObjectId → `Sales` | R | |
 | `returnNumber` | String | R, unique | `RET-000001`; unique index |
-| `status` | String | D `PENDING`, enum | `PENDING → APPROVED → COMPLETED`, plus `REJECTED`/`CANCELLED` |
+| `status` | String | D `PENDING`, enum | `PENDING → APPROVED → COMPLETED`, plus `REJECTED`/`CANCELLED`/`REVERSED` |
 | `returnReason` | String | R | |
 | `returnedBy` | ObjectId → `User` | R | |
 | `returnDate` | Date | R | Must not precede sale date |
+| `vatRate` | Number | D 13, 0–100 | Sale VAT snapshot used for the refund |
 | `refundAmount` | Number | D 0 | Includes VAT; creation stores a quote, completion the final amount |
+| `completedAt` | Date | O, null | Set on completion |
+| `reversedAt`, `reversalReason` | Date/String | O, null | Set by reversal |
 | `returnItems` | embedded array | | See below |
 | `createdAt`, `updatedAt` | Date | timestamps | |
 
@@ -296,13 +302,60 @@ Source: `server/src/modules/sales/model/return.model.ts`
 | `unitPrice` | Number | R |
 | `discount` | Number | R |
 | `VAT` | Number | **R** (line VAT amount) |
+| `restockingFee` | Number | D 0; only allowed on `GOOD` lines |
 | `medicineId` | ObjectId → `Medicine` | O |
 | `batchId` | ObjectId → `Batch` | O |
 | `refundAmount` | Number | R |
 | `condition` | String enum `GOOD`/`DAMAGED`/`EXPIRED`/`OPENED` | D `GOOD` |
 | `remarks` | String | O |
 
-Because returns are written with `findByIdAndUpdate`, the required `VAT` field is not validated.
+### 6.4 `customers` — `Customer`
+
+| Field | Type | Flags |
+|---|---|---|
+| `name` | String | R, trim, max 100 |
+| `phone` | String | O, null, max 20 |
+| `email` | String | O, null, lowercase, max 200 |
+| `address` | String | O, null, max 250 |
+| `isActive` | Boolean | D `true` |
+| `createdAt`, `updatedAt` | Date | timestamps |
+
+Indexes: `name`, `phone`, `email`. Sales keep a name snapshot.
+
+### 6.5 `payments` — `Payment`
+
+| Field | Type | Flags |
+|---|---|---|
+| `saleId` | ObjectId → `Sales` | R |
+| `returnId` | ObjectId → `Return` | O, null |
+| `type` | String enum | `PAYMENT` / `REFUND` / `REFUND_REVERSAL` |
+| `method` | String | R |
+| `amount` | Number | R, min 0 |
+| `reference` | String | O, null |
+| `performedBy` | ObjectId → `User` | R |
+| `paidAt` | Date | R |
+| `idempotencyKey` | String | O, null; unique partial index |
+
+Indexes: `saleId+paidAt`, `returnId`, unique partial `idempotencyKey`.
+`paidAmount = PAYMENT - REFUND + REFUND_REVERSAL`; `amountDue` is clamped at 0.
+
+### 6.6 `purchasereturns` — `PurchaseReturn`
+
+| Field | Type | Flags |
+|---|---|---|
+| `purchaseOrderId` | ObjectId → `PurchaseOrder` | R |
+| `supplierId` | ObjectId → `Supplier` | R |
+| `returnNumber` | String | R, unique (`PRET-000001`) |
+| `status` | String enum | `PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`/`COMPLETED` |
+| `returnReason` | String | R |
+| `returnedBy` | ObjectId → `User` | R |
+| `returnDate` | Date | R |
+| `refundAmount` | Number | R (supplier credit) |
+| `completedAt` | Date | O, null |
+| `items` | embedded array | batch, medicine, quantity, unitCost, refundAmount, remarks |
+
+Indexes: `purchaseOrderId`, `supplierId+returnDate`, `status+returnDate`.
+Completion deducts batch/aggregate stock with a `PURCHASE_RETURN` movement.
 
 ## 7. Recommendations and operations
 
@@ -358,8 +411,9 @@ Indexes: unique `{ notificationId: 1, userId: 1 }`,
 
 Existing recipient rows created before timestamps were enabled may lack
 `createdAt`. Pagination sorts and filters on `createdAt`, so those rows are
-unreachable after the first page and the retry sweep never sees them. There is
-no migration framework; run the backfill before relying on the inbox:
+unreachable after the first page and the retry sweep never sees them. Run the
+existing idempotent backfill before relying on the inbox (or add it to the
+migration registry):
 
 ```bash
 npm --prefix server run notification:backfill -- --dry-run
@@ -379,7 +433,25 @@ npm --prefix server run notification:dedupe -- --sync-indexes
 Do not assume the collection was empty at deploy time; verify both counts with
 the dry runs first.
 
-### 7.3 `backgroundjobs` — `BackgroundJob`
+### 7.3 `auditlogs` — `AuditLog` (Phase 6.1)
+
+Source: `server/src/modules/audit/model/auditLog.model.ts`
+
+| Field | Type | Flags | Notes |
+|---|---|---|---|
+| `actorId` | ObjectId → `User` | O, null | Null for unknown-email login failures |
+| `actorRole` | String | O, null | Role at the time of the action |
+| `action` | String | R, max 100 | `AUTH_LOGIN_SUCCESS`, `USER_PASSWORD_RESET`, etc. |
+| `entityType` | String | R, max 100 | `User`, `AuthSession`, ... |
+| `entityId` | String | O, null, max 200 | ObjectId or email |
+| `status` | String enum | D `SUCCESS` | `SUCCESS` / `FAILURE` |
+| `ip`, `userAgent`, `requestId` | String | O, null | Request metadata |
+| `metadata` | Mixed | D `{}` | Sanitized/redacted; sensitive keys replaced with `[REDACTED]` |
+| `createdAt` | Date | timestamp | No `updatedAt` |
+
+Indexes: `createdAt`, `actorId+createdAt`, `entityType+entityId+createdAt`, `action+createdAt`. Writes are best-effort and never fail the business operation. Reads are owner-only and cursor-paginated.
+
+### 7.4 `backgroundjobs` — `BackgroundJob`
 
 | Field | Type | Flags |
 |---|---|---|
@@ -411,20 +483,28 @@ No timestamps.
 | Batch | SalesItem | 1:N | `batchId` |
 | Sales | SalesItem | 1:N | `salesId` |
 | Sales | Return | 1:N | `salesId` |
+| Sales | Payment | 1:N | `saleId` |
+| Return | Payment | 1:N | `returnId` |
+| Customer | Sales | 1:N | `customerId` (optional) |
+| User | Payment | 1:N | `performedBy` |
+| PurchaseOrder | PurchaseReturn | 1:N | `purchaseOrderId` |
+| Supplier | PurchaseReturn | 1:N | `supplierId` |
 | Notification | NotificationRecipient | 1:N | `notificationId` |
 
 ## 9. Notable schema-level risks
 
 1. `Inventory.medicineId` is unique (Phase 2).
-2. `SalesItem.salesId` and `Return.salesId` are unindexed, making sale detail and return creation collection scans as data grows.
+2. `SalesItem.salesId` and `Return.salesId` now have indexes (Phase 5).
 3. `Return.returnNumber` has a unique index.
 4. `Return.returnItems.VAT` is required and populated by the service.
 5. `Batch.isActive` now allows positive stock for active batches; inactive batches still require zero.
 6. `PurchaseOrder.VAT` and `discount` are applied to and persisted in `totalAmount`.
 7. `InventoryMovement.batchId` is optional in both the schema and the service; aggregate-only operations omit it.
-8. `Supplier.reliabilityScore` is never computed; smart reorder computes reliability on the fly instead.
+8. `Supplier.reliabilityScore` is computed from delivery history and persisted by smart reorder.
 9. `Sales.status` includes `CANCELLED` and `PENDING`, but no code path sets either after creation.
 10. `User.refreshToken` is a legacy field and is unused; refresh sessions live in `authsessions`. `User.lastLogin` is maintained on login.
+11. `AuditLog` is best-effort: a MongoDB outage can lose audit rows without failing the action. Stock audit remains `InventoryMovement`.
+12. `User.tokenVersion` must be bumped whenever an access token should stop working; legacy tokens without `ver` remain valid until they expire.
 
 ## Related documents
 

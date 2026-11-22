@@ -20,6 +20,7 @@ export type AuthUserUpdate = Partial<
     | "emailVerificationExpiresAt"
     | "passwordResetTokenHash"
     | "passwordResetExpiresAt"
+    | "tokenVersion"
   >
 >;
 
@@ -104,6 +105,19 @@ export class UserRepository {
     return await this.userModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
+  }
+
+  async incrementTokenVersion(id: string): Promise<number | null> {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        id,
+        { $inc: { tokenVersion: 1 } },
+        { new: true, projection: { tokenVersion: 1 } },
+      )
+      .lean<{ tokenVersion?: number } | null>()
+      .exec();
+
+    return user ? (user.tokenVersion ?? 0) : null;
   }
 
   async update(id: string, updateData: UpdateUserDto): Promise<IUser | null> {

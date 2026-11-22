@@ -16,7 +16,9 @@ server/
 └── src/
 ```
 
-There is no `docs/` folder before this documentation set, no test fixtures, and no migration directory. Operational one-off scripts live in `src/scripts/` and are run with `tsx`.
+Operational one-off scripts live in `src/scripts/` and are run with `tsx`.
+Ordered migrations live in `src/database/migrations/`, and the baseline seeder
+lives in `src/database/seeders/`.
 
 ## 2. `src/` tree
 
@@ -28,16 +30,10 @@ src/
 ├── config/
 │   ├── db.config.ts                # mongoose.connect
 │   └── redis.config.ts             # ioredis client
-├── docs/                           # incomplete Swagger sources, not mounted
-│   ├── auth.swagger.ts
-│   ├── dashboard.swagger.ts
-│   ├── inventory.swagger.ts        # empty
-│   ├── medicine.swagger.ts         # empty
-│   ├── purchase.swagger.ts         # empty
-│   ├── sales.swagger.ts            # empty
-│   ├── supplier.swagger.ts         # empty
-│   ├── index.ts                    # swagger-jsdoc spec builder
-│   └── schemas/                    # empty files
+├── docs/                           # typed OpenAPI 3.0 spec and Swagger mount
+│   ├── openapi.ts                  # typed spec covering every mounted prefix
+│   ├── index.ts                    # re-exports swaggerSpec/openApiSpec
+│   └── openapi.test.ts             # path/operation/$ref integrity tests
 ├── modules/
 │   ├── app.routes.ts               # mounts all module routers under /api
 │   ├── auth/
@@ -53,7 +49,12 @@ src/
 │   ├── dashboard/
 │   ├── backgroundJobs/
 │   └── worker/
+├── database/
+│   ├── migrations/                 # ordered migrations + ledger runner
+│   └── seeders/                    # baseline owner/lookup seeder
 ├── scripts/
+│   ├── migrate.ts                  # db:migrate / status / dry-run CLI
+│   ├── seed.ts                     # db:seed / dry-run CLI
 │   ├── dedupeInventories.ts        # one-off duplicate aggregate cleanup
 │   ├── dedupeNotificationRecipients.ts
 │   └── backfillNotificationRecipientTimestamps.ts
@@ -200,7 +201,7 @@ flowchart TB
 
 | File | Purpose |
 |---|---|
-| `shared/error.ts` | `AppError` with factories for 400/401/403/404/405/409/410/415/422/429/500/501/502/503/504 |
+| `shared/error.ts` | `AppError` with factories for 400/401/403/404/405/409/410/415/422/423/429/500/501/502/503/504 and optional response headers |
 | `shared/middleware/verifyJwt.ts` | `jwt.verify` wrapper, throws generic error |
 | `shared/middleware/verifyToken.ts` | Reads cookie, assigns `req.user`, returns 401 on failure |
 | `shared/middleware/authorize.ts` | Role allow-list check, returns 403 |
@@ -219,11 +220,11 @@ flowchart TB
 
 | Path | State |
 |---|---|
-| `src/docs/index.ts` | Builds an OpenAPI spec with `swagger-jsdoc`; never imported by the server |
-| `src/docs/*.swagger.ts` | Only `auth` and `dashboard` contain content; inventory/medicine/purchase/sales/supplier are empty; `schemas/` files are empty |
-| `.github/workflows/main.yml` | Backend and client `npm ci` + `npm run build --if-present` on Node 22 |
-| Root `README.md` | Marketing/overview document; several feature claims are ahead of the implementation |
-| Root `SECURITY.md` | Policy document; some Docker/NGINX claims are still ahead of the repository |
+| `src/docs/openapi.ts` | Typed OpenAPI 3.0 spec mounted at `/api-docs`; production is opt-in and owner-only |
+| `src/docs/index.ts` | Re-exports `swaggerSpec` and `openApiSpec` |
+| `.github/workflows/ci.yml` | Backend/client lint, typecheck, tests, HTTP integration, build on Node 22 |
+| Root `README.md` | Marketing/overview document; feature claims are being reconciled against code |
+| Root `SECURITY.md` | Policy document; Docker/NGINX are marked declined |
 
 ## 9. Operational scripts
 

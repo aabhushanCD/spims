@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Uploaded purchase invoices
+server/uploads/
+
 # Build output
 dist/
 dist-ssr/

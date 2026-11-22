@@ -61,6 +61,14 @@ export class MedicineService {
 
  
 
+  async getMedicineByBarcode(barcode: string) {
+    const medicine = await this.medicineRepo.findByBarcode(barcode.trim());
+    if (!medicine) {
+      throw this.appError.notFound("Medicine not found for barcode");
+    }
+    return medicine;
+  }
+
   async getMedicineById(id: string) {
     const medicine = await this.medicineRepo.findById(id);
     if (!medicine) {
@@ -72,7 +80,25 @@ export class MedicineService {
   
 
   async updateMedicine(id: string, updateData: UpdateMedicineDto) {
-    await this.getMedicineById(id);
+    const current = await this.getMedicineById(id);
+
+    if (
+      updateData.medicineName !== undefined ||
+      updateData.strength !== undefined ||
+      updateData.brandId !== undefined
+    ) {
+      const duplicate = await this.medicineRepo.findByNameAndStrength(
+        updateData.medicineName ?? current.medicineName,
+        updateData.strength ?? current.strength,
+        updateData.brandId?.toString() ?? current.brandId.toString(),
+      );
+      if (duplicate && duplicate._id.toString() !== id) {
+        throw this.appError.conflict(
+          "A medicine with the same name, strength, and brand already exists",
+        );
+      }
+    }
+
     if (updateData.categoryId) {
       await this.categoryService.getCategoryById(
         updateData.categoryId?.toString(),

@@ -18,10 +18,11 @@ coverage.
 From the repository root:
 
 ```bash
-npm test                 # single CI run (server + client)
+npm test                 # unit + integration (server + client)
+npm run test:unit        # unit tests only (server + client)
 npm run test:watch       # server watch mode
 npm run test:coverage    # server coverage report in server/coverage
-npm run test:integration # HTTP flows against an in-memory MongoDB replica set
+npm run test:integration # HTTP + migration/seeder flows against in-memory MongoDB
 ```
 
 From `server/`:
@@ -43,8 +44,8 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the Phase 5 baseline: **66 server unit test files, 458 tests** plus
-**6 HTTP integration tests** and **2 client test files, 17 tests**, all passing.
+As of the latest Phase 6 baseline: **79 server unit test files, 535 tests** plus
+**15 integration cases (10 HTTP + 5 migration/seeder)** and **2 client test files, 17 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -64,18 +65,33 @@ logic is:
 | MongoDB error mapping | `server/src/shared/utils/mongoError.ts` | mapped error paths covered |
 | Batch FEFO query + atomic deduction | `server/src/modules/batch/repo/medicineBatch.repo.ts` | query paths covered |
 
-This is **not** complete coverage. Controllers, HTTP routing, real database
-queries, Redis, WebSocket delivery, cron jobs, and email delivery are not
-covered by automated tests.
+This is **not** complete coverage. Nine HTTP flows exercise routing and real
+MongoDB transactions through `createApp()`, and five migration/seeder tests
+exercise ordered backfills and idempotency. Redis, WebSocket delivery, cron jobs,
+and live SMTP/SMS providers remain covered only by fakes or not at all.
 
 ## What is tested
 
 | File | Focus |
 |---|---|
-| `auth.service.test.ts` | Registration conflicts/verification email, login status checks, refresh rotation/reuse detection, email verification, password reset, session listing/revocation, current user |
+| `auth.service.test.ts` | Registration conflicts/verification email, login status checks, lockout, refresh rotation/reuse detection, email verification, password reset/version bump, logout deny-list, session listing/revocation, current user |
+| `loginAttemptTracker.test.ts` | Threshold lock, normalized-email scoping, success reset, Redis fail-open |
+| `verifyToken.test.ts` | Valid token, deny-listed session, stale token version, deleted user, legacy token, fail-open on store errors |
+| `audit.service.test.ts` | Metadata redaction/truncation, best-effort failure, cursor page, depth limit |
+| `allowedOrigins.test.ts` | Environment allow-list parsing, fallback, exact match, production Origin requirement |
+| `openapi.test.ts` | OpenAPI version/scheme, mounted-prefix coverage, operation metadata, local `$ref` integrity |
+| `runner.test.ts` | Migration ordering, ledger skips, dry run, failure not recorded, duplicate ids, status |
+| `payment.service.test.ts` | Ledger summary, credit settlement, overpayment rejection, refund/reversal rows |
+| `customer.service.test.ts` | Create/detail/update/delete and 404 paths |
+| `purchaseReturn.service.test.ts` | Pending creation, received-order guard, batch quantity guard, completion stock deduction |
+| `vat.config.test.ts` | Default/override/validation/fallback |
+| `verifyOrigin.middleware.test.ts` | Allow-list, missing-Origin dev/prod policy |
+| `dashboard.csv.test.ts` | Inventory snapshot, CSV formula neutralization, missing range |
+| `stocktake.service.test.ts` | Variance creation, completion stock application, closed guard |
+| `migrationsAndSeed.integration.test.ts` | Real backfills, ledger idempotency, seed idempotency/dry run, non-owner guard |
 | `authTokens.test.ts` | Access/refresh signing, token-type separation, hashing and constant-time comparison |
 | `rateLimit.middleware.test.ts` | Under-limit pass-through, 429 + `Retry-After`, Redis failure fails open |
-| `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, password hashing, invalid-role rejection |
+| `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, admin reset/force logout, session revocation and token-version bumps, password hashing, invalid-role rejection |
 | `user.route.test.ts` | Static-before-dynamic ordering, single status route, removed `/:id/inactive`, role-change route |
 | `user.schema.test.ts` | ObjectId/role/status/date params, strict delete body |
 | `register.schema.test.ts` | Public registration strips a supplied `role` |
@@ -178,7 +194,7 @@ describe("SomeService", () => {
 
 ## Integration testing
 
-`npm run test:integration` runs six HTTP tests against `app/createApp.ts`,
+`npm run test:integration` runs ten HTTP tests against `app/createApp.ts`,
 using `supertest`, a `mongodb-memory-server` replica set for transaction
 support, and an in-memory fake Redis. Each test gets a clean database, while
 indexes are preserved so unique constraints are exercised.
@@ -192,6 +208,16 @@ Covered flows:
 4. Expiry marking → disposal, zero stock, aggregate sync, and `EXPIRED` movement.
 5. Smart reorder generation, single pending recommendation, and negative-cache
    `400` semantics.
+6. Owner force-logout: the target access token is rejected with `SESSION_REVOKED`
+   and an audit row is written.
+7. Helmet security headers on a public route.
+8. Swagger UI HTML and the raw OpenAPI JSON document.
+9. Customer create → credit sale → payment → invoice payload with zero amount due.
+
+A second integration file runs five migration/seeder tests against an in-memory
+MongoDB: ordered application, ledger skips, dry runs, sale-item cost and
+inventory-version backfills, seed idempotency, dry-run planning, and the
+non-owner promotion guard.
 
 The app factory mounts routes and middleware without starting HTTP listeners,
 WebSocket, cron jobs, MongoDB, or Redis. The production `server.ts` still owns

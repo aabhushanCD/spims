@@ -180,18 +180,18 @@ export class DashboardService {
     timeZone = getReportingTimeZone(),
   ) {
     const range = getCurrentMonthRange(now, timeZone);
+    return await this.getProfitSummaryForRange(
+      range.start,
+      range.endExclusive,
+    );
+  }
 
+  async getProfitSummaryForRange(start: Date, endExclusive: Date) {
     const [sales, totalPurchases, refunds, cogs] = await Promise.all([
-      this.salesRepo.getSalesTotalsInRange(range.start, range.endExclusive),
-      this.purchaseRepo.getTotalPurchasesInRange(
-        range.start,
-        range.endExclusive,
-      ),
-      this.returnRepo.getRefundTotalsInRange(
-        range.start,
-        range.endExclusive,
-      ),
-      this.saleItemRepo.getCogsInRange(range.start, range.endExclusive),
+      this.salesRepo.getSalesTotalsInRange(start, endExclusive),
+      this.purchaseRepo.getTotalPurchasesInRange(start, endExclusive),
+      this.returnRepo.getRefundTotalsInRange(start, endExclusive),
+      this.saleItemRepo.getCogsInRange(start, endExclusive),
     ]);
 
     const netRefunds = roundCurrency(refunds.grossRefunds - refunds.refundVat);
@@ -210,6 +210,103 @@ export class DashboardService {
       grossProfit,
       marginPercent,
     };
+  }
+
+  async getRangeAnalytics(from: Date, to: Date) {
+    const [profit, sales, refunds] = await Promise.all([
+      this.getProfitSummaryForRange(from, to),
+      this.salesRepo.getSalesTotalsInRange(from, to),
+      this.returnRepo.getRefundTotalsInRange(from, to),
+    ]);
+    return {
+      from,
+      to,
+      profit,
+      totalSales: sales.gross,
+      totalVat: sales.vat,
+      refunds,
+    };
+  }
+
+  async getSalesByCashier(from: Date, to: Date) {
+    return await this.salesRepo.getTotalsByCashier(from, to);
+  }
+
+  async getSalesByCategory(from: Date, to: Date) {
+    return await this.saleItemRepo.getTotalsByCategory(from, to);
+  }
+
+  async getCsvExport(
+    type: "sales" | "purchases" | "returns" | "inventory",
+    from?: Date,
+    to?: Date,
+  ): Promise<string> {
+    const escape = (value: unknown): string => {
+      const raw =
+        value instanceof Date ? value.toISOString() : String(value ?? "");
+      // Prevent spreadsheet formula injection.
+      const text = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    };
+    const line = (values: unknown[]) => values.map(escape).join(",");
+
+    if (type === "inventory") {
+      const asOf = new Date();
+      const rows = await this.inventoryRepo.findAll();
+      return [
+        line(["asOf", asOf]),
+        line(["medicineId", "medicineName", "currentStock", "reservedStock", "availableStock"]),
+        ...rows.map((row) => {
+          const medicine = row.medicineId as unknown as {
+            _id?: unknown;
+            medicineName?: string;
+          };
+          return line([
+            String(medicine?._id ?? row.medicineId),
+            medicine?.medicineName ?? "",
+            row.currentStock,
+            row.reservedStock,
+            row.availableStock,
+          ]);
+        }),
+      ].join("\n");
+    }
+
+    if (!from || !to) {
+      throw new Error("from and to are required for time-based exports");
+    }
+
+    if (type === "sales") {
+      const rows = await this.salesRepo.findRowsInRange(from, to);
+      return [
+        line(["invoiceNumber", "customerName", "saleDate", "subTotal", "VAT", "discount", "totalAmount", "paymentMethod", "status"]),
+        ...rows.map((row) =>
+          line([row.invoiceNumber, row.customerName, row.saleDate, row.subTotal, row.VAT, row.discount, row.totalAmount, row.paymentMethod, row.status]),
+        ),
+      ].join("\n");
+    }
+
+    if (type === "purchases") {
+      const rows = await this.purchaseRepo.findRowsInRange(from, to);
+      return [
+        line(["orderNumber", "invoiceNumber", "orderDate", "status", "totalAmount", "VAT", "discount"]),
+        ...rows.map((row) =>
+          line([row.orderNumber ?? "", row.invoiceNumber, row.orderDate, row.status, row.totalAmount, row.VAT, row.discount]),
+        ),
+      ].join("\n");
+    }
+
+    if (type === "returns") {
+      const rows = await this.returnRepo.findRowsInRange(from, to);
+      return [
+        line(["returnNumber", "salesId", "returnDate", "completedAt", "status", "refundAmount"]),
+        ...rows.map((row) =>
+          line([row.returnNumber, String(row.salesId), row.returnDate, row.completedAt ?? "", row.status, row.refundAmount]),
+        ),
+      ].join("\n");
+    }
+
+    return "";
   }
 
   // This month vs last month, with % change — standard dashboard trend indicator.

@@ -97,6 +97,32 @@ export class InventoryService {
     return await this.inventoryRepo.findById(id);
   }
 
+  async getReconciliationReport() {
+    const rows = await this.inventoryRepo.findAll();
+    const result = [];
+
+    for (const row of rows) {
+      const medicineId = row.medicineId?._id
+        ? row.medicineId._id.toString()
+        : row.medicineId.toString();
+      const batchStock = await this.batchRepo.getTotalStock(medicineId);
+      const variance = Number(
+        (row.currentStock - batchStock).toFixed(2),
+      );
+      result.push({
+        inventoryId: String(row._id),
+        medicineId,
+        aggregateStock: row.currentStock,
+        reservedStock: row.reservedStock,
+        batchStock,
+        variance,
+        reconciled: variance === 0,
+      });
+    }
+
+    return result;
+  }
+
   async getInventoryByMedicineId(medicineId: string) {
     return await this.inventoryRepo.findByMedicineId(medicineId);
   }

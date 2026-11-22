@@ -39,6 +39,15 @@ export class SalesRepo {
     return sales;
   }
 
+  async findByIdDetailed(salesId: string): Promise<ISales | null> {
+    return await this.salesModel
+      .findById(salesId)
+      .populate("cashierId", "name email role")
+      .populate("customerId", "name phone email address")
+      .lean()
+      .exec();
+  }
+
   async findById(
     salesId: string,
     session?: mongoose.ClientSession,
@@ -54,6 +63,7 @@ export class SalesRepo {
       search?: string;
       status?: ISales["status"];
       cashierId?: string;
+      customerId?: string;
       from?: Date;
       to?: Date;
     },
@@ -66,6 +76,9 @@ export class SalesRepo {
     }
     if (filters.cashierId) {
       conditions.push({ cashierId: filters.cashierId });
+    }
+    if (filters.customerId) {
+      conditions.push({ customerId: filters.customerId });
     }
     if (filters.from || filters.to) {
       conditions.push({
@@ -104,6 +117,66 @@ export class SalesRepo {
       .findOne({ idempotencyKey, cashierId })
       .lean()
       .exec();
+  }
+
+  async findRowsInRange(
+    start: Date,
+    endExclusive: Date,
+  ): Promise<ISales[]> {
+    return await this.salesModel
+      .find({
+        status: { $ne: "CANCELLED" },
+        saleDate: { $gte: start, $lt: endExclusive },
+      })
+      .sort({ saleDate: 1 })
+      .lean()
+      .exec();
+  }
+
+  async getTotalsByCashier(
+    start: Date,
+    endExclusive: Date,
+  ): Promise<Array<{ cashierId: string; cashierName: string; total: number; count: number }>> {
+    const rows = await this.salesModel
+      .aggregate<{
+        _id: mongoose.Types.ObjectId;
+        total: number;
+        count: number;
+        name?: string;
+        cashier?: { name?: string };
+      }>([
+        {
+          $match: {
+            status: { $ne: "CANCELLED" },
+            saleDate: { $gte: start, $lt: endExclusive },
+          },
+        },
+        {
+          $group: {
+            _id: "$cashierId",
+            total: { $sum: "$totalAmount" },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "cashier",
+          },
+        },
+        { $unwind: { path: "$cashier", preserveNullAndEmptyArrays: true } },
+        { $sort: { total: -1 } },
+      ])
+      .exec();
+
+    return rows.map((row) => ({
+      cashierId: String(row._id),
+      cashierName: row.name ?? row.cashier?.name ?? "Unknown",
+      total: row.total,
+      count: row.count,
+    }));
   }
 
   async findAll(session?: mongoose.ClientSession): Promise<ISales[]> {

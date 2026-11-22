@@ -124,13 +124,23 @@ describe("ReturnRepo", () => {
     const pipeline = aggregate.mock.calls[0]?.[0] as Array<
       Record<string, unknown>
     >;
-    expect(pipeline).toContainEqual({
+    expect(pipeline[0]).toMatchObject({
       $match: {
         status: "COMPLETED",
-        returnDate: {
-          $gte: new Date("2026-02-01T00:00:00Z"),
-          $lt: new Date("2026-03-01T00:00:00Z"),
-        },
+        $or: [
+          {
+            completedAt: {
+              $gte: new Date("2026-02-01T00:00:00Z"),
+              $lt: new Date("2026-03-01T00:00:00Z"),
+            },
+          },
+          {
+            returnDate: {
+              $gte: new Date("2026-02-01T00:00:00Z"),
+              $lt: new Date("2026-03-01T00:00:00Z"),
+            },
+          },
+        ],
       },
     });
   });

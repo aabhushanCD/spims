@@ -13,8 +13,8 @@
 | Framework | Vitest 5.1.1 |
 | Scripts | `npm test` (watch), `npm run test:ci` (once), `npm run test:coverage` |
 | Config file | `vitest.config.ts` |
-| Test files | 66 unit files plus 1 HTTP integration suite covering auth, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, pagination, caching, locking, CSRF, observability, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
-| Test count | 458 unit tests + 6 HTTP integration tests |
+| Test files | 79 unit files plus 1 HTTP integration suite covering auth, lockout, revocation, audit, OpenAPI, users, validation middleware, inventory, stock mutation, sales, returns, purchases, batches, pagination, caching, locking, CSRF, observability, reorder math, authorization, notifications, catalog lookups, suppliers, SMS, websocket, email config, dashboard |
+| Test count | 535 unit tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
 | Coverage | V8 via `@vitest/coverage-v8` |
 | CI | Runs `npm run test:coverage` |
 
@@ -165,10 +165,10 @@ npm run build
 | Auth unit tests | Implemented |
 | Other service tests | Implemented for core modules (inventory, sales, returns, purchases, reorder, notifications) |
 | Repository tests | Implemented for batches and notification recipients |
-| Controller/route tests | Partially Implemented (batch route table) |
-| Integration/E2E tests | Not Implemented |
-| Coverage reporting | Not Implemented |
-| CI test execution | Implemented |
+| Controller/route tests | Partially Implemented (route tables and focused middleware tests) |
+| Integration/E2E tests | Implemented: ten HTTP flows + five migration/seeder tests |
+| Coverage reporting | Implemented (V8) |
+| CI test execution | Implemented (unit, coverage, and integration) |
 | Test data factories | Not Implemented — per-file fakes instead |
 
 ## Related documents

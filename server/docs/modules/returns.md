@@ -234,8 +234,8 @@ refund accordingly.
 
 | Issue | Status | Phase |
 |---|---|---|
-| Purchase/supplier returns | Needs decision | Phase 6 |
-| Return approval/rejection flow | Implemented (`PENDING → APPROVED/REJECTED → COMPLETED`, plus `CANCELLED`) | — |
+| Purchase/supplier returns | Implemented as a separate `purchase-returns` module | — |
+| Return approval/rejection flow | Implemented (`PENDING → APPROVED/REJECTED → COMPLETED`, plus `CANCELLED` and `REVERSED`) | — |
 | VAT refund | Implemented (line VAT persisted) | — |
 | DAMAGED/EXPIRED/OPENED restock sellable stock | Fixed (write-off only) | — |
 | GOOD return restores the original batch | Fixed | — |
@@ -245,9 +245,9 @@ refund accordingly.
 | `returnNumber` not unique | Fixed (unique index) | — |
 | Invoice-level discount not apportioned to refunds | Fixed (apportioned by returned net value) | — |
 | Pending quotes can go stale if prices are corrected before completion | Final refund is recomputed at completion | — |
-| No return deletion/reversal | Needs decision | Phase 6 |
-| No refund payment record | Needs decision | Phase 6 |
-| No restocking fee/partial refund policy | Needs decision | Phase 6 |
+| No return deletion/reversal | Fixed: `PATCH /returns/:id/reverse` deducts GOOD stock again, restores returned quantities, reverses the refund, and sets `REVERSED` | — |
+| No refund payment record | Fixed: `REFUND` and `REFUND_REVERSAL` ledger rows | — |
+| No restocking fee/partial refund policy | Partially fixed: optional per-line `restockingFee` on GOOD returns; no percentage policy or approval workflow | Phase 6.8 |
 | No pagination on the list | Fixed: cursor pagination, status/sale/search/date filters | — |
 
 ## Related documents

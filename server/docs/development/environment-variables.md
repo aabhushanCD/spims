@@ -16,9 +16,13 @@ All variables are read via `process.env`. No values are reproduced here.
 | `EMAIL_VERIFICATION_EXPIRES_IN` | No | `authConfig.ts` | Email-verification link lifetime | Default `24h` |
 | `CLIENT_URL` | Production | `authConfig.ts` | Frontend origin used in email links | Default `http://localhost:5173`; required in production |
 | `MAX_SESSIONS_PER_USER` | No | `authConfig.ts` | Active refresh sessions kept per user | Default `10`; oldest sessions are revoked |
+| `AUTH_LOCKOUT_THRESHOLD` | No | `authConfig.ts` | Failed sign-ins before the account lock | Default `5` |
+| `AUTH_LOCKOUT_WINDOW` | No | `authConfig.ts` | Failure-counting window | Default `15m` |
+| `AUTH_LOCKOUT_DURATION` | No | `authConfig.ts` | Lock duration | Default `15m`; `423 ACCOUNT_LOCKED` includes `Retry-After` |
 | `PORT` | No | `server.ts` | HTTP port | Default `3000` |
 | `TRUST_PROXY` | No | `server.ts` | Enables Express `trust proxy` for `req.ip` | `true` (one hop) or a hop count; leave unset when directly exposed |
-| `ALLOWED_ORIGINS` | No | `server.ts`, `verifyOrigin.middleware.ts` | JSON array of allowed CORS/Origin values | Defaults to `["http://localhost:5173","http://localhost:5174"]` |
+| `ALLOWED_ORIGINS` | No | `createApp.ts`, `server.ts`, `allowedOrigins.ts`, `verifyOrigin.middleware.ts` | JSON array of allowed CORS/HTTP/WebSocket origins | Defaults to `["http://localhost:5173","http://localhost:5174"]`; production requires an `Origin` on WebSocket upgrades |
+| `ENABLE_API_DOCS` | No | `createApp.ts` | Enables `/api-docs` in production | `true` enables the UI and spec for owner sessions; outside production docs are always on |
 | `REDIS_URL` | Yes (or host/port) | `config/redis.target.ts` | Preferred Redis URL | `redis://` or `rediss://` |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | No | `config/redis.target.ts` | Fallback TCP connection | Default `localhost:6379` |
 | `UPSTASH_REDIS_REST_URL` | No | `config/redis.target.ts` | Legacy Upstash URL | REST `https://` URLs are converted to `rediss://<host>:6379` |
@@ -33,6 +37,11 @@ All variables are read via `process.env`. No values are reproduced here.
 | `SMTP_FROM` | No | `email.provider.ts` | From address | Defaults to `SMTP_USER` or `no-reply@spims.local` |
 | `SMS_WEBHOOK_URL` | For SMS | `sms.provider.ts` | SMS provider endpoint | Missing value makes SMS delivery fail non-retryably |
 | `SMS_API_KEY` | No | `sms.provider.ts` | Bearer token for the SMS webhook | Sent only when set |
+| `SEED_OWNER_EMAIL` | Seed only | `scripts/seed.ts` | First owner email | Required by `db:seed` |
+| `SEED_OWNER_PASSWORD` | Seed only | `scripts/seed.ts` | First owner password | Required; minimum 8 characters; bcrypt-hashed |
+| `SEED_OWNER_NAME` | No | `scripts/seed.ts` | First owner display name | Default `SPIMS Owner` |
+| `SEED_ALLOW_PRODUCTION` | No | `scripts/seed.ts` | Production seeding guard | Must be `true` when `NODE_ENV=production` |
+| `VAT_PERCENT` | No | `config/vat.config.ts` | VAT percentage for new sales and refunds | Default `13`; validated at startup; snapshotted per sale/return |
 | `REPORTING_TIMEZONE` | No | `config/reporting.config.ts` | IANA timezone for reporting month/year boundaries and grouping | Default `Asia/Kathmandu`; invalid values fail fast at boot |
 
 ## 2. Example template (names only)
@@ -50,6 +59,9 @@ CLIENT_URL=http://localhost:5173
 PASSWORD_RESET_EXPIRES_IN=30m
 EMAIL_VERIFICATION_EXPIRES_IN=24h
 MAX_SESSIONS_PER_USER=10
+AUTH_LOCKOUT_THRESHOLD=5
+AUTH_LOCKOUT_WINDOW=15m
+AUTH_LOCKOUT_DURATION=15m
 PORT=
 NODE_ENV=
 TRUST_PROXY=
@@ -58,6 +70,7 @@ UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 LOG_LEVEL=info
 ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
+ENABLE_API_DOCS=false
 SMTP_HOST=
 SMTP_PORT=
 SMTP_SECURE=
@@ -65,8 +78,15 @@ SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
 REPORTING_TIMEZONE=Asia/Kathmandu
+VAT_PERCENT=13
 SMS_WEBHOOK_URL=
 SMS_API_KEY=
+
+# Used only by `npm run db:seed`; never commit a real password.
+SEED_OWNER_EMAIL=
+SEED_OWNER_PASSWORD=
+SEED_OWNER_NAME=SPIMS Owner
+SEED_ALLOW_PRODUCTION=false
 ```
 
 ## 3. Value formats
@@ -82,11 +102,20 @@ SMS_API_KEY=
 | `EMAIL_VERIFICATION_EXPIRES_IN` | Duration | `24h` |
 | `CLIENT_URL` | Exact frontend origin, no trailing slash | `https://app.example.com` |
 | `MAX_SESSIONS_PER_USER` | Positive integer | `10` |
+| `AUTH_LOCKOUT_THRESHOLD` | Positive integer | `5` |
+| `AUTH_LOCKOUT_WINDOW` | Duration with `s`, `m`, `h`, or `d` | `15m` |
+| `AUTH_LOCKOUT_DURATION` | Duration with `s`, `m`, `h`, or `d` | `15m` |
 | `PORT` | Integer string | `3000` |
 | `ALLOWED_ORIGINS` | JSON array of exact origins | `["https://app.example.com"]` |
+| `ENABLE_API_DOCS` | Boolean string | `true` |
 | `UPSTASH_REDIS_REST_URL` | Redis URL for ioredis | `redis://host:6379` or `rediss://...` |
 | `SMS_WEBHOOK_URL` | HTTPS URL | `https://sms.example.com/send` |
 | `SMS_API_KEY` | Random string | Sent as `Authorization: Bearer <key>` |
+| `SEED_OWNER_EMAIL` | Valid email | `owner@example.com` |
+| `SEED_OWNER_PASSWORD` | String, minimum 8 characters | Provided by a secret manager |
+| `SEED_OWNER_NAME` | String | `Pharmacy Owner` |
+| `SEED_ALLOW_PRODUCTION` | Boolean string | `true` |
+| `VAT_PERCENT` | Number 0–100 | `13` |
 | `REPORTING_TIMEZONE` | IANA timezone name | `Asia/Kathmandu`, `UTC` |
 | `NODE_ENV` | `development` / `production` | unset in development |
 

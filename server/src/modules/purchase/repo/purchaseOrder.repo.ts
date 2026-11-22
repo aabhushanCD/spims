@@ -1,4 +1,4 @@
-import type mongoose from "mongoose";
+import mongoose from "mongoose";
 import type { IPurchaseOrder } from "../model/purchaseOrder.model.js";
 import type PurchaseOrder from "../model/purchaseOrder.model.js";
 import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
@@ -25,10 +25,17 @@ export class PurchaseOrderRepo {
     id: string,
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrder | null> {
-    if (session) {
-      return await this.purchaseOrderModel.findById(id).session(session).exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
     }
-    return await this.purchaseOrderModel.findById(id).exec();
+    const objectId = new mongoose.Types.ObjectId(id);
+    if (session) {
+      return await this.purchaseOrderModel
+        .findById(objectId)
+        .session(session)
+        .exec();
+    }
+    return await this.purchaseOrderModel.findById(objectId).exec();
   }
   async findPage(
     filters: {
@@ -170,6 +177,134 @@ export class PurchaseOrderRepo {
       .aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
       .session(session ?? null);
     return results.map((r) => ({ status: r._id, count: r.count }));
+  }
+
+  async findRowsInRange(
+    start: Date,
+    endExclusive: Date,
+  ): Promise<IPurchaseOrder[]> {
+    return await this.purchaseOrderModel
+      .find({ orderDate: { $gte: start, $lt: endExclusive } })
+      .sort({ orderDate: 1 })
+      .lean()
+      .exec();
+  }
+
+  async getSupplierPerformance(supplierId: string): Promise<{
+    totalOrders: number;
+    statusCounts: Record<string, number>;
+    receivedOrders: number;
+    onTimeOrders: number;
+    averageDelayDays: number;
+    totalValue: number;
+  }> {
+    const rows = await this.purchaseOrderModel
+      .aggregate<{
+        _id: string;
+        count: number;
+        totalValue: number;
+        onTime: number;
+        delayDays: number;
+        delayCount: number;
+      }>([
+        { $match: { supplierId: new mongoose.Types.ObjectId(supplierId) } },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+            totalValue: { $sum: "$totalAmount" },
+            onTime: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "received"] },
+                      { $ne: ["$receivedDate", null] },
+                      { $ne: ["$expectedDeliveryDate", null] },
+                      { $lte: ["$receivedDate", "$expectedDeliveryDate"] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            delayDays: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "received"] },
+                      { $ne: ["$receivedDate", null] },
+                      { $ne: ["$expectedDeliveryDate", null] },
+                    ],
+                  },
+                  {
+                    $max: [
+                      0,
+                      {
+                        $divide: [
+                          { $subtract: ["$receivedDate", "$expectedDeliveryDate"] },
+                          86_400_000,
+                        ],
+                      },
+                    ],
+                  },
+                  0,
+                ],
+              },
+            },
+            delayCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$status", "received"] },
+                      { $ne: ["$receivedDate", null] },
+                      { $ne: ["$expectedDeliveryDate", null] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const statusCounts: Record<string, number> = {};
+    let totalOrders = 0;
+    let totalValue = 0;
+    let receivedOrders = 0;
+    let onTimeOrders = 0;
+    let delayDays = 0;
+    let delayCount = 0;
+
+    for (const row of rows) {
+      statusCounts[row._id] = row.count;
+      totalOrders += row.count;
+      totalValue += row.totalValue;
+      if (row._id === "received") {
+        receivedOrders += row.count;
+        onTimeOrders += row.onTime;
+        delayDays += row.delayDays;
+        delayCount += row.delayCount;
+      }
+    }
+
+    return {
+      totalOrders,
+      statusCounts,
+      receivedOrders,
+      onTimeOrders,
+      averageDelayDays:
+        delayCount > 0
+          ? Math.round((delayDays / delayCount) * 10) / 10
+          : 0,
+      totalValue,
+    };
   }
 
   async findRecentBySupplier(

@@ -10,6 +10,7 @@ import brandRoutes from "./medicine/routes/brand.route.js";
 import genericNameRoutes from "./medicine/routes/genericName.route.js";
 import { authorize } from "../shared/middleware/authorize.js";
 import { verifyToken } from "../shared/middleware/verifyToken.js";
+import { apiRateLimiter } from "../shared/middleware/apiRateLimit.middleware.ts";
 import inventoryRoutes from "./inventory/routes/inventory.routes.ts";
 import supplierRoutes from "./supplier/routes/supplier.route.js";
 import purchaseRoutes from "./purchase/routes/purchase.route.js";
@@ -21,8 +22,15 @@ import notificationRoutes from "./notification/routes/notification.routes.ts";
 import dashboardRoutes from "./dashboard/routes/dashboard.routes.ts";
 import { returnController, saleItemController } from "../app/container.ts";
 import batchRoutes from "./batch/routes/batch.routes.ts";
+import auditRoutes from "./audit/routes/audit.routes.ts";
+import customerRoutes from "./customer/routes/customer.routes.ts";
+import purchaseReturnRoutes from "./purchaseReturn/routes/purchaseReturn.routes.ts";
+import stocktakeRoutes from "./stocktake/routes/stocktake.routes.ts";
+import notificationTemplateRoutes from "./notification/routes/notificationTemplate.routes.ts";
 
 const router = express.Router();
+
+router.use(apiRateLimiter);
 
 // auth and user-related routes
 router.use("/auth", authRoutes);
@@ -31,6 +39,15 @@ router.use(
   verifyToken,
   authorize(["owner", "pharmacist"]),
   userRoutes,
+);
+
+router.use("/audit", verifyToken, authorize(["owner"]), auditRoutes);
+
+router.use(
+  "/customers",
+  verifyToken,
+  authorize(["owner", "inventory_manager", "pharmacist"]),
+  customerRoutes,
 );
 
 // medicine-related routes
@@ -86,6 +103,20 @@ router.use(
 // inventory-related routes
 
 router.use(
+  "/purchase-returns",
+  verifyToken,
+  authorize(["owner", "inventory_manager", "pharmacist"]),
+  purchaseReturnRoutes,
+);
+
+router.use(
+  "/stocktakes",
+  verifyToken,
+  authorize(["owner", "inventory_manager"]),
+  stocktakeRoutes,
+);
+
+router.use(
   "/inventory",
   verifyToken,
   authorize(["owner", "inventory_manager", "pharmacist"]),
@@ -137,6 +168,13 @@ router.use(
   verifyToken,
   authorize(["owner", "inventory_manager", "pharmacist"]),
   notificationRoutes,
+);
+
+router.use(
+  "/notification-templates",
+  verifyToken,
+  authorize(["owner", "inventory_manager", "pharmacist"]),
+  notificationTemplateRoutes,
 );
 
 router.use(

@@ -3,6 +3,7 @@ export interface JWTUserPayload {
   email: string;
   role: string;
   sessionId?: string;
+  ver?: number;
 }
 
 declare global {

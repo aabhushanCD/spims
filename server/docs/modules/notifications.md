@@ -359,7 +359,7 @@ sequenceDiagram
 | Pagination | Implemented with a base64url cursor | — |
 | Authorization on `/notifications/user/:userId` | Implemented with a role hierarchy | — |
 | WebSocket delivery outside HTTP response | Implemented | — |
-| Notification templates | Needs decision | Phase 6 |
+| Notification templates | CRUD/render implemented at `/notification-templates`; not yet wired into notification creation | Phase 6.8 |
 | Atomic dispatch claim | Implemented (compare-and-swap; at-least-once delivery) | — |
 | Multi-instance retry cron | Fixed: Redis lock; stale-claim window still bounds duplicates | — |
 | Retry sweep overlap (single instance) | Implemented (in-process guard) | — |

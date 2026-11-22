@@ -1,3 +1,4 @@
+import { useAuth } from "@/features/auth/context/authContext";
 import { UserStats } from "../components/UserStats";
 import { UserTable } from "../components/UserTable";
 import { UserToolbar } from "../components/UserToolbar";
@@ -7,6 +8,8 @@ import { useGetAllUsers } from "../hooks/useUser";
 const UserPage = () => {
   // const users = useGetAllUsers();
 
+  const { currentUser } = useAuth();
+  const canManage = currentUser?.role === "owner";
   const users = useGetAllUsers();
   const toggleActivation = useToggleUserActivation();
   const handleSearch = (value: string) => {
@@ -31,10 +34,15 @@ const UserPage = () => {
         inactive={users?.data?.filter((u) => !u.isActive).length || 0}
       />
 
-      <UserToolbar search={"Search..."} setSearch={handleSearch} />
+      <UserToolbar
+        search={"Search..."}
+        canManage={canManage}
+        setSearch={handleSearch}
+      />
 
       <UserTable
         users={users?.data}
+        canManage={canManage}
         onEdit={handleEdit}
         onDelete={handleToggleActivation}
       />

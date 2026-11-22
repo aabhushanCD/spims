@@ -31,7 +31,7 @@ pull request targeting `main`.
 
 | Job | Steps | Working directory |
 |---|---|---|
-| Backend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, test with coverage, upload coverage artifact, build | `server` |
+| Backend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, test with coverage, HTTP integration tests, upload coverage artifact, build | `server` |
 | Frontend | checkout, Node 22 + npm cache, `npm ci`, lint, typecheck, test, build | `client` |
 
 Both jobs use a 15-minute timeout, a frozen lockfile install (`npm ci`), and
@@ -76,7 +76,7 @@ Run from the repository root:
 
 ```bash
 npm run install:all   # first checkout only (or after lockfile changes)
-npm run check         # lint -> typecheck -> test -> build
+npm run check         # lint -> typecheck -> unit+integration -> build
 npm run check:ci      # check + production dependency audit
 ```
 
