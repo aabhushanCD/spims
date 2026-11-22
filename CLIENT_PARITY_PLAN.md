@@ -1082,22 +1082,41 @@ npm run build      PASS (Vite chunk-size warning only)
 **Size:** Medium/large  
 **Dependencies:** Phases 0–2
 
-- [ ] Correct PO edit flow.
-- [ ] Cancel PO.
-- [ ] Recalculate totals.
-- [ ] Item add/update/remove.
-- [ ] Invoice upload/download.
-- [ ] Partial receiving with remaining quantities and `purchaseOrderItemId`.
-- [ ] Multiple receipts/batches per PO item.
-- [ ] Supplier performance panel.
-- [ ] Purchase returns feature.
-- [ ] Supplier credit ledger.
-- [ ] Purchase filters/pagination.
-- [ ] Tests for partial receipt and purchase return completion.
+- [x] Correct PO edit flow.
+- [x] Cancel PO.
+- [x] Recalculate totals.
+- [x] Item add/update/remove.
+- [x] Invoice upload/download.
+- [x] Partial receiving with remaining quantities and `purchaseOrderItemId`.
+- [x] Multiple receipts/batches per PO item.
+- [x] Supplier performance panel.
+- [x] Purchase returns feature.
+- [x] Supplier credit ledger.
+- [x] Purchase filters/pagination.
+- [x] Tests for partial receipt and purchase return validation.
 
 **Exit criteria**
 
 - A PO can be created, approved, partially received across receipts, invoiced, and partially returned.
+
+#### Phase 3 implementation notes (2026-11-22)
+
+- Batch list now supports a `purchaseOrderId` filter, with a compound index and server test.
+- Purchase list now supports search, status/date filters, and cursor load-more; the table shows the invoice number and only offers edit/cancel where allowed.
+- Purchase detail shows ordered, received, and remaining quantities, invoice upload/download, and cancel/approve/receive actions.
+- Receiving supports multiple batch lines per PO item with over-receipt and duplicate-batch validation.
+- Supplier performance dialog exposes order counts, on-time rate, average delay, value, reliability, and recent orders.
+- Purchase returns include list, create-from-received-PO, detail, approve/reject/cancel/complete, and supplier credit ledger.
+- Added tests for purchase list params, invoice file validation, receipt totals, and purchase-return validation.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 537 unit + 15 integration; client 94)
+npm run build      PASS (Vite chunk-size warning only)
+```
 
 ---
 
@@ -1220,9 +1239,9 @@ npm run build      PASS (Vite chunk-size warning only)
 | D-5 | Inventory depth | 2 | 🟡 movements/reconciliation/reserve/release/sync done; movement detail and aggregate inc/dec remain |
 | D-6 | Batch UI | 2 | ✅ |
 | D-7 | Stocktakes | 2 | ✅ |
-| D-8 | Purchase returns | 3 | ☐ |
-| D-9 | Purchase depth | 3 | ☐ |
-| D-10 | Supplier performance | 3 | ☐ |
+| D-8 | Purchase returns | 3 | ✅ |
+| D-9 | Purchase depth | 3 | ✅ |
+| D-10 | Supplier performance | 3 | ✅ |
 | D-11 | Smart reorder actions | 4 | ☐ |
 | D-12 | Notification admin/templates | 4 | ☐ |
 | D-13 | Reporting/CSV | 5 | ☐ |
