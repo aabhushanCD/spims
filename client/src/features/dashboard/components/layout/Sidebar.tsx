@@ -8,14 +8,12 @@ import { Separator } from "@/components/ui/separator";
 import SidebarItem from "@/components/dashboard/SidebarItem";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuth } from "@/features/auth/context/authContext";
+import { filterNavigation } from "@/lib/permissions";
 
 export default function Sidebar() {
   const logout = useLogout();
   const { theme, currentUser } = useAuth();
-  const filteredSidebarItem = sidebarItems.filter((item) => {
-    if (!item.roles)  return true;
-    return item.roles.includes(currentUser?.role as string);
-  });
+  const filteredSidebarItem = filterNavigation(sidebarItems, currentUser?.role);
   return (
     <aside
       className={`bg-background hidden h-screen w-72 shrink-0 border-r lg:block ${theme === "dark" ? "dark text-white" : ""}`}

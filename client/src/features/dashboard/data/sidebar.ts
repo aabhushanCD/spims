@@ -8,7 +8,9 @@ import {
   DollarSign,
 } from "lucide-react";
 
-export const sidebarItems = [
+import type { NavItem } from "@/lib/permissions";
+
+export const sidebarItems: NavItem[] = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
@@ -90,7 +92,6 @@ export const sidebarItems = [
   {
     title: "Sales",
     icon: DollarSign,
-    roles: ["pharmacist"],
     children: [
       {
         title: "Sales Orders",
@@ -107,6 +108,8 @@ export const sidebarItems = [
       {
         title: "Users",
         path: "/users",
+        // The server mounts /users for owner and pharmacist only.
+        roles: ["owner", "pharmacist"],
       },
 
       {

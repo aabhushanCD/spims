@@ -61,7 +61,7 @@ export default function AddSupplierDialog({
     },
   });
 
-  console.log("form error state", form.formState.errors);
+
 
   useEffect(() => {
     if (editingSupplier) {

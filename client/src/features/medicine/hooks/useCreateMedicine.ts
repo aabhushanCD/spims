@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-toastify";
 
 import { medicineServices } from "../services/medicine.service";
 
@@ -9,7 +10,7 @@ export function useCreateMedicine() {
     mutationFn: medicineServices.createMedicine,
 
     onSuccess: () => {
-      console.log("Medicine created successfully");
+      toast.success("Medicine created successfully");
       queryClient.invalidateQueries({
         queryKey: ["medicines"],
       });

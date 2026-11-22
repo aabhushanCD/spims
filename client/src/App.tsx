@@ -1,15 +1,17 @@
 import { useAuth } from "./features/auth/context/authContext";
 import AppRoutes from "./routes/appRoutes";
-import { ToastContainer } from 'react-toastify';
+import ErrorBoundary from "./components/ErrorBoundary";
+import { ToastContainer } from "react-toastify";
+
 function App() {
   const { theme } = useAuth();
   return (
-    <>
-      <div className={` ${theme === "dark" ? "dark" : ""}`}>
-        <ToastContainer />
+    <div className={` ${theme === "dark" ? "dark" : ""}`}>
+      <ToastContainer />
+      <ErrorBoundary>
         <AppRoutes />
-      </div>
-    </>
+      </ErrorBoundary>
+    </div>
   );
 }
 

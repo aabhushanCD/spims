@@ -19,7 +19,7 @@ import type { User } from "@/features/auth/context/authContext";
 interface Props {
   users?: User[];
   canManage?: boolean;
-  onEdit: (id: string) => void;
+  onEdit?: (id: string) => void;
 
   onDelete: (id: string) => void;
 }

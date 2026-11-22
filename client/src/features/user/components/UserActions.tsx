@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   id: string;
-  onEdit: (id: string) => void;
+  onEdit?: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -27,7 +27,9 @@ export function UserActions({ id, onEdit, onDelete }: Props) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onEdit(id)}>Edit</DropdownMenuItem>
+        {onEdit && (
+          <DropdownMenuItem onClick={() => onEdit(id)}>Edit</DropdownMenuItem>
+        )}
 
         <DropdownMenuItem onClick={() => onDelete(id)} className="text-red-600">
           Deactivate

@@ -1,4 +1,6 @@
 import ProtectedRoute from "@/components/ProtectedRoute";
+import RequireRole from "@/components/RequireRole";
+import NotFoundPage from "@/components/NotFoundPage";
 
 import Login from "@/features/auth/pages/login.page";
 import Signup from "@/features/auth/pages/Signup";
@@ -57,7 +59,14 @@ export default function AppRoutes() {
           <Route path="/purchase-orders" element={<PurchasePage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/sales/:id" element={<SaleDetailsPage />} />
-          <Route path="/users" element={<UserPage />} />
+          <Route
+            path="/users"
+            element={
+              <RequireRole allowedRoles={["owner", "pharmacist"]}>
+                <UserPage />
+              </RequireRole>
+            }
+          />
           <Route path="/batches" element={<BatchPage />} />
           <Route path="/stock" element={<InventoryPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
@@ -67,6 +76,8 @@ export default function AppRoutes() {
           />
           <Route path="/settings/security" element={<SecurityPage />} />
         </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );
