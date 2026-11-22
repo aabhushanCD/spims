@@ -1,16 +1,20 @@
 // ReorderSummary.tsx
 
-import { AlertTriangle, ClipboardList, PackageMinus } from "lucide-react";
+import { ClipboardList, PackageMinus, Target } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 
 interface Props {
   total: number;
   pending: number;
-  critical: number;
+  highConfidence: number;
 }
 
-export function ReorderSummary({ total, pending, critical }: Props) {
+export function ReorderSummary({
+  total,
+  pending,
+  highConfidence,
+}: Props) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <Card className="p-4">
@@ -30,11 +34,11 @@ export function ReorderSummary({ total, pending, critical }: Props) {
       </Card>
 
       <Card className="p-4">
-        <AlertTriangle className="mb-2 text-red-500" />
+        <Target className="mb-2 text-emerald-600" />
 
-        <p className="text-muted-foreground text-sm">Critical</p>
+        <p className="text-muted-foreground text-sm">High confidence</p>
 
-        <h2 className="text-2xl font-bold">{critical}</h2>
+        <h2 className="text-2xl font-bold">{highConfidence}</h2>
       </Card>
     </div>
   );
