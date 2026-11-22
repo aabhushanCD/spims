@@ -24,16 +24,26 @@ let users manage read state and channel preferences.
 
 ```text
 modules/notification/
-├── controller/notification.controller.ts
+├── controller/
+│   ├── notification.controller.ts
+│   └── notificationTemplate.controller.ts
 ├── model/
 │   ├── notification.model.ts
-│   └── notificationRecipient.model.ts
+│   ├── notificationRecipient.model.ts
+│   └── notificationTemplate.model.ts
 ├── repo/
 │   ├── notification.repo.ts
-│   └── notificationRecipient.repo.ts
-├── routes/notification.routes.ts
-├── schema/notification.schema.ts
-├── services/notification.service.ts
+│   ├── notificationRecipient.repo.ts
+│   └── notificationTemplate.repo.ts
+├── routes/
+│   ├── notification.routes.ts
+│   └── notificationTemplate.routes.ts
+├── schema/
+│   ├── notification.schema.ts
+│   └── notificationTemplate.schema.ts
+├── services/
+│   ├── notification.service.ts
+│   └── notificationTemplate.service.ts
 ├── utils/notification.pagination.ts
 └── notification.constants.ts
 ```
@@ -51,7 +61,7 @@ Base: `/api/notifications`, roles: all three. The mount applies `verifyToken` +
 | GET | `/me` | Current user's inbox (paginated, includes `unreadCount`) |
 | GET | `/user/:userId` | Another user's inbox (role hierarchy enforced) |
 | POST | `/` | Create + dispatch (Zod-validated body) |
-| GET | `/` | List all notifications (paginated) |
+| GET | `/` | List all notifications (paginated; optional `status` and `type` filters) |
 | GET | `/:id` | Detail + recipients (owner/pharmacist; owner sees delivery details) |
 | POST | `/:id/dispatch` | Dispatch; optional `?force=true` |
 | POST | `/:id/retry` | Forced retry of failed recipients |
@@ -69,6 +79,11 @@ segments are not parsed as notification ids.
 `POST /:id/dispatch`, `POST /:id/retry`, and `GET /:id` additionally require
 `owner` or `pharmacist`. The other routes are available to all three mounted
 roles.
+
+Notification templates live at `/api/notification-templates`: all roles can
+read and render; create, update, and delete require `owner`. Create accepts
+`templateKey` + `templateData` to render the template into the notification
+title/message/type before dispatch.
 
 Full contracts: [endpoints.md](../api/endpoints.md#notifications).
 
@@ -256,7 +271,9 @@ See [Schema and relationships](../database/schema-and-relationships.md#72-notifi
   schema does not reject repeated or case-variant ids.
 - `notificationIdParamSchema`, `userIdParamSchema`: 24-hex ObjectIds → `400`
   for malformed ids instead of a Mongoose cast error (`500`).
-- `paginationQuerySchema`: optional cursor, coerced limit 1–100 (default 20).
+- `paginationQuerySchema`: optional cursor, coerced limit 1–100 (default 20),
+  optional `status` (`Pending | Sent | Failed`) and `type`
+  (`Email | SMS | InApp`) filters.
 - `forceRetryQuerySchema`: explicit `"true" | "false" | "1" | "0"` transform;
   `?force=false` and `?force=0` do not force. `z.coerce.boolean()` is not used
   because it parses `"false"` as `true`.
@@ -359,7 +376,7 @@ sequenceDiagram
 | Pagination | Implemented with a base64url cursor | — |
 | Authorization on `/notifications/user/:userId` | Implemented with a role hierarchy | — |
 | WebSocket delivery outside HTTP response | Implemented | — |
-| Notification templates | CRUD/render implemented at `/notification-templates`; not yet wired into notification creation | Phase 6.8 |
+| Notification templates | CRUD/render implemented at `/notification-templates`; wired into creation through `templateKey` + `templateData` | — |
 | Atomic dispatch claim | Implemented (compare-and-swap; at-least-once delivery) | — |
 | Multi-instance retry cron | Fixed: Redis lock; stale-claim window still bounds duplicates | — |
 | Retry sweep overlap (single instance) | Implemented (in-process guard) | — |

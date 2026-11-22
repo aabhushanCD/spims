@@ -20,6 +20,8 @@ function buildService() {
       _id: new Types.ObjectId(),
       ...data,
     })),
+    findAll: vi.fn().mockResolvedValue([]),
+    findByStatus: vi.fn().mockResolvedValue([]),
   };
   const medicineRepo = {
     findById: vi.fn().mockResolvedValue({ _id: MEDICINE_ID }),
@@ -137,5 +139,32 @@ describe("SmartReorderService", () => {
     const upper = batchRepo.getExpiringUnits.mock.calls[0]?.[2] as Date;
     expect(lower.getTime()).toBeGreaterThanOrEqual(before);
     expect(upper.getTime()).toBeGreaterThan(lower.getTime());
+  });
+
+  describe("getAll", () => {
+    it("defaults to pending recommendations", async () => {
+      const { service, smartReorderRepo } = buildService();
+
+      await service.getAll();
+
+      expect(smartReorderRepo.findAll).toHaveBeenCalledWith("PENDING");
+      expect(smartReorderRepo.findByStatus).not.toHaveBeenCalled();
+    });
+
+    it("returns all statuses only when explicitly requested", async () => {
+      const { service, smartReorderRepo } = buildService();
+
+      await service.getAll("ALL");
+
+      expect(smartReorderRepo.findAll).toHaveBeenCalledWith();
+    });
+
+    it("delegates a specific status to findByStatus", async () => {
+      const { service, smartReorderRepo } = buildService();
+
+      await service.getAll("APPROVED");
+
+      expect(smartReorderRepo.findByStatus).toHaveBeenCalledWith("APPROVED");
+    });
   });
 });

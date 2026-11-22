@@ -49,3 +49,50 @@ export interface MarkReadResult {
 export interface MarkAllReadResult {
   updated: number;
 }
+
+export interface AdminNotification {
+  _id: string;
+  title: string;
+  message: string;
+  type: NotificationChannel;
+  status: DeliveryStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminNotificationPage {
+  items: AdminNotification[];
+  nextCursor: string | null;
+}
+
+export interface AdminNotificationParams {
+  cursor?: string;
+  limit?: number;
+  status?: DeliveryStatus;
+  type?: NotificationChannel;
+}
+
+export interface NotificationRecipient {
+  _id: string;
+  userId: string;
+  status: RecipientStatus;
+  sentAt: string | null;
+  readAt: string | null;
+  error?: string | null;
+  attempts?: number;
+  lastAttemptAt?: string | null;
+  nextAttemptAt?: string | null;
+}
+
+export interface AdminNotificationDetail extends AdminNotification {
+  recipients: NotificationRecipient[];
+}
+
+export interface CreateNotificationInput {
+  title?: string;
+  message?: string;
+  templateKey?: string;
+  templateData?: Record<string, string | number | boolean>;
+  type: NotificationChannel;
+  userIds: string[];
+}

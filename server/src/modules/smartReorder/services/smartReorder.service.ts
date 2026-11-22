@@ -368,8 +368,14 @@ export class SmartReorderService {
     return reorder;
   }
 
-  async getAll() {
-    return await this.smartReorderRepo.findAll();
+  async getAll(status?: "PENDING" | "APPROVED" | "REJECTED" | "ALL") {
+    if (!status) {
+      return await this.smartReorderRepo.findAll("PENDING");
+    }
+    if (status === "ALL") {
+      return await this.smartReorderRepo.findAll();
+    }
+    return await this.smartReorderRepo.findByStatus(status);
   }
 
   async getByMedicineId(medicineId: string) {

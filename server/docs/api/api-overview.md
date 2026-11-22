@@ -182,7 +182,7 @@ The complete reference lives in [endpoints.md](endpoints.md). Summary by module:
 | Sale items | 4 | `/sale-items` |
 | Returns | 8 | `/returns` |
 | Batches | 17 | `/batches` |
-| Smart reorders | 9 | `/smart-reorders` |
+| Smart reorders | 10 | `/smart-reorders` |
 | Notifications | 14 | `/notifications` |
 | Dashboard | 14 | `/dashboard` |
 

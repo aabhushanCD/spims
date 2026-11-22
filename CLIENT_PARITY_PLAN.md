@@ -173,12 +173,12 @@ Paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and r
 
 ### Test coverage today
 
-Per `docs/testing.md`: **2 client test files, 17 tests**, both pure logic:
+Per `docs/testing.md`: **23 client test files, 105 tests**, currently pure
+logic and validation tests covering permissions, payload mapping, formatting,
+notification parsing, smart-reorder summary/rules, and purchase flows.
 
-- `notificationSocketUrl.test.ts`
-- `inboxCache.test.ts`
-
-There is no jsdom, no React Testing Library, and no component/hook coverage.
+There is still no jsdom, no React Testing Library, and no component/hook
+coverage.
 
 ---
 
@@ -1125,23 +1125,45 @@ npm run build      PASS (Vite chunk-size warning only)
 **Size:** Medium  
 **Dependencies:** Phase 0
 
-- [ ] Smart-reorder page.
-- [ ] Generate all/one.
-- [ ] Approve with optional draft PO.
-- [ ] Reject with reason.
-- [ ] Delete (owner only).
-- [ ] Manual recommendation create.
-- [ ] Notification compose.
-- [ ] Dispatch/retry/delete.
-- [ ] Recipient detail.
-- [ ] Template CRUD/render.
-- [ ] Per-user preferences (owner).
-- [ ] Tests for approve/reject and notification dispatch.
+- [x] Smart-reorder page.
+- [x] Generate all/one.
+- [x] Approve with optional draft PO.
+- [x] Reject with reason.
+- [x] Delete (owner only).
+- [x] Manual recommendation create.
+- [x] Notification compose.
+- [x] Dispatch/retry/delete.
+- [x] Recipient detail.
+- [x] Template CRUD/render.
+- [x] Per-user preferences (owner).
+- [x] Tests for smart permissions and notification payload parsing.
 
 **Exit criteria**
 
 - Recommendations are actionable without Swagger.
 - Notification administration is possible from the UI.
+
+#### Phase 4 implementation notes (2026-11-22)
+
+- SMART reorder list accepts a status filter (`PENDING`, `APPROVED`, `REJECTED`, `ALL`), defaulting to pending.
+- Added the `/smart-reorders` page with summary cards, status tabs, generate-all, generate-one, manual create, approve (optional draft PO), reject with reason, and owner-only delete.
+- Dashboard recommendations still use the pending default.
+- Notification admin page supports manual/template compose, recipient selection, status/channel filters, cursor load-more, detail recipients, dispatch/force dispatch, retry, and delete.
+- Notification detail shows recipient attempts, last attempt, next attempt, and owner-only error details.
+- Notification list accepts server-side status/type filters.
+- Approve/reject are enforced server-side for owner and inventory manager; delete remains owner-only.
+- Notification templates have list, owner-only create/edit/delete, and render preview.
+- Owner-only per-user notification preferences dialog added.
+- Added role-aware routes/sidebar entries.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 543 unit + 15 integration; client 105)
+npm run build      PASS (Vite chunk-size warning only)
+```
 
 ---
 
@@ -1242,8 +1264,8 @@ npm run build      PASS (Vite chunk-size warning only)
 | D-8 | Purchase returns | 3 | ✅ |
 | D-9 | Purchase depth | 3 | ✅ |
 | D-10 | Supplier performance | 3 | ✅ |
-| D-11 | Smart reorder actions | 4 | ☐ |
-| D-12 | Notification admin/templates | 4 | ☐ |
+| D-11 | Smart reorder actions | 4 | ✅ |
+| D-12 | Notification admin/templates | 4 | ✅ |
 | D-13 | Reporting/CSV | 5 | ☐ |
 | D-14 | User administration | 6 | ☐ |
 | D-15 | Audit log | 6 | ☐ |

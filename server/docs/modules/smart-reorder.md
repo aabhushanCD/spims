@@ -14,7 +14,9 @@ Generate purchase recommendations from recent demand, supplier lead time, safety
 - Cache results in Redis.
 - Allow approve/reject/delete and manual generation.
 
-It does **not** create purchase orders automatically.
+Approving a recommendation can create a draft purchase order when
+`SMART_REORDER_AUTO_PO=true` and the supplier/purchase-price checks pass.
+Otherwise approval only records the approval audit fields.
 
 ## 3. Structure
 
@@ -34,12 +36,12 @@ Base: `/api/smart-reorders`, roles: all three unless noted.
 
 | Method | Path | Extra role check | Purpose |
 |---|---|---|---|
-| GET | `/` | — | List (only `PENDING` in practice) |
+| GET | `/` | — | List; `?status=PENDING\|APPROVED\|REJECTED\|ALL`, default `PENDING` |
 | GET | `/pending` | — | Pending list |
 | GET | `/medicine/:medicineId` | — | Recommendations for a medicine |
 | GET | `/:id` | — | Detail |
-| PATCH | `/:id/approve` | — | Set `APPROVED` if pending |
-| PATCH | `/:id/reject` | — | Set `REJECTED` if pending |
+| PATCH | `/:id/approve` | `owner`, `inventory_manager` | Set `APPROVED` if pending; optional draft PO |
+| PATCH | `/:id/reject` | `owner`, `inventory_manager` | Set `REJECTED` if pending |
 | POST | `/generate` | `owner`, `inventory_manager` | Generate for all medicines |
 | POST | `/generate/:medicineId` | `owner`, `inventory_manager` | Generate for one medicine |
 | DELETE | `/:id` | `owner` | Delete |
@@ -78,7 +80,10 @@ Full contracts: [endpoints.md](../api/endpoints.md#smart-reorders).
 
 `generateForAllMedicines` iterates every medicine and records `created` or `skipped` with a `reason`. The result type also allows `error`, but the implementation converts every caught exception into `skipped`; `error` is never produced. Most skips are expected business outcomes (stock above ROP, no purchase history), not failures.
 
-`approve`/`reject` only change status; they do not create a PO or reserve stock. `delete` removes the record.
+`reject` only changes status. `approve` records the approval and, when
+`createPurchaseOrder=true` and `SMART_REORDER_AUTO_PO=true`, creates a draft PO
+from the recommendation supplier, medicine, suggested quantity, and latest
+batch purchase price. It never reserves stock. `delete` removes the record.
 
 ## 7. Model
 
@@ -100,7 +105,11 @@ Full contracts: [endpoints.md](../api/endpoints.md#smart-reorders).
 | `currentStock` | Usable stock at generation time |
 | `expiryRiskUnits` | Units expiring within the cutoff |
 
-No timestamps and no indexes on `medicineId`/`status`.
+The schema does not enable Mongoose `{ timestamps: true }`; it stores
+`generatedAt`, `approvedAt`, and `rejectedAt` explicitly. Indexes exist on
+`{ medicineId, status, generatedAt }`, `{ status, generatedAt }`,
+`purchaseOrderId` (partial unique), and a pending-only unique `medicineId`
+index.
 
 ## 8. Formulas
 

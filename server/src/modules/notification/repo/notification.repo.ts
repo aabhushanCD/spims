@@ -74,10 +74,18 @@ export class NotificationRepo {
   async findAllPaged(
     cursor: PageCursor | null,
     limit: number,
+    filters: {
+      status?: INotification["status"];
+      type?: INotification["type"];
+    } = {},
     session?: mongoose.ClientSession,
   ): Promise<INotification[]> {
     const query = this.notificationModel
-      .find(cursorFilter(cursor))
+      .find({
+        ...cursorFilter(cursor),
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.type ? { type: filters.type } : {}),
+      })
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1);
 
