@@ -17,7 +17,7 @@ const getInventory = async (
 ): Promise<ApiResponse<InventoryItem[]>> => {
   const response = await api.get<
     ApiResponse<{ items: InventoryItem[]; nextCursor: string | null }>
-  >(`/inventory?search=${search}&limit=100`);
+  >(`/inventory?search=${encodeURIComponent(search)}&limit=100`);
   return toInventoryPage(response.data);
 };
 

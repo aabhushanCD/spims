@@ -1,4 +1,4 @@
-import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -8,20 +8,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
-import type { Batch } from "../types/batch.types";
-
 
 interface Props {
-  batch: Batch;
-
-  onView: (batch: Batch) => void;
-
-  onEdit: (batch: Batch) => void;
-
-  onDelete: (id: string) => void;
+  onAdjust: () => void;
+  onDelete: () => void;
 }
 
-export function BatchActions({ batch, onView, onEdit, onDelete }: Props) {
+export function BatchActions({ onAdjust, onDelete }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,20 +24,12 @@ export function BatchActions({ batch, onView, onEdit, onDelete }: Props) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onView(batch)}>
-          <Eye className="mr-2 h-4 w-4" />
-          View
+        <DropdownMenuItem onClick={onAdjust}>
+          <SlidersHorizontal className="mr-2 h-4 w-4" />
+          Adjust stock
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => onEdit(batch)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
-
-        <DropdownMenuItem
-          className="text-red-600"
-          onClick={() => onDelete(batch._id)}
-        >
+        <DropdownMenuItem className="text-red-600" onClick={onDelete}>
           <Trash2 className="mr-2 h-4 w-4" />
           Delete
         </DropdownMenuItem>
