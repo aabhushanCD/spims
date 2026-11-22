@@ -44,9 +44,9 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the latest client-parity Phase 4 baseline: **80 server unit test files,
+As of the latest client-parity Phase 5 baseline: **80 server unit test files,
 543 tests** plus **15 integration cases (10 HTTP + 5 migration/seeder)** and
-**23 client test files, 105 tests**, all passing.
+**24 client test files, 109 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -150,6 +150,7 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
 | `reorderPermissions.test.ts` (client) | Smart-reorder manage/delete/action role gating |
 | `reorderSummary.test.ts` (client) | High-confidence threshold (80), pending-only units, non-pending exclusion |
+| `reportRange.test.ts` (client) | Current-month defaults, complete-day range expansion, invalid ranges, CSV filenames |
 | `notificationPayload.test.ts` (client) | Template JSON parsing, primitive-value validation, notification-admin role helper |
 | `permissions.test.ts` (client) | Role-aware navigation filtering |
 | `format.test.ts` (client) | Currency, date, and percent formatting |

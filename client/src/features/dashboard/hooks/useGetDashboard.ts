@@ -11,7 +11,7 @@ export const useGetDashboard = () => {
 export const useGetSales = () => {
   return useQuery({
     queryKey: ["dashboard", "sales"],
-    queryFn: dashboardService.getSales,
+    queryFn: () => dashboardService.getSales(),
   });
 };
 
@@ -32,7 +32,7 @@ export const useGetProfit = () => {
 export const useGetTopSelling = () => {
   return useQuery({
     queryKey: ["dashboard", "top-selling"],
-    queryFn: dashboardService.getTopSelling,
+    queryFn: () => dashboardService.getTopSelling(),
   });
 };
 

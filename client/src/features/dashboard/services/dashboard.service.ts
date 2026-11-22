@@ -1,4 +1,17 @@
 import { api } from "@/api/fetch.api";
+import type { ApiResponse } from "@/types/api";
+import type {
+  CashierSalesRow,
+  CategorySalesRow,
+  CsvExportType,
+  InventoryAnalytics,
+  ProfitSummary,
+  PurchaseAnalytics,
+  RangeAnalytics,
+  SalesAnalytics,
+  SupplierAnalytics,
+  TopSellingRow,
+} from "../types/dashboard";
 
 const getDashboard = async () => {
   const response = await api.get("/dashboard");
@@ -11,28 +24,40 @@ const getSummary = async () => {
 };
 
 const getInventory = async () => {
-  const response = await api.get("/dashboard/inventory");
-  return response.data;
+  const response = await api.get<ApiResponse<InventoryAnalytics>>(
+    "/dashboard/inventory",
+  );
+  return response.data.data;
 };
 
-const getSales = async () => {
-  const response = await api.get("/dashboard/sales");
-  return response.data;
+const getSales = async (year?: number) => {
+  const response = await api.get<ApiResponse<SalesAnalytics>>(
+    "/dashboard/sales",
+    { params: year ? { year } : {} },
+  );
+  return response.data.data;
 };
 
-const getPurchases = async () => {
-  const response = await api.get("/dashboard/purchases");
-  return response.data;
+const getPurchases = async (): Promise<PurchaseAnalytics> => {
+  const response = await api.get<ApiResponse<PurchaseAnalytics>>(
+    "/dashboard/purchases",
+  );
+  return response.data.data;
 };
 
-const getProfit = async () => {
-  const response = await api.get("/dashboard/profit");
-  return response.data;
+const getProfit = async (): Promise<ProfitSummary> => {
+  const response = await api.get<ApiResponse<ProfitSummary>>(
+    "/dashboard/profit",
+  );
+  return response.data.data;
 };
 
-const getTopSelling = async () => {
-  const response = await api.get("/dashboard/top-selling");
-  return response.data;
+const getTopSelling = async (limit = 10): Promise<TopSellingRow[]> => {
+  const response = await api.get<ApiResponse<TopSellingRow[]>>(
+    "/dashboard/top-selling",
+    { params: { limit } },
+  );
+  return response.data.data;
 };
 
 const getExpiry = async () => {
@@ -60,15 +85,63 @@ const getSystemHealth = async () => {
   return response.data;
 };
 
-const getSupplierAnalytics = async () => {
-  const response = await api.get("/dashboard/suppliers");
-  return response.data;
+const getSupplierAnalytics = async (): Promise<SupplierAnalytics> => {
+  const response = await api.get<ApiResponse<SupplierAnalytics>>(
+    "/dashboard/suppliers",
+  );
+  return response.data.data;
 };
 
 const getSalesComparison = async () => {
   const response = await api.get("/dashboard/sales-comparison");
   return response.data;
 };
+
+const getRange = async (from: string, to: string): Promise<RangeAnalytics> => {
+  const response = await api.get<ApiResponse<RangeAnalytics>>(
+    "/dashboard/range",
+    { params: { from, to } },
+  );
+  return response.data.data;
+};
+
+const getByCashier = async (
+  from: string,
+  to: string,
+): Promise<CashierSalesRow[]> => {
+  const response = await api.get<ApiResponse<CashierSalesRow[]>>(
+    "/dashboard/by-cashier",
+    { params: { from, to } },
+  );
+  return response.data.data;
+};
+
+const getByCategory = async (
+  from: string,
+  to: string,
+): Promise<CategorySalesRow[]> => {
+  const response = await api.get<ApiResponse<CategorySalesRow[]>>(
+    "/dashboard/by-category",
+    { params: { from, to } },
+  );
+  return response.data.data;
+};
+
+const exportCsv = async (
+  type: CsvExportType,
+  from?: string,
+  to?: string,
+): Promise<Blob> => {
+  const response = await api.get("/dashboard/export", {
+    params: {
+      type,
+      ...(type === "inventory" ? {} : { from, to }),
+    },
+    responseType: "blob",
+  });
+  return response.data as Blob;
+};
+
 export const dashboardService = {
   getDashboard,
   getSummary,
@@ -84,4 +157,8 @@ export const dashboardService = {
   getSystemHealth,
   getSupplierAnalytics,
   getSalesComparison,
+  getRange,
+  getByCashier,
+  getByCategory,
+  exportCsv,
 };

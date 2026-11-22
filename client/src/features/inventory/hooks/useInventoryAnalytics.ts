@@ -13,8 +13,7 @@ export function useInventoryAnalytics() {
   return useQuery({
     queryKey: ["inventory", "analytics"],
     queryFn: async (): Promise<InventoryAnalytics> => {
-      const response = await dashboardService.getInventory();
-      return response.data as InventoryAnalytics;
+      return await dashboardService.getInventory();
     },
     staleTime: 60_000,
   });

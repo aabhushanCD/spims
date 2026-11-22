@@ -20,6 +20,7 @@ import InventoryPage from "@/features/inventory/pages/InventoryPage";
 import InventoryMovementsPage from "@/features/inventory/pages/InventoryMovementsPage";
 import ReconciliationPage from "@/features/inventory/pages/ReconciliationPage";
 import ReorderRecommendationsPage from "@/features/smart/pages/ReorderRecommendationsPage";
+import ReportsPage from "@/features/report/pages/ReportsPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import NotificationsPage from "@/features/notification/pages/NotificationsPage";
 import NotificationAdminPage from "@/features/notification/pages/NotificationAdminPage";
@@ -59,6 +60,7 @@ export default function AppRoutes() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="/reports" element={<ReportsPage />} />
           <Route path="/medicines" element={<MedicinePage />} />
           <Route path="/generic-names" element={<GenericNamePage />} />
 
