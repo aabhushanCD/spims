@@ -10,9 +10,12 @@ export const useReceivePurchase = () => {
     mutationFn: ({ id, data }: { id: string; data: ReceivePurchaseForm }) =>
       purchaseService.receivePurchase(id, data),
 
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["purchase-orders"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["purchase-order", variables.id],
       });
 
       queryClient.invalidateQueries({

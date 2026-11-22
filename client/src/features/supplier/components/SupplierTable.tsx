@@ -1,4 +1,5 @@
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Gauge, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import {
   Table,
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import type { Supplier } from "../types/supplier.types";
 import SupplierStatusBadge from "./SupplierStatusBadge";
 import { useDeleteSupplier } from "../hooks/useDeleteSupplier";
+import SupplierPerformanceDialog from "@/features/purchase/components/SupplierPerformanceDialog";
 
 interface Props {
   suppliers: Supplier[];
@@ -32,6 +34,8 @@ interface Props {
 
 export default function SupplierTable({ suppliers, isLoading, onEdit }: Props) {
   const deleteSupplier = useDeleteSupplier();
+  const [performanceSupplier, setPerformanceSupplier] =
+    useState<Supplier | null>(null);
 
   if (isLoading) {
     return <p>Loading...</p>;
@@ -80,6 +84,13 @@ export default function SupplierTable({ suppliers, isLoading, onEdit }: Props) {
                   </DropdownMenuTrigger>
 
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => setPerformanceSupplier(supplier)}
+                    >
+                      <Gauge className="mr-2 h-4 w-4" />
+                      Performance
+                    </DropdownMenuItem>
+
                     <DropdownMenuItem onClick={() => onEdit(supplier)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
@@ -99,6 +110,14 @@ export default function SupplierTable({ suppliers, isLoading, onEdit }: Props) {
           ))}
         </TableBody>
       </Table>
+
+      {performanceSupplier && (
+        <SupplierPerformanceDialog
+          supplierId={performanceSupplier._id}
+          companyName={performanceSupplier.companyName}
+          onOpenChange={(open) => !open && setPerformanceSupplier(null)}
+        />
+      )}
     </div>
   );
 }

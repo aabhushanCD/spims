@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -19,6 +19,7 @@ import {
 import { useReceivePurchase } from "../hooks/useReceivePurchase";
 import ReceivePurchaseTable from "./ReceivePurchaseTable";
 import ReceivePurchaseFooter from "./ReceivePurchaseFooter";
+import { validateReceiptTotals } from "../lib/receiptRows";
 import type { PurchaseDetails } from "../types/PurchaseDetails";
 
 interface Props {
@@ -35,6 +36,7 @@ export default function ReceivePurchaseDialog({
   purchase,
 }: Props) {
   const receivePurchase = useReceivePurchase();
+  const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<ReceivePurchaseForm>({
     resolver: zodResolver(
@@ -46,7 +48,7 @@ export default function ReceivePurchaseDialog({
     },
   });
 
-  const { fields } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "items",
   });
@@ -84,9 +86,55 @@ export default function ReceivePurchaseDialog({
         })),
     });
   }, [purchase, form]);
+
+  function handleAddBatch(index: number) {
+    const current = form.getValues(`items.${index}`);
+    if (!current) return;
+
+    append({
+      ...current,
+      quantityReceived: 1,
+      batchNumber: "",
+      manufacturingDate: "",
+      expiryDate: "",
+      remarks: "",
+    });
+  }
+
   function onSubmit(values: ReceivePurchaseForm) {
     if (!purchase) return;
 
+    const remainingById = new Map(
+      purchase.items.map((item) => [item._id, item.quantityRemaining]),
+    );
+    const labels = new Map(
+      purchase.items.map((item) => [
+        item._id,
+        item.medicine.medicineName,
+      ]),
+    );
+
+    const totalError = validateReceiptTotals(
+      values.items,
+      remainingById,
+      labels,
+    );
+    if (totalError) {
+      setFormError(totalError);
+      return;
+    }
+
+    const batchKeys = values.items.map(
+      (item) => `${item.purchaseOrderItemId}:${item.batchNumber}`,
+    );
+    if (new Set(batchKeys).size !== batchKeys.length) {
+      setFormError(
+        "Each batch number must be unique within the same purchase order item",
+      );
+      return;
+    }
+
+    setFormError(null);
     receivePurchase.mutate(
       {
         id: purchase._id,
@@ -111,7 +159,16 @@ export default function ReceivePurchaseDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <ReceivePurchaseTable control={form.control} fields={fields} />
+            <ReceivePurchaseTable
+              control={form.control}
+              fields={fields}
+              onAddBatch={handleAddBatch}
+              onRemove={remove}
+            />
+
+            {formError && (
+              <p className="text-destructive text-sm">{formError}</p>
+            )}
 
             <ReceivePurchaseFooter
               loading={receivePurchase.isPending}

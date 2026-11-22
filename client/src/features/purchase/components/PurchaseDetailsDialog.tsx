@@ -45,7 +45,7 @@ export default function PurchaseDetailsDialog({ purchaseId }: Props) {
 
         <PurchaseSummary
           purchase={purchase}
-          onApprove={() => approvePurchase.mutate(purchaseId || "")}
+          onApprove={() => approvePurchase.mutate()}
           onClose={() => setOpen(false)}
         />
       </DialogContent>
