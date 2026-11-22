@@ -44,8 +44,8 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the latest Phase 6 baseline: **79 server unit test files, 535 tests** plus
-**15 integration cases (10 HTTP + 5 migration/seeder)** and **2 client test files, 17 tests**, all passing.
+As of the latest Phase 6 baseline: **79 server unit test files, 536 tests** plus
+**15 integration cases (10 HTTP + 5 migration/seeder)** and **11 client test files, 55 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
