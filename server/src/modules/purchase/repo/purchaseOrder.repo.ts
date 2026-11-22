@@ -25,10 +25,17 @@ export class PurchaseOrderRepo {
     id: string,
     session?: mongoose.ClientSession,
   ): Promise<IPurchaseOrder | null> {
-    if (session) {
-      return await this.purchaseOrderModel.findById(id).session(session).exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
     }
-    return await this.purchaseOrderModel.findById(id).exec();
+    const objectId = new mongoose.Types.ObjectId(id);
+    if (session) {
+      return await this.purchaseOrderModel
+        .findById(objectId)
+        .session(session)
+        .exec();
+    }
+    return await this.purchaseOrderModel.findById(objectId).exec();
   }
   async findPage(
     filters: {

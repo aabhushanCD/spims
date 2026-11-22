@@ -1,5 +1,7 @@
+import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../../../shared/error.ts";
+import { INVOICE_UPLOAD_DIR } from "../middleware/invoiceUpload.middleware.ts";
 import type { PurchaseOrderService } from "../services/purchaseOrder.service.ts";
 import type { PurchaseOrderListQuery } from "../schema/purchaseOrder.schema.ts";
 
@@ -93,7 +95,11 @@ export class PurchaseController {
       const filePath = await this.purchaseService.getInvoiceFile(
         req.params.id as string,
       );
-      res.sendFile(filePath);
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(`${INVOICE_UPLOAD_DIR}${path.sep}`)) {
+        throw AppError.badRequest("Invalid invoice file path");
+      }
+      res.sendFile(resolved);
     } catch (error) {
       next(error);
     }

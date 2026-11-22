@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 import type NotificationTemplate from "../model/notificationTemplate.model.ts";
 import type { INotificationTemplate } from "../model/notificationTemplate.model.ts";
 import type {
@@ -22,7 +24,13 @@ export class NotificationTemplateRepo {
   }
 
   async findById(id: string): Promise<INotificationTemplate | null> {
-    return await this.model.findById(id).lean().exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    return await this.model
+      .findById(new mongoose.Types.ObjectId(id))
+      .lean()
+      .exec();
   }
 
   async findByKey(key: string): Promise<INotificationTemplate | null> {
@@ -33,14 +41,33 @@ export class NotificationTemplateRepo {
     id: string,
     data: UpdateNotificationTemplateDto,
   ): Promise<INotificationTemplate | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    const update: Record<string, string | boolean> = {};
+    if (data.key !== undefined) update.key = data.key;
+    if (data.name !== undefined) update.name = data.name;
+    if (data.channel !== undefined) update.channel = data.channel;
+    if (data.subject !== undefined) update.subject = data.subject;
+    if (data.body !== undefined) update.body = data.body;
+    if (data.isActive !== undefined) update.isActive = data.isActive;
+
     return await this.model
-      .findByIdAndUpdate(id, data, { new: true })
+      .findByIdAndUpdate(new mongoose.Types.ObjectId(id), update, {
+        new: true,
+      })
       .lean()
       .exec();
   }
 
   async delete(id: string): Promise<INotificationTemplate | null> {
-    return await this.model.findByIdAndDelete(id).lean().exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    return await this.model
+      .findByIdAndDelete(new mongoose.Types.ObjectId(id))
+      .lean()
+      .exec();
   }
 }
 

@@ -12,6 +12,7 @@ import { csrfProtection } from "../shared/middleware/csrf.middleware.ts";
 import { getAllowedOrigins } from "../shared/utils/allowedOrigins.ts";
 import { verifyToken } from "../shared/middleware/verifyToken.ts";
 import { authorize } from "../shared/middleware/authorize.ts";
+import { apiRateLimiter } from "../shared/middleware/apiRateLimit.middleware.ts";
 import { swaggerSpec } from "../docs/index.ts";
 
 export interface ReadinessProbes {
@@ -68,7 +69,17 @@ export function createApp(
   // headers (nosniff, frameguard, HSTS, referrer policy, etc.) still apply.
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          baseUri: ["'none'"],
+          frameAncestors: ["'none'"],
+          imgSrc: ["'self'", "data:"],
+          // Swagger UI injects its bootstrap script/style inline.
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+        },
+      },
       crossOriginResourcePolicy: { policy: "cross-origin" },
     }),
   );
@@ -116,6 +127,7 @@ export function createApp(
 
   if (docsEnabled) {
     const docsRouter = express.Router();
+    docsRouter.use(apiRateLimiter);
 
     // In production the docs are opt-in and owner-only. Outside production they
     // stay open for local development and Swagger UI experiments.

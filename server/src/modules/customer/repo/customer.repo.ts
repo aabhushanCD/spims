@@ -1,7 +1,7 @@
 import type { UpdateCustomerDto } from "../schema/customer.schema.ts";
 import type { ICustomer } from "../model/customer.model.ts";
 import type Customer from "../model/customer.model.ts";
-import type mongoose from "mongoose";
+import mongoose from "mongoose";
 import {
   cursorFilter,
   type PageCursor,
@@ -55,8 +55,20 @@ export class CustomerRepo {
     id: string,
     data: UpdateCustomerDto,
   ): Promise<ICustomer | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+    const update: Record<string, string | boolean | null> = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.phone !== undefined) update.phone = data.phone ?? null;
+    if (data.email !== undefined) update.email = data.email ?? null;
+    if (data.address !== undefined) update.address = data.address ?? null;
+    if (data.isActive !== undefined) update.isActive = data.isActive;
+
     return await this.customerModel
-      .findByIdAndUpdate(id, data, { new: true })
+      .findByIdAndUpdate(new mongoose.Types.ObjectId(id), update, {
+        new: true,
+      })
       .lean()
       .exec();
   }

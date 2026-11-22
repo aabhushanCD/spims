@@ -10,6 +10,7 @@ import brandRoutes from "./medicine/routes/brand.route.js";
 import genericNameRoutes from "./medicine/routes/genericName.route.js";
 import { authorize } from "../shared/middleware/authorize.js";
 import { verifyToken } from "../shared/middleware/verifyToken.js";
+import { apiRateLimiter } from "../shared/middleware/apiRateLimit.middleware.ts";
 import inventoryRoutes from "./inventory/routes/inventory.routes.ts";
 import supplierRoutes from "./supplier/routes/supplier.route.js";
 import purchaseRoutes from "./purchase/routes/purchase.route.js";
@@ -28,6 +29,8 @@ import stocktakeRoutes from "./stocktake/routes/stocktake.routes.ts";
 import notificationTemplateRoutes from "./notification/routes/notificationTemplate.routes.ts";
 
 const router = express.Router();
+
+router.use(apiRateLimiter);
 
 // auth and user-related routes
 router.use("/auth", authRoutes);
