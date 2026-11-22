@@ -6,6 +6,7 @@ import {
   Settings,
   Database,
   DollarSign,
+  BarChart3,
 } from "lucide-react";
 
 import type { NavItem } from "@/lib/permissions";
@@ -15,6 +16,12 @@ export const sidebarItems: NavItem[] = [
     title: "Dashboard",
     icon: LayoutDashboard,
     path: "/",
+  },
+
+  {
+    title: "Reports",
+    icon: BarChart3,
+    path: "/reports",
   },
 
   {

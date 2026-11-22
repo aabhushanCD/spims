@@ -5,6 +5,7 @@ import {
   Truck,
   UserPlus,
   ArrowRight,
+  BarChart3,
 } from "lucide-react";
 
 import { motion } from "framer-motion";
@@ -18,8 +19,18 @@ import {
 } from "@/components/ui/card";
 
 import { Link } from "react-router";
+import { useAuth } from "@/features/auth/context/authContext";
+import { canAccess, type Role } from "@/lib/permissions";
 
-const actions = [
+interface QuickAction {
+  title: string;
+  description: string;
+  icon: typeof Pill;
+  href: string;
+  roles?: readonly Role[];
+}
+
+const actions: QuickAction[] = [
   {
     title: "Add Medicine",
     description: "Create new medicine entry",
@@ -49,10 +60,22 @@ const actions = [
     description: "Create staff account",
     icon: UserPlus,
     href: "/users",
+    roles: ["owner"],
+  },
+  {
+    title: "View Reports",
+    description: "Sales, profit, and inventory analytics",
+    icon: BarChart3,
+    href: "/reports",
   },
 ];
 
 export default function QuickActions() {
+  const { currentUser } = useAuth();
+  const visibleActions = actions.filter((action) =>
+    canAccess(currentUser?.role, action.roles),
+  );
+
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -62,7 +85,7 @@ export default function QuickActions() {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {actions.map((action) => {
+        {visibleActions.map((action) => {
           const Icon = action.icon;
 
           return (
