@@ -35,6 +35,7 @@ export const saleItemSchema = z.object({
 
 export const saleFormSchema = z
   .object({
+    customerId: z.string().optional(),
     customerName: z.string().min(1, "Customer name is required").max(100),
     discountPercentage: z.coerce.number().min(0).max(100).default(0),
     paymentMethod: paymentMethodEnum,
