@@ -10,9 +10,15 @@ import PurchaseItemRow from "./PurchaseItemRow";
 interface Props {
   form: UseFormReturn<PurchaseForm>;
   fieldArray: UseFieldArrayReturn<PurchaseForm, "items">;
+  /** Existing items keep their medicine; the API has no change-medicine route. */
+  lockExistingMedicines?: boolean;
 }
 
-export default function PurchaseItemsTable({ form, fieldArray }: Props) {
+export default function PurchaseItemsTable({
+  form,
+  fieldArray,
+  lockExistingMedicines = false,
+}: Props) {
   const { fields, append, remove } = fieldArray;
 
   const items = form.watch("items");
@@ -53,6 +59,10 @@ export default function PurchaseItemsTable({ form, fieldArray }: Props) {
               index={index}
               remove={remove}
               canDelete={fields.length > 1}
+              medicineLocked={
+                lockExistingMedicines &&
+                Boolean(form.watch(`items.${index}.purchaseOrderItemId`))
+              }
             />
           ))}
         </div>

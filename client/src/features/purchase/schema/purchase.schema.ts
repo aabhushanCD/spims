@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const purchaseItemSchema = z.object({
+  /** Present only while editing an existing purchase-order item. */
+  purchaseOrderItemId: z.string().optional(),
+
   medicineId: z.string().min(1, "Medicine is required"),
 
   quantity: z.coerce.number().min(1, "Quantity is required"),
@@ -13,15 +16,15 @@ export const purchaseSchema = z.object({
 
   orderDate: z.coerce.date(),
 
-  expectedDeliveryDate: z.date().default(new Date()),
+  expectedDeliveryDate: z
+    .date()
+    .nullable()
+    .optional()
+    .transform((value) => value ?? undefined),
 
   invoiceNumber: z.string().min(1, "Invoice number is required"),
 
   invoiceFile: z.string().optional(),
-  receivedDate: z.date().optional().default(new Date()),
-  status: z
-    .enum(["pending", "approved", "received", "cancelled"])
-    .default("pending"),
 
   discount: z.coerce
     .number()

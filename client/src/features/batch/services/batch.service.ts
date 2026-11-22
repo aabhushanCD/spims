@@ -93,7 +93,7 @@ const adjustStock = async (
   id: string,
   data: {
     quantity: number;
-    reason?: string;
+    remarks?: string;
   },
 ) => {
   const response = await api.post(`/batches/${id}/adjust`, data);

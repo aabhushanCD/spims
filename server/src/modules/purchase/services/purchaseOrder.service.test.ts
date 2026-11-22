@@ -264,6 +264,64 @@ describe("PurchaseOrderService", () => {
     });
   });
 
+  describe("getPurchaseOrderById", () => {
+    it("returns received and remaining quantities for each item", async () => {
+      const { service, purchaseOrderRepo, purchaseOrderItemRepo } =
+        buildService();
+      purchaseOrderRepo.findByIdWithSupplier.mockResolvedValue({
+        _id: PURCHASE_ORDER_ID,
+        supplierId: { _id: "supplier-1", companyName: "Supplier" },
+        orderDate: new Date("2026-01-01"),
+        invoiceNumber: "PO-000001",
+        invoiceFile: "",
+        totalAmount: 50,
+        status: "partially_received",
+        VAT: 13,
+        discount: 0,
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-02"),
+      });
+      purchaseOrderItemRepo.findByPurchaseOrderId.mockResolvedValue([
+        {
+          _id: "item-1",
+          medicineId: {
+            _id: MEDICINE_ID,
+            medicineName: "Paracetamol",
+          },
+          quantity: 10,
+          receivedQuantity: 4,
+          purchasePrice: 5,
+        },
+        {
+          _id: "item-2",
+          medicineId: {
+            _id: OTHER_MEDICINE_ID,
+            medicineName: "Ibuprofen",
+          },
+          quantity: 3,
+          purchasePrice: 2,
+        },
+      ]);
+
+      const result = await service.getPurchaseOrderById(PURCHASE_ORDER_ID);
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          _id: "item-1",
+          quantity: 10,
+          receivedQuantity: 4,
+          quantityRemaining: 6,
+        }),
+        expect.objectContaining({
+          _id: "item-2",
+          quantity: 3,
+          receivedQuantity: 0,
+          quantityRemaining: 3,
+        }),
+      ]);
+    });
+  });
+
   describe("createPurchaseOrder", () => {
     const baseOrder = {
       supplierId: "507f1f77bcf86cd799439081",

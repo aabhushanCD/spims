@@ -14,19 +14,12 @@ import { BatchActions } from "./BatchActions";
 interface Props {
   batches: Batch[];
 
-  onView: (batch: Batch) => void;
-
-  onEdit: (batch: Batch) => void;
+  onAdjust: (batch: Batch) => void;
 
   onDelete: (id: string) => void;
 }
 
-export default function BatchTable({
-  batches,
-  onView,
-  onEdit,
-  onDelete,
-}: Props) {
+export default function BatchTable({ batches, onAdjust, onDelete }: Props) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -86,13 +79,8 @@ export default function BatchTable({
 
                 <TableCell>
                   <BatchActions
-                    batch={batch}
-
-                    onView={onView}
-
-                    onEdit={onEdit}
-
-                    onDelete={onDelete}
+                    onAdjust={() => onAdjust(batch)}
+                    onDelete={() => onDelete(batch._id)}
                   />
                 </TableCell>
               </TableRow>

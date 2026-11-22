@@ -2,10 +2,11 @@ import PageHeader from "@/components/common/PageToolbar";
 
 import MedicineTable from "../components/MedicineTable";
 import AddMedicineDialog from "../components/AddMedicineDialog";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 export default function MedicinePage() {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -16,7 +17,7 @@ export default function MedicinePage() {
         onSearchChange={setSearch}
         action={<AddMedicineDialog />}
       />
-      <MedicineTable />
+      <MedicineTable search={deferredSearch} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import AdjustBatchDialog from "../components/AdjustBatchDialog";
 import BatchTable from "../components/BatchTable";
 import DeleteBatchDialog from "../components/DeleteBatchDialog";
 import { useBatches } from "../hooks/useQueryBatch";
@@ -9,21 +10,13 @@ const BatchPage = () => {
   const { data: batches, isLoading, isError } = useBatches();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-
-  function handleView(batch: Batch) {
-    // e.g. open a view modal or navigate to a detail page
-    console.log("view", batch);
-  }
-
-  function handleEdit(batch: Batch) {
-    // e.g. open an edit modal/form with this batch
-    console.log("edit", batch);
-  }
+  const [adjustBatch, setAdjustBatch] = useState<Batch | null>(null);
 
   function handleDelete(id: string) {
     setSelectedBatchId(id);
     setDeleteOpen(true);
   }
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -36,21 +29,24 @@ const BatchPage = () => {
     <div>
       <BatchTable
         batches={batches?.data ?? []}
-
-        onView={handleView}
-
-        onEdit={handleEdit}
-
+        onAdjust={setAdjustBatch}
         onDelete={handleDelete}
       />
 
       <DeleteBatchDialog
         open={deleteOpen}
-
         setOpen={setDeleteOpen}
-
         batchId={selectedBatchId}
       />
+
+      {adjustBatch && (
+        <AdjustBatchDialog
+          key={adjustBatch._id}
+          open
+          onOpenChange={(open) => !open && setAdjustBatch(null)}
+          batch={adjustBatch}
+        />
+      )}
     </div>
   );
 };

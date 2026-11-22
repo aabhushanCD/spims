@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 
 import { Menu } from "lucide-react";
 import { sidebarItems as menuItems } from "@/features/dashboard/data/sidebar";
+import { useAuth } from "@/features/auth/context/authContext";
+import { filterNavigation } from "@/lib/permissions";
 import { useState } from "react";
 
 export default function MobileSidebar() {
+  const { currentUser } = useAuth();
+  const visibleItems = filterNavigation(menuItems, currentUser?.role);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   const toggleMenu = (menuKey: string) => {
@@ -29,7 +33,7 @@ export default function MobileSidebar() {
         <h1 className="mb-6 text-xl font-bold text-emerald-600">SPIMS</h1>
 
         <nav className="space-y-2">
-          {menuItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
 
             if (item.children?.length) {

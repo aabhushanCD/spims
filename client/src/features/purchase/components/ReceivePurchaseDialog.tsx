@@ -55,25 +55,33 @@ export default function ReceivePurchaseDialog({
     if (!purchase) return;
 
     form.reset({
-      items: purchase.items.map((item) => ({
-        medicineId: item.medicine._id,
+      items: purchase.items
+        .filter((item) => item.quantityRemaining > 0)
+        .map((item) => ({
+          purchaseOrderItemId: item._id,
 
-        medicineName: item.medicine.medicineName,
+          medicineId: item.medicine._id,
 
-        quantityOrdered: item.quantity,
+          medicineName: item.medicine.medicineName,
 
-        quantityReceived: item.quantity,
+          quantityOrdered: item.quantity,
 
-        purchasePrice: item.purchasePrice,
+          quantityRemaining: item.quantityRemaining,
 
-        batchNumber: "",
+          quantityReceived: item.quantityRemaining,
 
-        manufacturingDate: "",
+          purchasePrice: item.purchasePrice,
 
-        expiryDate: "",
+          batchNumber: "",
 
-        sellingPrice: item.purchasePrice,
-      })),
+          manufacturingDate: "",
+
+          expiryDate: "",
+
+          sellingPrice: item.purchasePrice,
+
+          remarks: "",
+        })),
     });
   }, [purchase, form]);
   function onSubmit(values: ReceivePurchaseForm) {

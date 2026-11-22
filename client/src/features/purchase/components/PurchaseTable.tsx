@@ -1,4 +1,4 @@
-import {  Pencil, PackageCheck } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import {
   Table,
@@ -86,17 +86,16 @@ export default function PurchaseTable({ onEdit }: Props) {
                   <div className="flex gap-2">
                     <PurchaseDetailsDialog purchaseId={purchase._id} />
 
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onEdit(purchase || undefined)}
-                    >
-                      <Pencil size={18} />
-                    </Button>
-
-                    <Button size="icon" variant="ghost">
-                      <PackageCheck size={18} />
-                    </Button>
+                    {purchase.status === "pending" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Edit purchase order ${purchase.invoiceNumber}`}
+                        onClick={() => onEdit(purchase)}
+                      >
+                        <Pencil size={18} />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

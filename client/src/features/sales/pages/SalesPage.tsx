@@ -14,8 +14,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSales } from "../hooks/useSales";
-import { useCancelSale } from "../hooks/useCancelSale";
+import { useDeleteSale } from "../hooks/useDeleteSale";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 import { SalesTable } from "../components/SalesTable";
 import { SaleDialog } from "../components/SaleDialog";
 import type { SalesListItem } from "../types/sale.types";
@@ -23,17 +24,19 @@ import type { SalesListItem } from "../types/sale.types";
 export default function SalesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [saleToCancel, setSaleToCancel] = useState<SalesListItem | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<SalesListItem | null>(null);
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const { data, isLoading, isFetching } = useSales({ search: debouncedSearch });
-  const cancelSale = useCancelSale();
+  const { data, isLoading, isFetching, isError, error } = useSales({
+    search: debouncedSearch,
+  });
+  const deleteSale = useDeleteSale();
 
-  const handleConfirmCancel = () => {
-    if (!saleToCancel) return;
-    cancelSale.mutate(
-      { id: saleToCancel._id },
-      { onSuccess: () => setSaleToCancel(null) },
+  const handleConfirmDelete = () => {
+    if (!saleToDelete) return;
+    deleteSale.mutate(
+      { id: saleToDelete._id },
+      { onSuccess: () => setSaleToDelete(null) },
     );
   };
 
@@ -57,37 +60,43 @@ export default function SalesPage() {
         />
       </div>
 
-      <SalesTable
-        sales={data?.data ?? []}
-        isLoading={isLoading || isFetching}
-        onCancel={setSaleToCancel}
-      />
+      {isError ? (
+        <div className="text-destructive rounded-lg border p-6 text-center text-sm">
+          {getApiErrorMessage(error, "Failed to load sales.")}
+        </div>
+      ) : (
+        <SalesTable
+          sales={data?.data ?? []}
+          isLoading={isLoading || isFetching}
+          onDelete={setSaleToDelete}
+        />
+      )}
 
       <SaleDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
 
       <AlertDialog
-        open={Boolean(saleToCancel)}
-        onOpenChange={(open) => !open && setSaleToCancel(null)}
+        open={Boolean(saleToDelete)}
+        onOpenChange={(open) => !open && setSaleToDelete(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this sale?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this sale?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel invoice{" "}
-              <span className="font-medium">{saleToCancel?.invoiceNumber}</span>{" "}
-              and restore the sold stock. This action cannot be undone.
+              This permanently deletes invoice{" "}
+              <span className="font-medium">{saleToDelete?.invoiceNumber}</span>{" "}
+              and restores the sold stock. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelSale.isPending}>
+            <AlertDialogCancel disabled={deleteSale.isPending}>
               Keep Sale
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmCancel}
-              disabled={cancelSale.isPending}
+              onClick={handleConfirmDelete}
+              disabled={deleteSale.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Cancel Sale
+              Delete Sale
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -3,6 +3,29 @@ import { api } from "@/api/fetch.api";
 import type { Medicine } from "../types/medicine.types";
 import type { MedicineFormData } from "../schema/medicine.schema";
 
+export interface MedicinePage {
+  items: Medicine[];
+  nextCursor: string | null;
+}
+
+const getMedicinePage = async (
+  search = "",
+  cursor?: string,
+): Promise<MedicinePage> => {
+  const response = await api.get<{
+    success: boolean;
+    data: MedicinePage;
+  }>("/medicines", {
+    params: {
+      limit: 20,
+      ...(search.trim() ? { search: search.trim() } : {}),
+      ...(cursor ? { cursor } : {}),
+    },
+  });
+
+  return response.data.data;
+};
+
 const getMedicines = async (): Promise<Medicine[]> => {
   const response = await api.get<{
     success: boolean;
@@ -32,6 +55,7 @@ const deleteMedicine = async (id: string) => {
 
 export const medicineServices = {
   getMedicines,
+  getMedicinePage,
 
   createMedicine,
 

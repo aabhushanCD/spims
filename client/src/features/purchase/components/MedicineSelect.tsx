@@ -11,13 +11,18 @@ import { useMedicines } from "@/features/medicine/hooks/useMedicines";
 interface Props {
   value?: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
-export default function MedicineSelect({ value, onChange }: Props) {
+export default function MedicineSelect({
+  value,
+  onChange,
+  disabled = false,
+}: Props) {
   const { data: medicines = [], isLoading } = useMedicines();
 
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger>
         <SelectValue
           placeholder={isLoading ? "Loading medicines..." : "Select medicine"}

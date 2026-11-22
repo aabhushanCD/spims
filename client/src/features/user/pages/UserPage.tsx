@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 import { useAuth } from "@/features/auth/context/authContext";
 import { UserStats } from "../components/UserStats";
 import { UserTable } from "../components/UserTable";
@@ -6,45 +8,43 @@ import { useToggleUserActivation } from "../hooks/useMutateUser";
 import { useGetAllUsers } from "../hooks/useUser";
 
 const UserPage = () => {
-  // const users = useGetAllUsers();
-
   const { currentUser } = useAuth();
   const canManage = currentUser?.role === "owner";
   const users = useGetAllUsers();
   const toggleActivation = useToggleUserActivation();
-  const handleSearch = (value: string) => {
-    // Implement search functionality here
-    console.log("Searching for:", value);
-  };
-  const handleEdit = (id: string) => {
-    // Implement edit functionality here
-    console.log("Editing user with ID:", id);
-  };
+  const [search, setSearch] = useState("");
 
-  const handleToggleActivation = (id: string) => {
-    console.log("Toggling activation for user with ID:", id);
-    toggleActivation.mutate(id);
-  };
+  const filteredUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const allUsers = users.data ?? [];
+
+    if (!query) {
+      return allUsers;
+    }
+
+    return allUsers.filter((user) =>
+      `${user.name} ${user.email}`.toLowerCase().includes(query),
+    );
+  }, [search, users.data]);
 
   return (
     <div className="space-y-6">
       <UserStats
-        total={users?.data?.length || 0}
-        active={users?.data?.filter((u) => u.isActive).length || 0}
-        inactive={users?.data?.filter((u) => !u.isActive).length || 0}
+        total={filteredUsers.length}
+        active={filteredUsers.filter((user) => user.isActive).length}
+        inactive={filteredUsers.filter((user) => !user.isActive).length}
       />
 
       <UserToolbar
-        search={"Search..."}
+        search={search}
         canManage={canManage}
-        setSearch={handleSearch}
+        setSearch={setSearch}
       />
 
       <UserTable
-        users={users?.data}
+        users={filteredUsers}
         canManage={canManage}
-        onEdit={handleEdit}
-        onDelete={handleToggleActivation}
+        onDelete={(id) => toggleActivation.mutate(id)}
       />
     </div>
   );

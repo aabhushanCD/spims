@@ -1,5 +1,6 @@
 // features/sales/components/SaleDialog.tsx
 import { useCallback, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   useFieldArray,
   useForm,
@@ -26,10 +27,8 @@ import { SaleItemsTable } from "./SaleItemsTable";
 import { SaleSummary, computeSaleTotals } from "./SaleSummary";
 import { PaymentSection } from "./PaymentSection";
 import { useCreateSale } from "../hooks/useCreateSale";
-import type {
-  CreateSaleInput,
-  InventorySearchResult,
-} from "../types/sale.types";
+import { toCreateSalePayload } from "../lib/salePayload";
+import type { InventorySearchResult } from "../types/sale.types";
 
 interface SaleDialogProps {
   open?: boolean;
@@ -38,17 +37,16 @@ interface SaleDialogProps {
 
 const defaultValues: SaleFormValues = {
   customerName: "",
-  customerPhone: "",
   paymentMethod: "CASH",
   discount: 0,
   discountPercentage: 0,
-  notes: "",
   items: [],
 };
 
 export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
   const [grandTotal, setGrandTotal] = useState(0);
   const createSale = useCreateSale();
+  const navigate = useNavigate();
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema) as Resolver<SaleFormValues>,
@@ -103,22 +101,11 @@ export function SaleDialog({ open, onOpenChange }: SaleDialogProps) {
   };
 
   const onSubmit = (values: SaleFormValues) => {
-    console.log("Submitting sale with values:", values);
-    const payload: CreateSaleInput = {
-      customerName: values.customerName,
-      paymentMethod: values.paymentMethod,
-      saleDate: new Date().toISOString(),
-      discount: values.discount,
-      items: values.items.map((item) => ({
-        medicineId: item.medicineId,
-        batchId: item.batchId,
-        quantity: item.quantity,
-        discountPercentage: item.discountPercentage,
-      })),
-    };
-
-    createSale.mutate(payload, {
-      onSuccess: () => handleClose(false),
+    createSale.mutate(toCreateSalePayload(values), {
+      onSuccess: (sale) => {
+        handleClose(false);
+        navigate(`/sales/${sale._id}`);
+      },
     });
   };
 

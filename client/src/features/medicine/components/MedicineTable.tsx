@@ -1,6 +1,5 @@
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 import {
   Table,
@@ -11,18 +10,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useMedicineList } from "../hooks/useMedicineList";
 
-import { Button } from "@/components/ui/button";
-import { useMedicines } from "../hooks/useMedicines";
+interface Props {
+  search?: string;
+}
 
-export default function MedicineTable() {
-  const { data: medicines = [], isLoading } = useMedicines();
+export default function MedicineTable({ search = "" }: Props) {
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useMedicineList(search);
+
+  const medicines = data?.pages.flatMap((page) => page.items) ?? [];
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -47,62 +50,54 @@ export default function MedicineTable() {
                 <TableHead>Category</TableHead>
 
                 <TableHead>Brand</TableHead>
-
-                {/* <TableHead>Stock</TableHead> */}
-
-                <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {medicines.map((medicine) => (
-                <TableRow key={medicine._id}>
-                  <TableCell className="font-medium">
-                    {medicine.medicineName}
-                  </TableCell>
-
-                  <TableCell>{medicine.genericName}</TableCell>
-                  <TableCell>{medicine.strength}</TableCell>
-
-                  <TableCell>{medicine.category}</TableCell>
-
-                  <TableCell>{medicine.brand}</TableCell>
-
-                  {/* <TableCell>
-                    <span
-                      className={`font-semibold ${
-                        medicine.currentStock < 20 ? "text-red-600" : "text-foreground"
-                      } `}
-                    >
-                      {medicine.currentStock}
-                    </span>
-                  </TableCell> */}
-
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal size={18} />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Pencil size={16} />
-                          Edit
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem className="text-red-600">
-                          <Trash2 size={16} />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {medicines.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No medicines found.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                medicines.map((medicine) => (
+                  <TableRow key={medicine._id}>
+                    <TableCell className="font-medium">
+                      {medicine.medicineName}
+                    </TableCell>
+
+                    <TableCell>{medicine.genericName}</TableCell>
+                    <TableCell>{medicine.strength}</TableCell>
+
+                    <TableCell>{medicine.category}</TableCell>
+
+                    <TableCell>{medicine.brand}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-muted-foreground text-sm">
+            Showing {medicines.length} medicine
+            {medicines.length === 1 ? "" : "s"}
+          </p>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasNextPage || isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+          >
+            {isFetchingNextPage
+              ? "Loading…"
+              : hasNextPage
+                ? "Load more"
+                : "No more medicines"}
+          </Button>
         </div>
       </CardContent>
     </Card>

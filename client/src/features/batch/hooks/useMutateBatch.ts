@@ -130,13 +130,16 @@ export const useAdjustStock = () => {
       id: string;
       data: {
         quantity: number;
-        reason?: string;
+        remarks?: string;
       };
     }) => batchService.adjustStock(id, data),
 
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["batches"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["batch-history", variables.id],
       });
     },
   });
