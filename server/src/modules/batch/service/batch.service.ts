@@ -189,6 +189,9 @@ export class BatchService {
       {
         ...(query.search ? { search: query.search } : {}),
         ...(query.medicineId ? { medicineId: query.medicineId } : {}),
+        ...(query.purchaseOrderId
+          ? { purchaseOrderId: query.purchaseOrderId }
+          : {}),
         ...(query.isExpired !== undefined ? { isExpired: query.isExpired } : {}),
         ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
         ...(query.expiringInDays !== undefined
