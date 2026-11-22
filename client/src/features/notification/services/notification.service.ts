@@ -47,10 +47,32 @@ const updatePreferences = async (
   return response.data.data;
 };
 
+const getPreferencesForUser = async (
+  userId: string,
+): Promise<NotificationPreferences> => {
+  const response = await api.get<ApiResponse<NotificationPreferences>>(
+    `/notifications/preferences/${userId}`,
+  );
+  return response.data.data;
+};
+
+const updatePreferencesForUser = async (
+  userId: string,
+  patch: UpdatePreferencesInput,
+): Promise<NotificationPreferences> => {
+  const response = await api.patch<ApiResponse<NotificationPreferences>>(
+    `/notifications/preferences/${userId}`,
+    patch,
+  );
+  return response.data.data;
+};
+
 export const notificationService = {
   getInbox,
   markRead,
   markAllRead,
   getPreferences,
   updatePreferences,
+  getPreferencesForUser,
+  updatePreferencesForUser,
 };
