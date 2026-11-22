@@ -41,6 +41,13 @@ const createMedicine = async (data: MedicineFormData) => {
   return response.data;
 };
 
+const getMedicineByBarcode = async (barcode: string): Promise<Medicine> => {
+  const response = await api.get<{ success: boolean; data: Medicine }>(
+    `/medicines/barcode/${encodeURIComponent(barcode)}`,
+  );
+  return response.data.data;
+};
+
 const updateMedicine = async (id: string, data: Partial<MedicineFormData>) => {
   const response = await api.put(`/medicines/${id}`, data);
 
@@ -56,6 +63,7 @@ const deleteMedicine = async (id: string) => {
 export const medicineServices = {
   getMedicines,
   getMedicinePage,
+  getMedicineByBarcode,
 
   createMedicine,
 

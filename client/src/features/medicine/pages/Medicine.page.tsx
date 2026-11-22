@@ -2,6 +2,7 @@ import PageHeader from "@/components/common/PageToolbar";
 
 import MedicineTable from "../components/MedicineTable";
 import AddMedicineDialog from "../components/AddMedicineDialog";
+import BarcodeLookupDialog from "../components/BarcodeLookupDialog";
 import { useDeferredValue, useState } from "react";
 
 export default function MedicinePage() {
@@ -15,7 +16,12 @@ export default function MedicinePage() {
         searchPlaceholder="Search medicine..."
         searchValue={search}
         onSearchChange={setSearch}
-        action={<AddMedicineDialog />}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <BarcodeLookupDialog />
+            <AddMedicineDialog />
+          </div>
+        }
       />
       <MedicineTable search={deferredSearch} />
     </div>
