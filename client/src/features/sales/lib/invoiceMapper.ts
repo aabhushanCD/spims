@@ -36,6 +36,7 @@ export function mapInvoiceToSaleDetails(
         batchNumber: batch?.batchNumber,
         batchExpiryDate: batch?.expiryDate,
         quantity: item.quantity,
+        returnedQuantity: item.returnedQuantity ?? 0,
         unitPrice: item.unitPrice,
         discountPercentage:
           gross > 0 ? Math.round((item.discount / gross) * 1000) / 10 : 0,

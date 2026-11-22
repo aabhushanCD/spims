@@ -31,6 +31,7 @@ export interface CreateSaleItemInput {
 
 /** Exactly matches backend createSaleSchema */
 export interface CreateSaleInput {
+  customerId?: string;
   customerName: string;
   paymentMethod: PaymentMethod;
   saleDate: string; // set as new Date().toISOString() on submit
@@ -75,6 +76,7 @@ export interface SaleDetailsItem {
   batchNumber?: string;
   batchExpiryDate?: string;
   quantity: number;
+  returnedQuantity: number;
   unitPrice: number;
   discountPercentage: number;
   vatPercentage: number;
@@ -98,6 +100,7 @@ export interface InvoiceItemPayload {
   };
   batchId?: string | InvoiceBatchPayload | null;
   quantity: number;
+  returnedQuantity?: number;
   unitPrice: number;
   discount: number;
   totalPrice: number;

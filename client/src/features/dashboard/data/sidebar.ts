@@ -97,6 +97,16 @@ export const sidebarItems: NavItem[] = [
         title: "Sales Orders",
         path: "/sales",
       },
+
+      {
+        title: "Customers",
+        path: "/customers",
+      },
+
+      {
+        title: "Returns",
+        path: "/returns",
+      },
     ],
   },
 

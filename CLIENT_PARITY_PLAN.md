@@ -991,21 +991,42 @@ Still open from Phase 0: pagination rollout to every list. Phase 1 (customers, p
 **Size:** Large  
 **Dependencies:** Phase 0
 
-- [ ] Customer feature (CRUD/search).
-- [ ] Customer picker/quick-create in sale.
-- [ ] Send `customerId`.
-- [ ] Payment ledger service/hooks.
-- [ ] Amount due / paid / partially paid display.
-- [ ] Record-payment dialog with idempotency key.
-- [ ] Sales-return feature and lifecycle actions.
-- [ ] Return creation from sale detail.
-- [ ] Return history on sale detail.
-- [ ] Sale-item correction UI.
-- [ ] Tests for payment settlement and return lifecycle.
+- [x] Customer feature (CRUD/search).
+- [x] Customer picker/quick-create in sale.
+- [x] Send `customerId`.
+- [x] Payment ledger service/hooks.
+- [x] Amount due / paid / partially paid display.
+- [x] Record-payment dialog with idempotency key.
+- [x] Sales-return feature and lifecycle actions.
+- [x] Return creation from sale detail.
+- [x] Return history on sale detail.
+- [x] Sale-item correction UI.
+- [x] Tests for payment settlement and return lifecycle.
 
 **Exit criteria**
 
 - Credit sale → payment → return → refund → reversal works entirely from the UI.
+
+#### Phase 1 implementation notes (2026-11-22)
+
+- Added `/customers` with list/search/create/edit/delete and a shared customer picker in the sale form, including inline quick-create.
+- Sale creation now sends an optional `customerId` alongside the name snapshot.
+- Added payment ledger, amount-due display, and a record-payment dialog with a client idempotency key.
+- Added `/returns` and `/returns/:id` with create-from-sale, approve, reject, cancel, complete, and reverse actions; owner/inventory-manager actions are gated client-side.
+- Sale detail now shows its returns and allows a new return.
+- Sale detail now supports line price/discount corrections when `returnedQuantity` is zero.
+- Added customer, return, payment, and returned-quantity mapping tests.
+- The sales blank-search regression test predates Phase 1 and remains in place.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 536 unit + 15 integration; client 71)
+npm run build      PASS (Vite chunk-size warning only)
+npm run audit      PASS (0 production vulnerabilities)
+```
 
 ---
 
@@ -1167,14 +1188,14 @@ Still open from Phase 0: pagination rollout to every list. Phase 1 (customers, p
 | C-3 | Batch adjust `remarks` | 0 | ✅ |
 | C-4 | Receive-purchase payload | 0 | ✅ |
 | C-5 | Purchase form fields | 0/3 | ✅ |
-| C-6 | Credit payment posting | 1 | ☐ |
-| C-7 | Customer identity | 1 | 🟡 misleading fields removed; `customerId` pending |
+| C-6 | Credit payment posting | 1 | ✅ |
+| C-7 | Customer identity | 1 | ✅ |
 | C-8 | Cancel-sale copy | 0 | ✅ |
 | C-9 | Batch/inventory stubs | 2 | ✅ |
-| D-1 | Customers | 1 | ☐ |
-| D-2 | Payments | 1 | ☐ |
-| D-3 | Sales returns | 1 | ☐ |
-| D-4 | Sale-item corrections | 1 | ☐ |
+| D-1 | Customers | 1 | ✅ |
+| D-2 | Payments | 1 | ✅ |
+| D-3 | Sales returns | 1 | ✅ |
+| D-4 | Sale-item corrections | 1 | ✅ |
 | D-5 | Inventory depth | 2 | ☐ |
 | D-6 | Batch UI | 2 | ☐ |
 | D-7 | Stocktakes | 2 | ☐ |

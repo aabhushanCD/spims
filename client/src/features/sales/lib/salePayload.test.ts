@@ -37,6 +37,15 @@ describe("toCreateSalePayload", () => {
     expect(payload.items[0]).not.toHaveProperty("batchId");
   });
 
+  it("includes a linked customer id", () => {
+    const payload = toCreateSalePayload(
+      { ...values, customerId: "507f1f77bcf86cd799439055" },
+      new Date("2026-02-10T10:00:00Z"),
+    );
+
+    expect(payload.customerId).toBe("507f1f77bcf86cd799439055");
+  });
+
   it("sends only the fields the server accepts", () => {
     const payload = toCreateSalePayload(values, new Date("2026-02-10T10:00:00Z"));
 

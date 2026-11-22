@@ -12,6 +12,7 @@ export function toCreateSalePayload(
   saleDate: Date = new Date(),
 ): CreateSaleInput {
   return {
+    ...(values.customerId ? { customerId: values.customerId } : {}),
     customerName: values.customerName,
     paymentMethod: values.paymentMethod,
     saleDate: saleDate.toISOString(),
