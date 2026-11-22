@@ -12,8 +12,14 @@ export class SmartReorderController {
   constructor(private readonly smartReorderService: SmartReorderService) {}
 
   // GET /smart-reorders
-  getAll = asyncHandler(async (_req: Request, res: Response) => {
-    const reorders = await this.smartReorderService.getAll();
+  getAll = asyncHandler(async (req: Request, res: Response) => {
+    const status = req.query.status as
+      | "PENDING"
+      | "APPROVED"
+      | "REJECTED"
+      | "ALL"
+      | undefined;
+    const reorders = await this.smartReorderService.getAll(status);
     res.status(200).json({ success: true, data: reorders });
   });
 

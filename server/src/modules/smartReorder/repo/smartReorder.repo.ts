@@ -99,11 +99,25 @@ export class SmartReorderRepo {
     return this.smartReorderModel.findById(id).lean().exec();
   }
 
-  async findAll(session?: mongoose.ClientSession): Promise<ISmartReorder[]> {
+  async findAll(
+    status?: ISmartReorder["status"],
+    session?: mongoose.ClientSession,
+  ): Promise<ISmartReorder[]> {
+    const filter = status ? { status } : {};
+
     if (session) {
-      return this.smartReorderModel.find().populate("medicineId").session(session).lean().exec();
+      return this.smartReorderModel
+        .find(filter)
+        .populate("medicineId")
+        .session(session)
+        .lean()
+        .exec();
     }
-    return this.smartReorderModel.find({status: "PENDING"}).populate("medicineId").lean().exec();
+    return this.smartReorderModel
+      .find(filter)
+      .populate("medicineId")
+      .lean()
+      .exec();
   }
 
   async findByMedicineId(
