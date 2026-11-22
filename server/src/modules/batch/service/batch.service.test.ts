@@ -50,6 +50,7 @@ function buildService() {
     findById: vi.fn(),
     findAll: vi.fn(),
     findAllByMedicineId: vi.fn(),
+    findPage: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   };
@@ -89,6 +90,26 @@ function buildService() {
 describe("BatchService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("getBatchesPage", () => {
+    it("filters batches by purchase order", async () => {
+      const { service, batchRepo } = buildService();
+      batchRepo.findPage.mockResolvedValue([
+        { ...buildBatch(), createdAt: new Date("2026-01-01") },
+      ]);
+
+      await service.getBatchesPage({
+        purchaseOrderId: PURCHASE_ORDER_ID,
+        limit: 20,
+      } as never);
+
+      expect(batchRepo.findPage).toHaveBeenCalledWith(
+        expect.objectContaining({ purchaseOrderId: PURCHASE_ORDER_ID }),
+        null,
+        21,
+      );
+    });
   });
 
   describe("createBatch", () => {

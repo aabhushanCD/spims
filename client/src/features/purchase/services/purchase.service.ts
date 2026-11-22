@@ -3,7 +3,19 @@ import type { ApiResponse } from "@/types/api";
 import type { PurchaseForm } from "../schema/purchase.schema";
 import type { ReceivePurchaseForm } from "../schema/receivePurchase.schema";
 import type { PurchaseDetails } from "../types/PurchaseDetails";
-import type { PurchaseListItem } from "../types/purchase.types";
+import type {
+  PurchaseListItem,
+  SupplierPerformance,
+} from "../types/purchase.types";
+import {
+  buildPurchaseListParams,
+  type PurchaseListParams,
+} from "../lib/purchaseQuery";
+
+export interface PurchasePage {
+  items: PurchaseListItem[];
+  nextCursor: string | null;
+}
 
 const createPurchaseOrder = async (
   purchaseOrderData: PurchaseForm,
@@ -16,10 +28,19 @@ const createPurchaseOrder = async (
 };
 
 const getPurchaseOrders = async (): Promise<PurchaseListItem[]> => {
-  const response = await api.get<
-    ApiResponse<{ items: PurchaseListItem[]; nextCursor: string | null }>
-  >("/purchases?limit=100");
+  const response = await api.get<ApiResponse<PurchasePage>>(
+    "/purchases?limit=100",
+  );
   return response.data.data.items;
+};
+
+const getPurchasePage = async (
+  params: PurchaseListParams = {},
+): Promise<PurchasePage> => {
+  const response = await api.get<ApiResponse<PurchasePage>>("/purchases", {
+    params: buildPurchaseListParams(params),
+  });
+  return response.data.data;
 };
 
 const getPurchaseOrderById = async (id: string): Promise<PurchaseDetails> => {
@@ -75,9 +96,36 @@ const approvePurchaseOrder = async (id: string) => {
   return response.data;
 };
 
+const uploadInvoice = async (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await api.post(`/purchases/${id}/invoice`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+};
+
+const downloadInvoice = async (id: string): Promise<Blob> => {
+  const response = await api.get(`/purchases/${id}/invoice`, {
+    responseType: "blob",
+  });
+  return response.data as Blob;
+};
+
+const getSupplierPerformance = async (
+  supplierId: string,
+): Promise<SupplierPerformance> => {
+  const response = await api.get<ApiResponse<SupplierPerformance>>(
+    `/purchases/suppliers/${supplierId}/performance`,
+  );
+  return response.data.data;
+};
+
 export const purchaseService = {
   createPurchaseOrder,
   getPurchaseOrders,
+  getPurchasePage,
   getPurchaseOrderById,
   addPurchaseOrderItem,
   updatePurchaseOrderItem,
@@ -87,4 +135,7 @@ export const purchaseService = {
   deletePurchaseOrder,
   receivePurchase,
   approvePurchaseOrder,
+  uploadInvoice,
+  downloadInvoice,
+  getSupplierPerformance,
 };

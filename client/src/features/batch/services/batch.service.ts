@@ -9,6 +9,8 @@ export interface BatchPage {
 
 export interface BatchListParams {
   search?: string;
+  medicineId?: string;
+  purchaseOrderId?: string;
   isExpired?: boolean;
   isActive?: boolean;
   expiringInDays?: number;
@@ -62,6 +64,10 @@ const getBatches = async (
     params: {
       limit: 100,
       ...(search ? { search } : {}),
+      ...(params.medicineId ? { medicineId: params.medicineId } : {}),
+      ...(params.purchaseOrderId
+        ? { purchaseOrderId: params.purchaseOrderId }
+        : {}),
       ...(params.isExpired !== undefined
         ? { isExpired: params.isExpired }
         : {}),

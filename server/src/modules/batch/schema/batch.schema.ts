@@ -95,6 +95,7 @@ export const confirmDisposalSchema = z
 export const batchListQuerySchema = cursorPaginationQuerySchema.extend({
   search: z.string().trim().min(1).max(100).optional(),
   medicineId: objectIdSchema.optional(),
+  purchaseOrderId: objectIdSchema.optional(),
   isExpired: booleanQuerySchema.optional(),
   isActive: booleanQuerySchema.optional(),
   expiringInDays: z.coerce.number().int().min(0).optional(),

@@ -97,6 +97,7 @@ export class MedicineBatchRepo {
     filters: {
       search?: string;
       medicineId?: string;
+      purchaseOrderId?: string;
       isExpired?: boolean;
       isActive?: boolean;
       expiringInDays?: number;
@@ -107,6 +108,9 @@ export class MedicineBatchRepo {
     const conditions: Record<string, unknown>[] = [];
     if (filters.medicineId) {
       conditions.push({ medicineId: filters.medicineId });
+    }
+    if (filters.purchaseOrderId) {
+      conditions.push({ purchaseOrderId: filters.purchaseOrderId });
     }
     if (filters.isExpired !== undefined) {
       conditions.push({ isExpired: filters.isExpired });

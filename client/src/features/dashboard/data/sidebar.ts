@@ -75,6 +75,11 @@ export const sidebarItems: NavItem[] = [
         title: "Suppliers",
         path: "/suppliers",
       },
+
+      {
+        title: "Purchase Returns",
+        path: "/purchase-returns",
+      },
     ],
   },
 
