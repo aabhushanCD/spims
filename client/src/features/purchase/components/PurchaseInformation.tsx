@@ -88,7 +88,7 @@ export default function PurchaseInformation({ form }: Props) {
                 onChange={(e) => {
                   const dateVal = e.target.value
                     ? new Date(e.target.value)
-                    : null;
+                    : undefined;
                   field.onChange(dateVal);
                 }}
                 onBlur={field.onBlur}
@@ -120,7 +120,7 @@ export default function PurchaseInformation({ form }: Props) {
                 onChange={(e) => {
                   const dateVal = e.target.value
                     ? new Date(e.target.value)
-                    : null;
+                    : undefined;
                   field.onChange(dateVal);
                 }}
                 onBlur={field.onBlur}

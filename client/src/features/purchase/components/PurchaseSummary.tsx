@@ -38,7 +38,8 @@ export default function PurchaseSummary({
             <Button onClick={onApprove}>Approve</Button>
           )}
 
-          {purchase?.status === "approved" && (
+          {(purchase?.status === "approved" ||
+            purchase?.status === "partially_received") && (
             <Button onClick={() => setReceiveOpen(true)}>Receive</Button>
           )}
           {purchase?.status === "received" && (

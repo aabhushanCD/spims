@@ -29,15 +29,36 @@ const getPurchaseOrderById = async (id: string): Promise<PurchaseDetails> => {
   return response.data.data;
 };
 
-const updatePurchaseOrder = async (
+const addPurchaseOrderItem = async (
   id: string,
-  purchaseOrderData: PurchaseForm,
-): Promise<PurchaseDetails> => {
-  const response = await api.put<ApiResponse<PurchaseDetails>>(
-    `/purchases/${id}`,
-    purchaseOrderData,
-  );
-  return response.data.data;
+  data: { medicineId: string; quantity: number; purchasePrice: number },
+) => {
+  const response = await api.post(`/purchases/${id}/items`, data);
+  return response.data;
+};
+
+const updatePurchaseOrderItem = async (
+  id: string,
+  itemId: string,
+  data: { quantity?: number; purchasePrice?: number },
+) => {
+  const response = await api.patch(`/purchases/${id}/items/${itemId}`, data);
+  return response.data;
+};
+
+const removePurchaseOrderItem = async (id: string, itemId: string) => {
+  const response = await api.delete(`/purchases/${id}/items/${itemId}`);
+  return response.data;
+};
+
+const recalculatePurchaseOrder = async (id: string) => {
+  const response = await api.patch(`/purchases/${id}/recalculate`);
+  return response.data;
+};
+
+const cancelPurchaseOrder = async (id: string) => {
+  const response = await api.patch(`/purchases/${id}/cancel`);
+  return response.data;
 };
 
 const deletePurchaseOrder = async (id: string): Promise<void> => {
@@ -58,7 +79,11 @@ export const purchaseService = {
   createPurchaseOrder,
   getPurchaseOrders,
   getPurchaseOrderById,
-  updatePurchaseOrder,
+  addPurchaseOrderItem,
+  updatePurchaseOrderItem,
+  removePurchaseOrderItem,
+  recalculatePurchaseOrder,
+  cancelPurchaseOrder,
   deletePurchaseOrder,
   receivePurchase,
   approvePurchaseOrder,

@@ -270,17 +270,25 @@ export class PurchaseOrderService {
 
       updatedAt: purchase.updatedAt,
 
-      items: items.map((item) => ({
-        _id: item._id,
+      items: items.map((item) => {
+        const receivedQuantity = item.receivedQuantity ?? 0;
 
-        medicine: item.medicineId,
+        return {
+          _id: item._id,
 
-        quantity: item.quantity,
+          medicine: item.medicineId,
 
-        purchasePrice: item.purchasePrice,
+          quantity: item.quantity,
 
-        subtotal: item.quantity * item.purchasePrice,
-      })),
+          receivedQuantity,
+
+          quantityRemaining: item.quantity - receivedQuantity,
+
+          purchasePrice: item.purchasePrice,
+
+          subtotal: item.quantity * item.purchasePrice,
+        };
+      }),
     };
   }
   async deletePurchaseOrder(id: string) {

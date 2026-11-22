@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useCreatePurchase } from "../hooks/useCreatePurchase";
 import { useEffect } from "react";
 import { usePurchase } from "../hooks/usePurchase";
-import { useUpdatePurchase } from "../hooks/useUpdatePurchase";
+import { useUpdatePurchaseItems } from "../hooks/useUpdatePurchase";
 import type { PurchaseListItem } from "../types/purchase.types";
 
 interface Props {
@@ -35,11 +35,9 @@ const defaultValues: PurchaseForm = {
   VAT: 13,
   discount: 0,
   orderDate: new Date(),
-  expectedDeliveryDate: new Date(),
-  receivedDate: new Date(),
+  expectedDeliveryDate: undefined,
   invoiceNumber: "",
   invoiceFile: "",
-  status: "pending",
   items: [
     {
       medicineId: "",
@@ -57,7 +55,7 @@ export default function PurchaseDialog({
   const createPurchase = useCreatePurchase();
 
   const purchase = usePurchase(editingPurchase?._id || undefined);
-  const updatePurchase = useUpdatePurchase();
+  const updatePurchaseItems = useUpdatePurchaseItems();
   const form = useForm<PurchaseForm>({
     resolver: zodResolver(purchaseSchema) as Resolver<PurchaseForm>,
     defaultValues,
@@ -74,15 +72,14 @@ export default function PurchaseDialog({
       VAT: purchase.data.VAT,
       discount: purchase.data.discount,
       orderDate: new Date(purchase.data.orderDate),
-      expectedDeliveryDate: new Date(
-        purchase.data.expectedDeliveryDate ?? "",
-      ),
-      receivedDate: new Date(purchase.data.receivedDate ?? ""),
+      expectedDeliveryDate: purchase.data.expectedDeliveryDate
+        ? new Date(purchase.data.expectedDeliveryDate)
+        : undefined,
       invoiceNumber: purchase.data.invoiceNumber,
       invoiceFile: purchase.data.invoiceFile,
-      status: purchase.data.status,
       items: purchase.data.items.map((item) => ({
-        medicineId: item.medicine.medicineName,
+        purchaseOrderItemId: item._id,
+        medicineId: item.medicine._id,
         quantity: item.quantity,
         purchasePrice: item.purchasePrice,
       })),
@@ -96,9 +93,14 @@ export default function PurchaseDialog({
 
   async function onSubmit(values: PurchaseForm) {
     if (editingPurchase) {
-      await updatePurchase.mutateAsync({
+      if (!purchase.data || purchase.data.status !== "pending") {
+        return;
+      }
+
+      await updatePurchaseItems.mutateAsync({
         id: editingPurchase._id,
-        data: values,
+        items: values.items,
+        originalItems: purchase.data.items,
       });
     } else {
       await createPurchase.mutateAsync(values);
@@ -107,6 +109,10 @@ export default function PurchaseDialog({
     form.reset(defaultValues);
     onOpenChange?.(false);
   }
+
+  const isEditing = Boolean(editingPurchase);
+  const canEditItems =
+    !isEditing || purchase.data?.status === "pending";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,17 +123,47 @@ export default function PurchaseDialog({
       )}
       <DialogContent className="max-w-2xl!">
         <DialogHeader>
-          <DialogTitle>Create Purchase Order</DialogTitle>
+          <DialogTitle>
+            {isEditing
+              ? "Edit Purchase Order — items only"
+              : "Create Purchase Order"}
+          </DialogTitle>
         </DialogHeader>
+
+        {isEditing && (
+          <p className="text-muted-foreground text-sm">
+            Header fields cannot be changed after creation. Only the item
+            quantities, prices, and lines can be edited.
+          </p>
+        )}
+
+        {!canEditItems && (
+          <p className="text-muted-foreground text-sm">
+            Only pending purchase orders can be edited. This order is{" "}
+            <span className="font-medium">{purchase.data?.status}</span>.
+          </p>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <PurchaseInformation form={form} />
+            <fieldset disabled={isEditing}>
+              <PurchaseInformation form={form} />
+            </fieldset>
 
-            <PurchaseItemsTable form={form} fieldArray={fieldArray} />
+            <fieldset disabled={!canEditItems}>
+              <PurchaseItemsTable
+                form={form}
+                fieldArray={fieldArray}
+                lockExistingMedicines={isEditing || !canEditItems}
+              />
+            </fieldset>
 
             <PurchaseFooter
-              isLoading={createPurchase.isPending}
+              isLoading={
+                createPurchase.isPending || updatePurchaseItems.isPending
+              }
+              submitLabel={isEditing ? "Save Changes" : "Draft Purchase"}
+              disabled={!canEditItems}
               onCancel={() => onOpenChange?.(false)}
             />
           </form>

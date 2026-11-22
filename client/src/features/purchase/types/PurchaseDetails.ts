@@ -7,16 +7,25 @@ export interface PurchaseSupplier {
   address?: string;
 }
 
-export type PurchaseStatus = "pending" | "approved" | "received" | "cancelled";
+export type PurchaseStatus =
+  | "pending"
+  | "approved"
+  | "partially_received"
+  | "received"
+  | "cancelled";
 
 export interface PurchaseDetailsItem {
   _id: string;
   medicine: {
     _id: string;
     medicineName: string;
+    strength?: string;
   };
   quantity: number;
+  receivedQuantity: number;
+  quantityRemaining: number;
   purchasePrice: number;
+  subtotal: number;
   batchNumber?: string;
   createdAt?: string;
   updatedAt?: string;

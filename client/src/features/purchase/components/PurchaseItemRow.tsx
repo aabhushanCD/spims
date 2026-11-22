@@ -23,6 +23,7 @@ interface Props {
   remove: (index: number) => void;
 
   canDelete: boolean;
+  medicineLocked?: boolean;
 }
 
 export default function PurchaseItemRow({
@@ -30,6 +31,7 @@ export default function PurchaseItemRow({
   index,
   remove,
   canDelete,
+  medicineLocked = false,
 }: Props) {
   const quantity = form.watch(`items.${index}.quantity`) || 0;
 
@@ -46,7 +48,11 @@ export default function PurchaseItemRow({
         name={`items.${index}.medicineId`}
         render={({ field }) => (
           <FormItem className="col-span-5">
-            <MedicineSelect value={field.value} onChange={field.onChange} />
+            <MedicineSelect
+              value={field.value}
+              onChange={field.onChange}
+              disabled={medicineLocked}
+            />
 
             <FormMessage />
           </FormItem>

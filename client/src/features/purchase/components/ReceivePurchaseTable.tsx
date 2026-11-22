@@ -19,6 +19,8 @@ interface Props {
   fields: (FieldArrayWithId<ReceivePurchaseForm, "items", "id"> & {
     medicineName?: string;
     quantityOrdered?: number;
+    quantityRemaining?: number;
+    purchasePrice?: number;
   })[];
 }
 
@@ -31,7 +33,9 @@ export default function ReceivePurchaseTable({ control, fields }: Props) {
 
           <TableHead>Ordered</TableHead>
 
-          <TableHead>Received</TableHead>
+          <TableHead>Remaining</TableHead>
+
+          <TableHead>Receiving</TableHead>
 
           <TableHead>Purchase Price</TableHead>
 
@@ -51,6 +55,7 @@ export default function ReceivePurchaseTable({ control, fields }: Props) {
             <TableCell>{field.medicineName}</TableCell>
 
             <TableCell>{field.quantityOrdered}</TableCell>
+            <TableCell>{field.quantityRemaining}</TableCell>
             <TableCell>
               <FormField
                 control={control}
@@ -60,6 +65,8 @@ export default function ReceivePurchaseTable({ control, fields }: Props) {
                     <FormControl>
                       <Input
                         type="number"
+                        min={1}
+                        max={fields[index].quantityRemaining}
                         {...field}
                         onChange={(e) => field.onChange(Number(e.target.value))}
                       />
