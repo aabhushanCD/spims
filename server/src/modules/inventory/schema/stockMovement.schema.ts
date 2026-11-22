@@ -8,6 +8,7 @@ export const stockMovementTypeSchema = z.enum([
   "EXPIRED",
   "RESERVE",
   "RELEASE",
+  "PURCHASE_RETURN",
 ]);
 
 export const stockReferenceTypeSchema = z.enum([
@@ -19,5 +20,6 @@ export const stockReferenceTypeSchema = z.enum([
   "ADJUSTMENT",
   "RESERVE",
   "RELEASE",
+  "PURCHASE_RETURN",
   "SYSTEM",
 ]);

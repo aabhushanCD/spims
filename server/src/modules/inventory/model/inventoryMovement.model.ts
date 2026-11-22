@@ -10,7 +10,8 @@ export interface IInventoryMovement extends Document {
     | "ADJUSTMENT"
     | "EXPIRED"
     | "RESERVE"
-    | "RELEASE";
+    | "RELEASE"
+    | "PURCHASE_RETURN";
 
   quantity: number;
   referenceId: Types.ObjectId; // Could be a purchase order ID, sales order ID, etc.
@@ -23,6 +24,7 @@ export interface IInventoryMovement extends Document {
     | "ADJUSTMENT"
     | "RESERVE"
     | "RELEASE"
+    | "PURCHASE_RETURN"
     | "SYSTEM";
   performedBy: Types.ObjectId; // User ID who performed the movement
   remarks: string;
@@ -48,6 +50,7 @@ const inventoryMovementSchema = new Schema<IInventoryMovement>(
         "EXPIRED",
         "RESERVE",
         "RELEASE",
+        "PURCHASE_RETURN",
       ],
       required: true,
     },
@@ -64,6 +67,7 @@ const inventoryMovementSchema = new Schema<IInventoryMovement>(
         "ADJUSTMENT",
         "RESERVE",
         "RELEASE",
+        "PURCHASE_RETURN",
         "SYSTEM",
       ],
       required: true,

@@ -32,19 +32,8 @@ const getInventoryById = async (id: string) => {
   return response.data;
 };
 
-const inventoryAdjust = async (id: string, adjustment: number) => {
-  const response = await api.post(`/inventory/${id}/adjust`, { adjustment });
-  return response.data;
-};
-const inventoryHistory = async (id: string) => {
-  const response = await api.get(`/inventory/${id}/history`);
-  return response.data;
-};
-
 export const inventoryService = {
   getAllInventories,
   getInventory,
   getInventoryById,
-  inventoryAdjust,
-  inventoryHistory,
 };

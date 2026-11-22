@@ -36,11 +36,13 @@ export const createSalesItemSchema = z.object({
  * Create Sale Schema
  */
 export const createSaleSchema = z.object({
+  customerId: objectIdSchema.optional(),
   customerName: z
     .string()
     .trim()
-    .min(1, "Customer name is required")
-    .max(100, "Customer name must be at most 100 characters"),
+    .min(1, "Customer name must not be empty")
+    .max(100, "Customer name must be at most 100 characters")
+    .optional(),
   paymentMethod: paymentMethodSchema,
   saleDate: z.coerce.date(),
   discount: z.number().min(0, "Discount cannot be negative").default(0),
@@ -58,17 +60,20 @@ export const createSaleSchema = z.object({
  */
 export const updateSaleSchema = z
   .object({
+    customerId: objectIdSchema.nullable().optional(),
     customerName: z
       .string()
       .trim()
-      .min(1, "Customer name is required")
+      .min(1, "Customer name must not be empty")
       .max(100, "Customer name must be at most 100 characters")
       .optional(),
     paymentMethod: paymentMethodSchema.optional(),
   })
   .refine(
     (value) =>
-      value.customerName !== undefined || value.paymentMethod !== undefined,
+      value.customerId !== undefined ||
+      value.customerName !== undefined ||
+      value.paymentMethod !== undefined,
     { message: "At least one field must be provided" },
   );
 
@@ -95,6 +100,7 @@ export const salesListQuerySchema = cursorPaginationQuerySchema
       ])
       .optional(),
     cashierId: objectIdSchema.optional(),
+    customerId: objectIdSchema.optional(),
   });
 
 export const saleIdParamSchema = z.object({ id: objectIdSchema });

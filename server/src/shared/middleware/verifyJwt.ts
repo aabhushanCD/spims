@@ -9,5 +9,6 @@ export const verifyJwt = (token: string): JWTUserPayload => {
     email: payload.email,
     role: payload.role,
     sessionId: payload.sessionId,
+    ...(typeof payload.ver === "number" ? { ver: payload.ver } : {}),
   };
 };

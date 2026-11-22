@@ -10,7 +10,7 @@
 | Health probe | `GET /health` (outside `/api`, no auth) |
 | WebSocket | `ws://localhost:3000/ws` |
 | API versioning | None |
-| OpenAPI/Swagger | Not served |
+| OpenAPI/Swagger | `GET /api-docs` (UI) and `GET /api-docs/openapi.json` (spec) |
 
 Source: `server/src/server.ts`, `server/src/modules/app.routes.ts`
 
@@ -151,11 +151,13 @@ User routes are registered static-first: `/active`, `/inactive`, the role/status
 | 404 | Resource not found, unknown route |
 | 409 | Duplicate entity, stock conflict |
 | 422 | Defined in `AppError` but not used by any route |
+| 423 | Account locked after repeated failed sign-ins (`Retry-After` header) |
+| 429 | Rate limited (`Retry-After` header) |
 | 500 | Unhandled error, Mongoose cast/validation error, database failure |
 
 ## 11. Health check
 
-`GET /health` → `200 text/plain` with `Server is healthy`. It does not check MongoDB or Redis health.
+`GET /health` → `200 text/plain` with `Server is healthy`. `GET /ready` checks MongoDB and Redis with a 2-second probe timeout and returns `200`/`503` with per-dependency status.
 
 ## 12. Endpoint index
 
@@ -163,23 +165,38 @@ The complete reference lives in [endpoints.md](endpoints.md). Summary by module:
 
 | Module | Endpoints | Prefix |
 |---|---|---|
-| Auth | 4 | `/auth` |
-| Users | 14 registrations (13 distinct) | `/users` |
+| Auth | 12 | `/auth` |
+| Users | 16 | `/users` |
+| Audit | 1 | `/audit` |
 | Medicines | 6 | `/medicines` |
 | Units | 5 | `/units` |
 | Categories | 5 | `/categories` |
 | Brands | 5 | `/brands` |
 | Generic names | 5 | `/generic-names` |
 | Suppliers | 5 | `/suppliers` |
+| Customers | 5 | `/customers` |
 | Purchases | 13 | `/purchases` |
-| Inventory | 12 | `/inventory` |
-| Sales | 5 | `/sales` |
+| Purchase returns | 7 | `/purchase-returns` |
+| Inventory | 14 | `/inventory` |
+| Sales | 8 | `/sales` |
 | Sale items | 4 | `/sale-items` |
-| Returns | 4 | `/returns` |
+| Returns | 8 | `/returns` |
 | Batches | 17 | `/batches` |
 | Smart reorders | 9 | `/smart-reorders` |
 | Notifications | 14 | `/notifications` |
 | Dashboard | 14 | `/dashboard` |
+
+## 13. OpenAPI / Swagger
+
+- **Swagger UI:** `GET /api-docs`
+- **Raw spec:** `GET /api-docs/openapi.json`
+- The spec is a typed OpenAPI 3.0 object in `server/src/docs/openapi.ts`; it
+  covers every mounted prefix and uses a `cookieAuth` security scheme plus the
+  `X-CSRF-Token` requirement for unsafe methods.
+- Outside production the UI is open. In production, set
+  `ENABLE_API_DOCS=true`; the UI and spec are then owner-only and require the
+  normal `token` cookie.
+- `swagger-jsdoc` and the old empty `*.swagger.ts` stubs were removed.
 
 ## Related documents
 

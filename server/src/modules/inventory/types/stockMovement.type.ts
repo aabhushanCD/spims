@@ -5,7 +5,8 @@ export type StockMovementType =
   | "ADJUSTMENT"
   | "EXPIRED"
   | "RESERVE"
-  | "RELEASE";
+  | "RELEASE"
+  | "PURCHASE_RETURN";
 
 export type StockReferenceType =
   | "PURCHASE_ORDER"
@@ -16,6 +17,7 @@ export type StockReferenceType =
   | "ADJUSTMENT"
   | "RESERVE"
   | "RELEASE"
+  | "PURCHASE_RETURN"
   | "SYSTEM";
 
 export interface StockMovementCtx {

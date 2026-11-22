@@ -182,16 +182,17 @@ Key couplings to be aware of:
 - Single Node process; cron jobs run in that process. Running multiple instances would duplicate jobs.
 - MongoDB must support transactions (replica set) for sales, returns, and purchasing flows.
 - Redis must be reachable before startup completes.
-- No Dockerfile, docker-compose, reverse-proxy, or process manager configuration is present in the repository.
-- CI (`.github/workflows/main.yml`) runs `npm ci` and `npm run build` for server and client on Node 22. It does not run tests or linting.
+- Docker, docker-compose, NGINX, and process-manager deployment are **declined** for this project; deploy the Node process and static client build directly.
+- Swagger UI is served at `/api-docs` (open outside production; `ENABLE_API_DOCS=true` plus an owner session in production).
+- CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit/coverage tests, the HTTP integration suite, and the build for both packages; `security.yml` adds dependency audits, Gitleaks, and CodeQL.
 
 ## 10. What this architecture does not include
 
 - No message queue, event bus, or outbox pattern.
-- No scheduled job persistence/locking beyond a `BackgroundJob` audit collection.
-- No request tracing, correlation IDs, structured logging, or metrics.
+- Cron jobs are persisted in `BackgroundJob` and guarded by Redis locks; there is no leader election.
+- Structured JSON logging, request IDs, and `/ready` exist; metrics and distributed tracing do not.
 - No API versioning.
-- No pagination, filtering DSL, or sorting conventions outside the notification cursor API.
+- Cursor pagination and common filters exist across the main lists. Range analytics, CSV export, and per-cashier/category breakdowns are implemented; a general list-sorting convention remains open.
 - No file storage; the purchase invoice "file" is a string field.
 - No payment gateway or payment ledger.
 

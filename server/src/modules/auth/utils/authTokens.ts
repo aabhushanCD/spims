@@ -13,6 +13,7 @@ export interface AccessTokenPayload extends JwtPayload {
   email: string;
   role: string;
   sessionId: string;
+  ver?: number;
   type: "access";
 }
 
@@ -27,6 +28,7 @@ export interface AccessTokenInput {
   email: string;
   role: string;
   sessionId: string;
+  ver?: number;
 }
 
 export interface RefreshTokenInput {
@@ -56,6 +58,7 @@ export function generateAccessToken(input: AccessTokenInput): string {
       email: input.email,
       role: input.role,
       sessionId: input.sessionId,
+      ...(typeof input.ver === "number" ? { ver: input.ver } : {}),
       type: "access",
     },
     getJwtSecret(),
@@ -100,6 +103,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     sessionId: isNonEmptyString(payload.sessionId)
       ? payload.sessionId
       : "",
+    ...(typeof payload.ver === "number" ? { ver: payload.ver } : {}),
     type: "access",
   };
 }

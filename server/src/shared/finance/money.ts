@@ -1,3 +1,8 @@
+import {
+  DEFAULT_VAT_PERCENT,
+  getVatRate,
+} from "../../config/vat.config.ts";
+
 /**
  * Shared money helpers.
  *
@@ -6,10 +11,10 @@
  * purchases from drifting apart with slightly different formulas.
  */
 
-/** Nepal standard VAT percentage. Stored as a percentage (13 = 13%). */
-export const VAT_PERCENT = 13;
+/** Default VAT percentage (13 = 13%). Runtime code uses `getVatPercent()`. */
+export const VAT_PERCENT = DEFAULT_VAT_PERCENT;
 
-/** VAT as a decimal rate (0.13). */
+/** Default VAT as a decimal rate (0.13). */
 export const VAT_RATE = VAT_PERCENT / 100;
 
 /**
@@ -26,7 +31,7 @@ export function roundCurrency(value: number): number {
 /** VAT amount for a net (VAT-exclusive) value. */
 export function calculateVat(
   netAmount: number,
-  rate: number = VAT_RATE,
+  rate: number = getVatRate(),
 ): number {
   return roundCurrency(netAmount * rate);
 }
@@ -34,7 +39,7 @@ export function calculateVat(
 /** Splits a net amount into net, VAT, and gross components. */
 export function addVat(
   netAmount: number,
-  rate: number = VAT_RATE,
+  rate: number = getVatRate(),
 ): { net: number; vat: number; gross: number } {
   const net = roundCurrency(netAmount);
   const vat = calculateVat(net, rate);

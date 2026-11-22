@@ -103,9 +103,14 @@ function buildService() {
   };
   const inventoryService = {
     returnMedicine: vi.fn().mockResolvedValue({}),
+    decreaseStock: vi.fn().mockResolvedValue({}),
   };
   const counterRepo = {
     generateReturnNumber: vi.fn().mockResolvedValue("RET-000001"),
+  };
+  const paymentService = {
+    recordRefund: vi.fn().mockResolvedValue({}),
+    recordRefundReversal: vi.fn().mockResolvedValue({}),
   };
 
   const service = new ReturnService(
@@ -116,6 +121,8 @@ function buildService() {
     AppError,
     counterRepo as never,
     connection as never,
+    undefined,
+    paymentService as never,
   );
 
   return {
@@ -127,6 +134,7 @@ function buildService() {
     salesRepo,
     inventoryService,
     counterRepo,
+    paymentService,
   };
 }
 
@@ -693,6 +701,125 @@ describe("ReturnService", () => {
         failure.service.completeReturn(RETURN_ID, USER_ID),
       ).rejects.toThrow("Return not found");
       expect(failure.session.endSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("records the refund in the payment ledger", async () => {
+      const { service, paymentService } = buildService();
+
+      await service.completeReturn(RETURN_ID, USER_ID);
+
+      expect(paymentService.recordRefund).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: expect.any(Number),
+          performedBy: USER_ID,
+          returnId: expect.anything(),
+        }),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe("restocking fee", () => {
+    it("deducts the fee before VAT when quoting a GOOD return", async () => {
+      const { service, returnRepo } = buildService();
+
+      await service.createReturn(
+        buildDto({
+          items: [
+            {
+              saleItemId: SALE_ITEM_ID,
+              quantity: 3,
+              condition: "GOOD",
+              restockingFee: 10,
+            },
+          ],
+        }),
+      );
+
+      expect(returnRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          refundAmount: 310.75,
+          returnItems: [
+            expect.objectContaining({
+              restockingFee: 10,
+              VAT: 35.75,
+              refundAmount: 310.75,
+            }),
+          ],
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("rejects a fee on a write-off line", async () => {
+      const { service } = buildService();
+
+      await expect(
+        service.createReturn(
+          buildDto({
+            items: [
+              {
+                saleItemId: SALE_ITEM_ID,
+                quantity: 1,
+                condition: "DAMAGED",
+                restockingFee: 5,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+  });
+
+  describe("reverseReturn", () => {
+    it("deducts GOOD stock, restores returned quantity, and reverses the refund", async () => {
+      const { service, returnRepo, saleItemRepo, inventoryService, paymentService } =
+        buildService();
+      returnRepo.findByIdRaw.mockResolvedValue(
+        buildApprovedReturn({
+          status: "COMPLETED",
+          reversedAt: null,
+          refundAmount: 322.05,
+        }),
+      );
+      saleItemRepo.findBySalesId.mockResolvedValue([
+        buildSaleItem({ returnedQuantity: 5 }),
+      ]);
+
+      await service.reverseReturn(RETURN_ID, USER_ID, "Wrong return");
+
+      expect(inventoryService.decreaseStock).toHaveBeenCalledWith(
+        MEDICINE_ID,
+        3,
+        expect.objectContaining({
+          movementType: "ADJUSTMENT",
+          referenceType: "SALES_RETURN",
+        }),
+        expect.anything(),
+      );
+      expect(saleItemRepo.update).toHaveBeenCalledWith(
+        SALE_ITEM_ID,
+        { returnedQuantity: 2 },
+        expect.anything(),
+      );
+      expect(returnRepo.update).toHaveBeenCalledWith(
+        RETURN_ID,
+        expect.objectContaining({
+          status: "REVERSED",
+          reversalReason: "Wrong return",
+        }),
+        expect.anything(),
+      );
+      expect(paymentService.recordRefundReversal).toHaveBeenCalled();
+    });
+
+    it("rejects reversing a non-completed return", async () => {
+      const { service, connection } = buildService();
+
+      await expect(
+        service.reverseReturn(RETURN_ID, USER_ID),
+      ).rejects.toMatchObject({ statusCode: 409 });
+      expect(connection.startSession).toHaveBeenCalled();
     });
   });
 });

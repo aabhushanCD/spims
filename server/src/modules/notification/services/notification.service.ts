@@ -45,8 +45,10 @@ export {
 } from "../notification.constants.ts";
 
 export interface CreateNotificationDto {
-  title: string;
-  message: string;
+  title?: string | undefined;
+  message?: string | undefined;
+  templateKey?: string | undefined;
+  templateData?: Record<string, string | number | boolean> | undefined;
   type: "Email" | "SMS" | "InApp";
   userIds: string[];
   critical?: boolean | undefined;
@@ -171,6 +173,7 @@ export class NotificationService {
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
     private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
+    private readonly templateRepo?: import("../repo/notificationTemplate.repo.ts").NotificationTemplateRepo,
   ) {}
 
   private async invalidateDashboard(): Promise<void> {
@@ -186,6 +189,36 @@ export class NotificationService {
   // Creates the notification + one recipient row per unique user, all Pending.
   // Delivery happens asynchronously after the transaction commits.
   async createNotification(dto: CreateNotificationDto) {
+    if (dto.templateKey) {
+      if (!this.templateRepo) {
+        throw this.appError.badRequest(
+          "Notification templates are not configured",
+        );
+      }
+      const template = await this.templateRepo.findByKey(dto.templateKey);
+      if (!template || !template.isActive) {
+        throw this.appError.badRequest(
+          "Notification template not found or inactive",
+        );
+      }
+      const data = dto.templateData ?? {};
+      const render = (text: string) =>
+        text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key: string) =>
+          Object.prototype.hasOwnProperty.call(data, key)
+            ? String(data[key])
+            : "",
+        );
+      dto.title = render(template.subject);
+      dto.message = render(template.body);
+      dto.type = template.channel;
+    }
+
+    const title = dto.title;
+    const message = dto.message;
+    if (!title || !message) {
+      throw this.appError.badRequest("title and message are required");
+    }
+
     const normalizedUserIds: string[] = [];
     for (const rawUserId of dto.userIds) {
       if (!/^[a-fA-F0-9]{24}$/.test(rawUserId)) {
@@ -220,8 +253,8 @@ export class NotificationService {
       const notification = await session.withTransaction(async () => {
         const created = await this.notificationRepo.create(
           {
-            title: dto.title,
-            message: dto.message,
+            title,
+            message,
             type: dto.type,
             status: "Pending",
             isCritical: dto.critical ?? false,

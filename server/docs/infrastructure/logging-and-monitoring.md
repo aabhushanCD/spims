@@ -14,25 +14,21 @@ Diagnostics also rely on:
 
 | Location | Message | Level |
 |---|---|---|
-| `config/db.config.ts` | MongoDB connected host / error | log/error |
-| `config/redis.config.ts` | Redis connected / connection error | log/error |
-| `shared/middleware/verifyJwt.ts` | JWT verification failure | error |
-| `shared/middleware/verifyToken.ts` | JWT verification failure | error |
-| `shared/middleware/globalError.middleware.ts` | Full unhandled error | error |
-| `modules/inventory/services/inventoryMovement.service.ts` | `Creating inventory movement:` + payload | log |
-| `modules/purchase/controller/purchase.controller.ts` | `Request body:` on create | log |
-| `modules/sales/controller/sales.controller.ts` | `Unexpected error in getAllSales:` | error |
-| `modules/backgroundJobs/jobs/expiryCheck.job.ts` | Newly expired count / job failure | log/error |
-| `modules/backgroundJobs/jobs/reorderCalculation.job.ts` | Completion / failure | log/error |
-| `modules/worker/smartReorder.cron.ts` | Generated count / failure (dead code) | log/error |
-| `server.ts` | Server running; invalid CORS JSON | log/error |
+| `config/db.config.ts` | MongoDB connected / error event | info/error |
+| `config/redis.config.ts` | Redis connected / connection error | info/error |
+| `shared/middleware/verifyToken.ts` | JWT/session/token-version verification failures | warn |
+| `shared/middleware/requestLogger.ts` | HTTP request completion with request id, user id, status, duration | info |
+| `shared/middleware/globalError.middleware.ts` | Unhandled error with method/path/stack | error |
+| `modules/audit/service/audit.service.ts` | Audit persistence failure | error |
+| `shared/security/sessionRevocation.ts` | Deny-list read/write failures | warn |
+| `shared/security/tokenVersion.ts` | Version-cache read/write failures | warn |
+| `modules/backgroundJobs/jobs/*.job.ts` | Job completion/failure | info/error |
+| `server.ts` | Server started/startup failure; WebSocket origin/revocation rejection | info/error |
 
 Concerns:
 
-- The purchase controller logs full request bodies, which may include supplier and pricing data.
-- The movement service logs full movement payloads.
-- Logs are unstructured single-line strings without timestamps, request ids, user ids, or route context.
-- Errors from the global handler are logged without the request method/path.
+- Logs are JSON lines and redact the configured secret keys, but callers must still avoid passing raw tokens or passwords in metadata.
+- Audit metadata is additionally redacted for keys matching password/token/secret/authorization/cookie/api-key.
 
 ## 3. Health and readiness probes
 
@@ -97,7 +93,7 @@ The dashboard's inventory value and low-stock counts are derived from these same
 |---|---|
 | HTTP 500 | Generic message to client; stack/error in server console |
 | Validation 400 | Field errors to client; nothing logged |
-| Failed login | 401/404 to client; no audit log |
+| Failed login | 401/423 to client; `AuditLog` row with reason (never the password) |
 | Failed email | Recipient `Failed` with stored error and scheduled retries |
 | Failed SMS | Recipient `Failed` with stored error and scheduled retries |
 | Dropped WebSocket | Nothing |
@@ -109,9 +105,10 @@ The dashboard's inventory value and low-stock counts are derived from these same
 
 | Event | Audit record |
 |---|---|
-| Login/logout | Login updates `lastLogin`; no dedicated audit row. Logout has no record |
-| User create/update/delete | None |
-| Role change | None |
+| Login/logout | `AuditLog` success/failure/lock rows; login also updates `lastLogin` |
+| User create/update/delete | `AuditLog` rows with actor and changed fields |
+| Role change / activation / admin reset / force logout | `AuditLog` rows |
+| Session revocation | `AuditLog` row; Redis deny-list entry |
 | Purchase approval | Only status; no approver/timestamp |
 | PO cancellation | Only status; no actor |
 | Sale deletion | Movement with `performedBy`, but sale itself is gone |
@@ -132,10 +129,10 @@ Still not implemented:
 
 1. Error aggregation (Sentry or equivalent).
 2. Metrics for request rate/latency/errors and job duration.
-3. Audit collection for auth and administrative actions.
-4. Alerting on failed cron runs and notification backlogs.
-5. Stock reconciliation report comparing batches and aggregates.
-6. Retention policy for `backgroundjobs` and `inventorymovements`.
+3. Alerting on failed cron runs and notification backlogs.
+4. Stock reconciliation report comparing batches and aggregates.
+5. Retention policy for `auditlogs`, `backgroundjobs`, and `inventorymovements`.
+6. Audit coverage for purchase/return/reorder approvals (the model and read API exist; those write sites are Phase 6.3–6.6).
 
 ## 10. Practical diagnosis guide
 

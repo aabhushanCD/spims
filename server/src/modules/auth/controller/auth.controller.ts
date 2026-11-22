@@ -14,15 +14,23 @@ import {
   setAuthCookies,
 } from "../utils/authCookies.ts";
 
-function getRefreshToken(req: Request): string | undefined {
+function getCookie(req: Request, name: string): string | undefined {
   const cookies: unknown = req.cookies;
 
   if (!cookies || typeof cookies !== "object") {
     return undefined;
   }
 
-  const value = (cookies as Record<string, unknown>).refreshToken;
+  const value = (cookies as Record<string, unknown>)[name];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function getRefreshToken(req: Request): string | undefined {
+  return getCookie(req, "refreshToken");
+}
+
+function getAccessToken(req: Request): string | undefined {
+  return getCookie(req, "token");
 }
 
 function getAuthenticatedUser(req: Request): JWTUserPayload {
@@ -109,6 +117,7 @@ export class AuthController {
     try {
       const result = await this.authService.logoutSession(
         getRefreshToken(req),
+        getAccessToken(req),
       );
       clearAuthCookies(res);
       res.json(result);
@@ -121,7 +130,10 @@ export class AuthController {
   async logoutAllSessions(req: Request, res: Response, next: NextFunction) {
     try {
       const user = getAuthenticatedUser(req);
-      const result = await this.authService.logoutAllSessions(user.userId);
+      const result = await this.authService.logoutAllSessions(
+        user.userId,
+        extractRequestContext(req),
+      );
       clearAuthCookies(res);
       res.json(result);
     } catch (error) {

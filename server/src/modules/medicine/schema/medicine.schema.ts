@@ -64,6 +64,9 @@ export const createMedicineSchema = z.object({
     .min(0, "Reorder level cannot be negative")
     .default(0),
 
+  moq: z.number().int().min(1, "MOQ must be at least 1").optional(),
+  packSize: z.number().int().min(1, "Pack size must be at least 1").optional(),
+
   isActive: z.boolean().default(true),
 });
 

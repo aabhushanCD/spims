@@ -2,6 +2,7 @@
 import type mongoose from "mongoose";
 
 import { calculateVat, roundCurrency } from "../../../shared/finance/money.ts";
+import { getVatPercent } from "../../../config/vat.config.ts";
 import type { AppError } from "../../../shared/error.ts";
 import type { SaleItemRepo } from "../repo/saleItem.repo.ts";
 import type { SalesRepo } from "../repo/sales.repo.ts";
@@ -126,7 +127,10 @@ export class SaleItemService {
           );
         }
 
-        const vat = calculateVat(taxable);
+        const vat = calculateVat(
+          taxable,
+          (sale.vatRate ?? getVatPercent()) / 100,
+        );
 
         const updatedSale = await this.salesRepo.update(
           salesId,

@@ -46,6 +46,8 @@ Mounted at `/api/users` with roles **`owner` and `pharmacist` only**. Every writ
 | GET | `/last-login/:date` | Filter |
 | PATCH | `/:id/toggleUserActivation` | Toggle; owner only |
 | PATCH | `/:id/role` | Change role; owner only |
+| POST | `/:id/reset-password` | Send a one-time reset link; owner only; revokes sessions |
+| POST | `/:id/force-logout` | Revoke all sessions and access tokens; owner only |
 
 Full contracts: [endpoints.md](../api/endpoints.md#users).
 
@@ -71,7 +73,7 @@ Full contracts: [endpoints.md](../api/endpoints.md#users).
 
 ## 7. Model
 
-`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider, `select: false`), `provider`, `role`, optional `phone`, `notificationPreferences` (`{ email, sms }`, both default `true`), `isActive`, `emailVerified`, `lastLogin`, timestamps, plus select-false email-verification and password-reset token hashes. The legacy `refreshToken` / `refreshTokenExpiresAt` fields remain but the refresh flow now uses the `authsessions` collection.
+`User` (`modules/user/model/user.model.ts`): `name`, `email` (unique), `password` (conditional on provider, `select: false`), `provider`, `role`, optional `phone`, `notificationPreferences` (`{ email, sms }`, both default `true`), `isActive`, `emailVerified`, `lastLogin`, `tokenVersion` (included as `ver` in access tokens, default `0`), timestamps, plus select-false email-verification and password-reset token hashes. The legacy `refreshToken` / `refreshTokenExpiresAt` fields remain but the refresh flow now uses the `authsessions` collection.
 
 `phone` is the optional SMS destination. `notificationPreferences` is written by
 the notification preference routes through dedicated repository methods; it is
@@ -173,9 +175,11 @@ The only meaningful distinctions are: user writes are owner-only, and reorder ge
 | Duplicate status route unreachable | Already fixed (single route) | — |
 | `isActive` ignored at login | Already fixed | — |
 | `lastLogin` never updated | Already fixed | — |
-| Admin password reset | Needs decision | Phase 6 |
+| Admin password reset | Implemented: owner-only one-time email link; sessions revoked; token version bumped | — |
+| Force logout | Implemented: owner-only revoke of all sessions and access tokens | — |
 | Pagination/search | Fixed: cursor pagination with role/status/search | — |
-| Audit trail for user changes | Needs decision | Phase 6 |
+| Audit trail for user changes | Implemented: create/update/delete/role/toggle/reset/force-logout written to `AuditLog`; owner-only `GET /api/audit` | — |
+| Token invalidation on role/password/activation change | Implemented via `User.tokenVersion` and session revocation | — |
 
 ## Related documents
 

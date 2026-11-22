@@ -5,22 +5,25 @@ import {
 } from "../notification.constants.ts";
 import { objectIdSchema as objectId } from "../../../shared/schema/objectId.schema.ts";
 
-export const createNotificationSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, { message: "title is required" })
-    .max(200, { message: "title must be at most 200 characters" }),
-  message: z
-    .string()
-    .trim()
-    .min(1, { message: "message is required" })
-    .max(5000, { message: "message must be at most 5000 characters" }),
-  type: z.enum(["Email", "SMS", "InApp"]),
-  userIds: z
-    .array(objectId)
-    .min(1, { message: "At least one recipient is required" }),
-});
+export const createNotificationSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    message: z.string().trim().min(1).max(5000).optional(),
+    templateKey: z.string().trim().min(1).max(100).optional(),
+    templateData: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .optional(),
+    type: z.enum(["Email", "SMS", "InApp"]),
+    userIds: z
+      .array(objectId)
+      .min(1, { message: "At least one recipient is required" }),
+  })
+  .refine(
+    (value) =>
+      Boolean(value.templateKey) ||
+      (Boolean(value.title) && Boolean(value.message)),
+    { message: "Provide title+message or templateKey" },
+  );
 
 export const notificationIdParamSchema = z.object({ id: objectId });
 

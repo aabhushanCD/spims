@@ -16,15 +16,35 @@ describe("UserService", () => {
     findByEmail: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
+    updateAuthFields: vi.fn(),
     delete: vi.fn(),
+    incrementTokenVersion: vi.fn(),
   };
 
+  const authSessionRepository = { revokeAllForUser: vi.fn() };
+  const mailer = { sendPasswordResetEmail: vi.fn() };
+  const audit = { record: vi.fn() };
+  const tokenVersionMaintenance = { invalidate: vi.fn() };
+
   const createService = () =>
-    new UserService(userRepository as unknown as UserRepository);
+    new UserService(
+      userRepository as unknown as UserRepository,
+      authSessionRepository as never,
+      mailer as never,
+      audit,
+      tokenVersionMaintenance,
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.CLIENT_URL = "http://localhost:5173";
     userRepository.findByEmail.mockResolvedValue(null);
+    userRepository.incrementTokenVersion.mockResolvedValue(1);
+    userRepository.updateAuthFields.mockResolvedValue(null);
+    authSessionRepository.revokeAllForUser.mockResolvedValue(undefined);
+    mailer.sendPasswordResetEmail.mockResolvedValue(undefined);
+    audit.record.mockResolvedValue(undefined);
+    tokenVersionMaintenance.invalidate.mockResolvedValue(undefined);
     vi.mocked(bcrypt.hash).mockResolvedValue("hashed-password" as never);
   });
 
@@ -89,6 +109,12 @@ describe("UserService", () => {
     expect(userRepository.update).toHaveBeenCalledWith("user-1", {
       password: "hashed-password",
     });
+    expect(
+      authSessionRepository.revokeAllForUser,
+    ).toHaveBeenCalledWith("user-1");
+    expect(userRepository.incrementTokenVersion).toHaveBeenCalledWith(
+      "user-1",
+    );
   });
 
   it("rejects an invalid role on update", async () => {
@@ -137,6 +163,12 @@ describe("UserService", () => {
     expect(userRepository.update).toHaveBeenCalledWith("user-1", {
       role: "owner",
     });
+    expect(
+      authSessionRepository.revokeAllForUser,
+    ).toHaveBeenCalledWith("user-1");
+    expect(userRepository.incrementTokenVersion).toHaveBeenCalledWith(
+      "user-1",
+    );
   });
 
   it("rejects a role change when the user is missing", async () => {
@@ -163,5 +195,97 @@ describe("UserService", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
 
     expect(userRepository.update).not.toHaveBeenCalled();
+  });
+
+  it("sends an admin reset link, revokes sessions, and bumps the version", async () => {
+    userRepository.findById.mockResolvedValue({
+      _id: "user-1",
+      name: "Asha Sharma",
+      email: "asha@example.com",
+      provider: "local",
+    });
+
+    await expect(
+      createService().adminResetPassword(
+        "user-1",
+        "owner",
+        "owner-1",
+        { ip: "203.0.113.10", userAgent: "test" } as never,
+      ),
+    ).resolves.toMatchObject({
+      message: expect.stringContaining("reset link sent"),
+    });
+
+    expect(userRepository.updateAuthFields).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({
+        passwordResetTokenHash: expect.any(String),
+        passwordResetExpiresAt: expect.any(Date),
+      }),
+    );
+    expect(
+      authSessionRepository.revokeAllForUser,
+    ).toHaveBeenCalledWith("user-1");
+    expect(userRepository.incrementTokenVersion).toHaveBeenCalledWith(
+      "user-1",
+    );
+    expect(mailer.sendPasswordResetEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "asha@example.com",
+        url: expect.stringContaining(
+          "http://localhost:5173/reset-password?token=",
+        ),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "USER_PASSWORD_RESET" }),
+    );
+  });
+
+  it("clears the reset token when admin reset email delivery fails", async () => {
+    userRepository.findById.mockResolvedValue({
+      _id: "user-1",
+      name: "Asha Sharma",
+      email: "asha@example.com",
+      provider: "local",
+    });
+    mailer.sendPasswordResetEmail.mockRejectedValue(new Error("smtp down"));
+
+    await expect(
+      createService().adminResetPassword("user-1", "owner"),
+    ).rejects.toMatchObject({ statusCode: 503 });
+
+    expect(userRepository.updateAuthFields).toHaveBeenLastCalledWith(
+      "user-1",
+      { passwordResetTokenHash: null, passwordResetExpiresAt: null },
+    );
+  });
+
+  it("rejects admin reset for non-owners", async () => {
+    await expect(
+      createService().adminResetPassword("user-1", "pharmacist"),
+    ).rejects.toMatchObject({ statusCode: 403 });
+
+    expect(mailer.sendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+
+  it("force-logs out a user and bumps the token version", async () => {
+    userRepository.findById.mockResolvedValue({ _id: "user-1" });
+
+    await expect(
+      createService().forceLogout("user-1", "owner", "owner-1"),
+    ).resolves.toMatchObject({
+      message: expect.stringContaining("revoked"),
+    });
+
+    expect(
+      authSessionRepository.revokeAllForUser,
+    ).toHaveBeenCalledWith("user-1");
+    expect(userRepository.incrementTokenVersion).toHaveBeenCalledWith(
+      "user-1",
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "USER_FORCE_LOGOUT" }),
+    );
   });
 });

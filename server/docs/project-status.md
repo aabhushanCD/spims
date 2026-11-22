@@ -11,50 +11,55 @@ It is not production-hardened. The main risks are:
 - Aggregate stock still depends on operational sync after expiry flagging and on deduping existing inventory rows before the unique index deploys.
 - Authorization remains broad outside user management.
 - Historical financial data (VAT-exclusive purchase totals, pre-Phase-4 returns without line VAT) is not backfilled.
-- Automated coverage remains modest, but five core HTTP flows now run against an in-memory MongoDB replica set.
-- List endpoints have cursor pagination and filters; the client currently requests the first 100 rows.
+- Automated coverage remains modest, but ten HTTP flows and five migration/seeder tests now run against in-memory MongoDB.
+- List endpoints have cursor pagination and filters; the client still lacks a general "load more" control.
+- Client/server contract drift remains: the sale cancel route, payment enum/`paidAmount`, invoice field names, inventory adjust/history calls, and report links are scheduled for Phase 6.3/6.7.
 
 ## 2. Endpoint and model inventory
 
 | Metric | Count |
 |---|---|
-| Mongoose models | 22 |
-| Router files | 18 (including `app.routes.ts`) |
-| Mounted route prefixes | 17 |
-| Route registrations (actual calls) | 154 (one additional line is commented out) |
-| Distinct live handlers | 154 |
-| Endpoint rows documented | 144 (130 with a method column + 14 dashboard `GET` rows; 154 live registrations) |
+| Mongoose models | 28 |
+| Router files | 23 (including `app.routes.ts`) |
+| Mounted route prefixes | 22 |
+| Route registrations (actual calls) | 193 |
+| Distinct live handlers | 193 |
+| Endpoint rows documented | 193 (stocktake, templates, reporting, barcode, supplier performance added in 6.4–6.6) |
 | Transactions | 7 flows |
+| Migrations | 4 registered (`001`–`004`) |
 | Cron jobs | 3 active |
-| Tests | 66 unit files / 458 cases + 6 HTTP integration cases |
+| Tests | 79 unit files / 535 cases + 15 integration cases (10 HTTP + 5 migration/seeder) |
 
 ## 3. Module status matrix
 
 | Module | Status | Evidence | Main gaps |
 |---|---|---|---|
-| Authentication | Implemented | Register/login/refresh/logout, email verification, password reset, multi-session management, rate limiting, 15m access + 7d refresh | No MFA, no account lockout, no immediate access-token revocation |
-| Users & roles | Implemented | CRUD, activation toggle, owner-only writes, JWT-authoritative delete, role-change route, hashed password updates, public responses sanitized, cursor pagination/search | Audit trail, admin password reset |
-| Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks, unit validation, reference-safe lookup deletes, escaped search, active filtering, cursor pagination | Name+strength+brand uniqueness is service-only |
-| Suppliers | Implemented | CRUD, email/phone uniqueness, phone index, reliability score persistence, input validation, open-PO delete guard | No supplier audit trail |
-| Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, versioned compare-and-swap, unique medicine index, runtime request/movement validation | No stocktake/bulk adjustment workflow |
+| Authentication | Implemented | Register/login/refresh/logout, email verification, password reset, sessions, rate limiting, lockout, immediate token revocation, shared HTTP/WS origin policy | No MFA, no Google OAuth, no geo-IP database |
+| Users & roles | Implemented | CRUD, owner-only writes, JWT-authoritative delete, role change revokes sessions, admin reset, force logout, hashed passwords, audit trail | Flat RBAC outside user management |
+| Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks, unit validation, reference-safe lookup deletes, escaped search, active filtering, cursor pagination, barcode lookup, compound unique index | Batch/price data in list not exposed |
+| Suppliers | Implemented | CRUD, uniqueness, reliability score, open-PO delete guard, performance endpoint | No supplier audit trail |
+| Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, version CAS, unique medicine index, reconciliation report, stocktake lifecycle | Stocktake UI absent; reservations not order-linked |
 | Batches & expiry | Implemented | CRUD, FEFO query, expiry flagging with aggregate sync, atomic disposal, movements on every stock change, request validation, movement history, delete guard | No batch split/merge |
-| Purchases | Implemented | Create/approve/receive, VAT/discount-aware persisted totals, recalc on item edits, guarded cascade delete, runtime receive schema | No partial receipt, no PO numbering |
-| Sales | Implemented | FEFO allocation, VAT, invoice counter, transaction, session cleanup, validated params, sale-item corrections recompute totals, delete guarded by returns | No payment ledger |
-| Returns | Implemented | PENDING → APPROVED/REJECTED/CANCELLED → COMPLETED workflow, outstanding-quantity accounting, VAT-inclusive refunds, correct GOOD/write-off semantics, unique return number | No return reversal or refund payment record |
-| Notifications | Implemented | Create/dispatch with atomic claim, inbox, WS/email/SMS, retries, preferences, read state, cursor pagination, hierarchy authz | Templates out of scope; multi-instance retry sweep; legacy backfill/dedupe is a deployment step |
-| Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cron, cache, approve/reject, invalidated caches, pending dedupe, safe date handling, reliability persistence | No PO creation |
-| Dashboard/reporting | Implemented | 14 endpoints, 8-part cached payload with invalidation, COGS profit, saleDate-based periods, timezone-aware year series, returns excluded from top selling | No arbitrary date ranges |
+| Purchases | Implemented | Create/approve/partial/full receive, persisted totals, PO numbering, approval/cancel/receive audit, supplier performance, supplier returns, invoice upload/download | Multi-batch split is supported per receipt line |
+| Sales | Implemented | FEFO, header+line VAT snapshots, customers, payment ledger, invoice payload, sale-item corrections, delete guard | No external payment gateway |
+| Returns | Implemented | PENDING → APPROVED/REJECTED/CANCELLED → COMPLETED/REVERSED workflow, VAT-inclusive refunds, restocking fees, GOOD/write-off semantics, refund ledger, reversal | No partial-refund approval workflow |
+| Notifications | Implemented | Dispatch, inbox, WS/email/SMS, retries, preferences, read state, pagination, hierarchy authz, template CRUD/render | Templates are not yet wired into notification creation |
+| Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cache, approve/reject audit, manual route, MOQ/pack rounding, optional draft PO creation, reliability persistence | No seasonality model; auto-PO creates a draft only |
+| Dashboard/reporting | Implemented | Cached payload, COGS profit, timezone series, returns excluded, range analytics, by-cashier/category, CSV export, completion-date refunds, reconciliation | No per-category dashboard UI |
 | Redis caching | Implemented | Dashboard + reorder cache with invalidation; explicit `REDIS_URL`/Upstash target resolution | Redis still required at startup |
 | Background jobs | Implemented | 3 cron jobs + job audit records + Redis distributed locks | Single-process scheduler; retry sweep intentionally unrecorded |
-| WebSocket | Implemented | Cookie-auth upgrade, per-user push | No heartbeat/acks/rooms, offline marked Sent |
+| WebSocket | Implemented | Origin-checked cookie-auth upgrade, per-user push | No heartbeat/acks/rooms, offline marked Sent |
 | Email | Implemented | Lazy Nodemailer transport, HTML auth emails, console fallback | No retry/bounce tracking; real SMTP must be configured |
-| Swagger/OpenAPI | Not Implemented | Stubs exist | Not mounted, most files empty, `swagger-jsdoc` not a dependency |
+| Swagger/OpenAPI | Implemented | Typed OpenAPI 3.0 spec + Swagger UI at `/api-docs` | Production requires `ENABLE_API_DOCS=true` and an owner session; spec maintenance is manual |
 | Pagination/search | Implemented | Cursor pagination on medicines, sales, purchases, inventory, returns, users, batches | Client currently requests the first 100 rows |
-| Payments | Not Implemented | Payment method string only | No gateway/ledger/refund transaction |
-| Purchase returns | Not Implemented | — | No route/model |
+| Migrations/seeders | Implemented | Ordered migration runner + `migrations` ledger; idempotent baseline seeder (`db:migrate`, `db:seed`) | No down migrations or checksum drift detection; not run at boot |
+| Payments | Implemented | Payment ledger (`PAYMENT`, `REFUND`, `REFUND_REVERSAL`), credit-sale settlement, invoice summary | No external gateway; no partial-refund policy beyond restocking fees |
+| Customers | Implemented | Customer CRUD/search, sale `customerId` + name snapshot, invoice population | No loyalty/credit accounts |
+| Purchase returns | Implemented | Pending → approved → completed supplier return with batch stock deduction, supplier credit, unique number | No supplier debit-note export or partial batch return workflow |
+| Invoice | Implemented | `GET /sales/:id/invoice` with populated items, cashier/customer, payments, amount due | Client print view still uses the old field names (Phase 6.7) |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
-| Docker/deployment assets | Not Implemented | — | No Dockerfile/compose/NGINX config in repo |
-| Automated tests | Implemented | 66 unit suites / 458 tests + 6 HTTP integration tests | Controllers, Redis, Mongo, and SMTP are covered by unit fakes and the integration suite; live provider behavior still unverified |
+| Docker/NGINX deployment | Declined | — | Not required for this project; no Dockerfile/compose/NGINX config will be added |
+| Automated tests | Implemented | 79 unit suites / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash provider behavior still unverified |
 
 ## 4. Implemented features
 
@@ -85,33 +90,27 @@ It is not production-hardened. The main risks are:
 |---|---|---|
 | RBAC | Role checks exist | All three roles can do nearly everything; users module has its own gate |
 | Reservations | Reserve/release maintain `reservedStock` and `availableStock` | Not linked to orders; reconciliation clamps outstanding holds if batch truth drops |
-| Returns | Full approval workflow, VAT refunds, correct GOOD/write-off stock semantics | No reversal/deletion; no refund payment record |
+| Returns | Full approval workflow, VAT refunds, restocking fees, refund ledger, reversal | No partial-refund approval policy |
 | Stock adjustments | Batch adjust endpoint | Writes movement and syncs; `StockAdjustment` service unreachable |
 | Purchase totals | VAT/discount-aware totals persisted on recalculation | Historical pre-Phase-4 totals are not backfilled |
 | Email notifications | Sending works if SMTP is reachable; auth emails have HTML templates | No retry/bounce tracking; console fallback when SMTP is unconfigured |
 | SMS notifications | Implemented via `SMS_WEBHOOK_URL` | Requires `SMS_WEBHOOK_URL` and a recipient phone |
 | Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls; expiry flagging reconciles affected medicines immediately | Optimistic conflicts surface as `409` and must be retried by the caller |
 | Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed, cache invalidated on writes | No arbitrary date-range analytics |
-| Swagger | Two partial spec files | Not served, most files empty, missing dependency |
-| Tests | 66 unit suites / 458 tests + 6 HTTP integration tests | Live SMTP/SMS/Upstash behavior remains unverified |
+| Swagger | Typed OpenAPI 3.0 spec; Swagger UI served at `/api-docs` | Production docs are opt-in and owner-only |
+| Tests | 79 unit suites / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash behavior remains unverified |
 
 ## 6. Not implemented
 
-- Purchase returns / supplier returns.
-- Payment gateways, payment records, refunds, credit tracking.
-- MFA, account lockout.
-- Security headers (helmet or equivalent).
-- Pagination, sorting, date-range filters on non-notification lists.
-- File uploads (invoice file is a string).
-- Google OAuth.
+- External payment gateways (eSewa/Khalti/Stripe); the local payment/refund ledger exists.
+- MFA and Google OAuth; lockout and immediate access-token revocation are now implemented.
+- General sorting and arbitrary date-range filters on every list (pagination/common filters and reporting ranges exist).
 - Prescription management.
-- Barcode scanning (only a barcode field and text search).
+- Barcode camera/scanning UI (the lookup endpoint and unique index exist).
 - Multi-branch or multi-tenant support.
-- Docker/NGINX/CI deployment pipeline.
-- Migrations/seeders.
-- Audit log for auth/admin actions.
-- Stock reconciliation report.
-- Structured logging/metrics/tracing.
+- Docker/NGINX deployment (declined by product decision; not planned).
+- Reservation-to-order linkage (aggregate reservations remain order-unaware).
+- Metrics and distributed tracing (structured logging, request IDs, and readiness are implemented).
 
 ## 7. Unverified items (require a live environment)
 
@@ -132,7 +131,7 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current Phase 5 suite is 66 unit files / 458 tests + 6 HTTP integration tests) |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current 6.4–6.6 suite is 79 unit files / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
 | Client tests | 2 files, 17 tests passed |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
@@ -140,8 +139,8 @@ It is not production-hardened. The main risks are:
 ### Verified during this audit
 
 - `npx tsc --noEmit -p tsconfig.json` completes with no diagnostics.
-- `npx vitest run` passes: 58 files, 425 tests (server).
-- Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all nine `referenceType` values validate.
+- `npx vitest run` passes: 79 files, 535 tests (server).
+- Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all ten `referenceType` values validate (including `PURCHASE_RETURN`).
 
 ### Phase 4 state (2026-11-21)
 
@@ -186,42 +185,40 @@ It is not production-hardened. The main risks are:
 | Role enforcement | User writes are owner-only with service-level checks; other modules remain broadly shared |
 | Secret management | `.env` + gitignore; startup validation for JWT/CLIENT in production |
 | CORS | Allow-list with credentials |
-| WebSocket origin check | Not Implemented |
-| Audit logging | Partial movement log only |
+| Security headers | Helmet (no page CSP); HSTS in production |
+| Account lockout | Redis counter per normalized email; 5 failures / 15m window / 15m lock |
+| Access-token revocation | Redis session deny-list plus `User.tokenVersion`; all-session revocation on reset/role change/deactivation/force logout |
+| Admin password reset | Owner-only one-time email link; sessions revoked; no plaintext password returned |
+| WebSocket origin check | Implemented — same allow-list as CORS; `Origin` required in production |
+| Audit logging | Implemented for auth and user admin actions (`AuditLog`, owner-only `GET /api/audit`); stock movements remain the transactional stock audit |
 
 ## 10. Documentation vs repository claims
 
 | Claim in root docs | Actual |
 |---|---|
-| Pagination | Implemented for notifications only |
+| Pagination | Implemented with cursor pagination on the main lists |
 | Refresh-token mechanism (`SECURITY.md`) | Implemented (rotating refresh sessions) |
 | Email/SMS notifications (`README` future list) | Implemented; SMS requires a webhook |
-| Payment recording | Only a payment method string |
-| Swagger/OpenAPI | Unmounted stubs, missing dependency |
-| Docker/NGINX/HTTPS/CI security checks (`SECURITY.md`) | Not present in repository |
-| Backend at port 8000 | Default is 3000 |
+| Payment recording | Payment/refund ledger with outstanding balance; no external gateway |
+| Swagger/OpenAPI | Implemented at `/api-docs`; production is opt-in and owner-only |
+| Docker/NGINX/HTTPS/CI security checks (`SECURITY.md`) | CI scanners exist; Docker/NGINX/HTTPS are declined |
+| Backend at port 8000 | Default is 3000 (`PORT`) |
 | "Inventory updates automatically after every sale" | True for sales, not for all stock paths |
-| "Batch history" | Endpoint returns metadata, not movements |
+| "Batch history" | Endpoint now includes movements |
+| "Docker containerization / NGINX / HTTPS" (`SECURITY.md`) | Declined; not planned |
 
 ## 11. Recommended next steps
 
-Engineering follow-up (Phase 3 items marked done):
+Engineering follow-up:
 
-1. ~~Fix the return reference type~~ (done); implement the confirmed condition semantics (GOOD restores the batch and aggregate; DAMAGED/EXPIRED/OPENED are write-offs).
-2. ~~Resolve the batch `isActive` validator and add schema tests~~ (done).
-3. Consolidate stock writes behind one service that always updates batch + aggregate + movement in a transaction.
-4. ~~Fix the non-session `getTotalStock` filter~~ (done).
-5. ~~Remove the destructive allocation endpoint~~ (done).
-6. ~~Restrict role changes and user creation to `owner`~~ (done; service checks added).
-7. ~~Privileged roles are already excluded from public registration; protect this with a regression test~~ (done).
-8. ~~`isActive` at login and token revocation/refresh~~ (done: login rejects deactivated accounts; refresh sessions rotate and are revocable).
-9. ~~Wire validation for users, inventory, batches, returns, sale updates, and purchase receive~~ (done, with ObjectId params and a global `CastError` mapper).
-10. ~~Apply purchase VAT/discount and persist recalculated totals~~ (done).
-11. Add indexes for `salesitems.salesId`, `returns.salesId`, and status/date queries (`inventories.medicineId` is now unique).
-12. Add integration tests for sale, receipt, return, disposal, and reorder.
-13. Replace console logging with structured logging and add readiness checks.
-14. Fix the environment loading order and Redis URL handling.
-15. Add client-side role gating for user-management actions so pharmacists see a clear disabled state instead of a `403`.
+1. ~~Return condition semantics, stock consolidation, non-session sync filter, destructive allocation removal, owner-only user writes, login status checks, validation, purchase totals~~ (done in Phases 2–4).
+2. ~~Indexes, integration tests, structured logging/readiness, Redis URL handling~~ (done in Phase 5).
+3. ~~Account lockout, immediate access-token revocation, admin reset, force logout, audit log, Helmet, WebSocket origin check~~ (done in Phase 6.1).
+4. Add client-side role gating for user-management actions so pharmacists see a clear disabled state instead of a `403` (Phase 6.7).
+5. Client contract drift is fixed for sale cancellation (uses `DELETE`), payment methods, invoice data, dead inventory calls, and dead report/roles links. Remaining client work: load-more, payments/stocktake/upload/reorder UI, barcode camera, component tests.
+6. Phase 6.2 Swagger/OpenAPI, migrations, and seeders are done. Docker/NGINX/compose and a deploy workflow are declined.
+7. Phase 6.3 is done. 6.4 PO numbering, stocktake, medicine barcode/index, supplier performance, and approval audit are done; partial receiving and invoice upload remain. 6.5 range/CSV/bylines are done. 6.6 MOQ/audit/manual/auto-PO/templates are done server-side.
+8. MFA (6.1b) and Google OAuth/geo-IP (deferred) remain accepted gaps.
 
 ## 12. Documentation set
 

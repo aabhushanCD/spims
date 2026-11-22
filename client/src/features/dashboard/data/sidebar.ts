@@ -3,7 +3,6 @@ import {
   Bell,
   Boxes,
   ShoppingCart,
-  FileText,
   Settings,
   Database,
   DollarSign,
@@ -101,23 +100,6 @@ export const sidebarItems = [
   },
 
   {
-    title: "Reports",
-    icon: FileText,
-
-    children: [
-      {
-        title: "Sales Report",
-        path: "/reports/sales",
-      },
-
-      {
-        title: "Inventory Report",
-        path: "/reports/inventory",
-      },
-    ],
-  },
-
-  {
     title: "Settings",
     icon: Settings,
 
@@ -125,11 +107,6 @@ export const sidebarItems = [
       {
         title: "Users",
         path: "/users",
-      },
-
-      {
-        title: "Roles",
-        path: "/roles",
       },
 
       {

@@ -30,6 +30,7 @@ import {
   type CacheInvalidator,
 } from "../../../shared/provider/cacheInvalidator.ts";
 import { logger } from "../../../shared/logger.ts";
+import type { CounterRepository } from "../../sales/repo/counter.repo.ts";
 
 export class PurchaseOrderService {
   constructor(
@@ -41,6 +42,7 @@ export class PurchaseOrderService {
     private readonly appError: typeof AppError,
     private readonly connection: mongoose.Connection,
     private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
+    private readonly counterRepo?: CounterRepository,
   ) {}
 
   private async invalidateDashboard(): Promise<void> {
@@ -115,8 +117,12 @@ export class PurchaseOrderService {
           data.VAT ?? 13,
         );
 
+        const orderNumber = this.counterRepo
+          ? await this.counterRepo.generatePurchaseOrderNumber(session)
+          : undefined;
         const purchaseOrderPayload: Partial<IPurchaseOrder> = {
           ...purchaseOrderData,
+          ...(orderNumber ? { orderNumber } : {}),
           supplierId: new Types.ObjectId(data.supplierId),
           // A client-supplied status must never bypass approve/receive.
           status: "pending",
@@ -136,6 +142,7 @@ export class PurchaseOrderService {
           await this.purchaseOrderItemRepo.create(
             {
               purchaseOrderId: purchaseOrder._id.toString(),
+              vatRate: data.VAT ?? 13,
               ...item,
             },
             session,
@@ -191,6 +198,34 @@ export class PurchaseOrderService {
       (row) => String(row._id),
     );
   }
+  async getSupplierPerformance(supplierId: string) {
+    const supplier = await this.supplierRepo.findById(supplierId);
+    if (!supplier) {
+      throw this.appError.notFound("Supplier not found");
+    }
+    const performance =
+      await this.purchaseOrderRepo.getSupplierPerformance(supplierId);
+    const recentOrders = await this.purchaseOrderRepo.findRecentBySupplier(
+      supplierId,
+      10,
+    );
+    return {
+      supplier: {
+        _id: supplier._id,
+        companyName: supplier.companyName,
+        reliabilityScore: supplier.reliabilityScore,
+      },
+      ...performance,
+      onTimeRate:
+        performance.receivedOrders > 0
+          ? Math.round(
+              (performance.onTimeOrders / performance.receivedOrders) * 100,
+            )
+          : null,
+      recentOrders,
+    };
+  }
+
   async getPurchaseOrdersBySupplierId(supplierId: string) {
     const supplier = await this.supplierRepo.findById(supplierId);
 
@@ -290,7 +325,7 @@ export class PurchaseOrderService {
     }
   }
 
-  async cancelPurchaseOrder(id: string) {
+  async cancelPurchaseOrder(id: string, performedBy?: string) {
     const existing = await this.purchaseOrderRepo.findById(id);
 
     if (!existing) {
@@ -301,7 +336,15 @@ export class PurchaseOrderService {
         "Received purchase orders cannot be cancelled",
       );
     }
-    await this.purchaseOrderRepo.update(id, { status: "cancelled" });
+    await this.purchaseOrderRepo.update(id, {
+      status: "cancelled",
+      ...(performedBy
+        ? {
+            cancelledBy: new Types.ObjectId(performedBy),
+            cancelledAt: new Date(),
+          }
+        : {}),
+    });
     await this.invalidateDashboard();
   }
 
@@ -476,7 +519,37 @@ export class PurchaseOrderService {
     return totals;
   }
 
-  async approvePurchaseOrder(purchaseOrderId: string) {
+  async uploadInvoiceFile(purchaseOrderId: string, filePath: string) {
+    const purchaseOrder =
+      await this.purchaseOrderRepo.findById(purchaseOrderId);
+    if (!purchaseOrder) {
+      throw this.appError.notFound("Purchase order not found");
+    }
+    const updated = await this.purchaseOrderRepo.update(purchaseOrderId, {
+      invoiceFile: filePath,
+    });
+    if (!updated) {
+      throw this.appError.notFound("Purchase order not found");
+    }
+    return updated;
+  }
+
+  async getInvoiceFile(purchaseOrderId: string): Promise<string> {
+    const purchaseOrder =
+      await this.purchaseOrderRepo.findById(purchaseOrderId);
+    if (!purchaseOrder) {
+      throw this.appError.notFound("Purchase order not found");
+    }
+    if (!purchaseOrder.invoiceFile) {
+      throw this.appError.notFound("Invoice file not uploaded");
+    }
+    return purchaseOrder.invoiceFile;
+  }
+
+  async approvePurchaseOrder(
+    purchaseOrderId: string,
+    performedBy?: string,
+  ) {
     const purchaseOrder =
       await this.purchaseOrderRepo.findById(purchaseOrderId);
 
@@ -500,6 +573,12 @@ export class PurchaseOrderService {
 
     await this.purchaseOrderRepo.update(purchaseOrderId, {
       status: "approved",
+      ...(performedBy
+        ? {
+            approvedBy: new Types.ObjectId(performedBy),
+            approvedAt: new Date(),
+          }
+        : {}),
     });
     await this.invalidateDashboard();
   }
@@ -524,9 +603,12 @@ export class PurchaseOrderService {
         if (!purchaseOrder) {
           throw this.appError.notFound("Purchase order not found");
         }
-        if (purchaseOrder.status !== "approved") {
+        if (
+          purchaseOrder.status !== "approved" &&
+          purchaseOrder.status !== "partially_received"
+        ) {
           throw this.appError.badRequest(
-            "Only approved purchase orders can be received",
+            "Only approved or partially received purchase orders can be received",
           );
         }
 
@@ -541,34 +623,42 @@ export class PurchaseOrderService {
           );
         }
 
-        const batchMap = new Map(
-          data.items.map((item) => [item.medicineId, item]),
+        const byId = new Map(
+          purchaseOrderItems.map((item) => [
+            item._id.toString(),
+            item,
+          ]),
         );
-        const ids = data.items.map((item) => item.medicineId);
-        if (new Set(ids).size !== ids.length) {
-          throw this.appError.badRequest(
-            "Duplicate medicine found in batch data",
-          );
-        }
-        if (data.items.length !== purchaseOrderItems.length) {
-          throw this.appError.badRequest(
-            "Batch data does not match purchase order",
-          );
-        }
+        const byMedicine = new Map(
+          purchaseOrderItems.map((item) => [
+            item.medicineId._id.toString(),
+            item,
+          ]),
+        );
 
-        for (const poItem of purchaseOrderItems) {
-          const batch = batchMap.get(poItem.medicineId._id.toString());
-          if (!batch) {
+        for (const line of data.items) {
+          const poItem =
+            (line.purchaseOrderItemId
+              ? byId.get(line.purchaseOrderItemId)
+              : undefined) ??
+            (line.medicineId
+              ? byMedicine.get(line.medicineId)
+              : undefined);
+
+          if (!poItem) {
             throw this.appError.badRequest(
-              `No batch data provided for medicine with ID ${poItem.medicineId}`,
+              "Receipt line does not match a purchase order item",
             );
           }
-          if (batch.quantityReceived !== poItem.quantity) {
+
+          const alreadyReceived = poItem.receivedQuantity ?? 0;
+          const remaining = poItem.quantity - alreadyReceived;
+          if (line.quantityReceived > remaining) {
             throw this.appError.badRequest(
-              `Quantity received for medicine with ID ${poItem.medicineId} does not match the ordered quantity`,
+              `Received quantity exceeds the remaining ${remaining} units for this purchase order item`,
             );
           }
-          if (batch.sellingPrice < poItem.purchasePrice) {
+          if (line.sellingPrice < poItem.purchasePrice) {
             throw this.appError.badRequest(
               "Selling price cannot be less than purchase price",
             );
@@ -578,13 +668,13 @@ export class PurchaseOrderService {
             {
               medicineId: poItem.medicineId._id.toString(),
               purchaseOrderId,
-              batchNumber: batch.batchNumber,
-              manufacturingDate: batch.manufacturingDate,
-              expiryDate: batch.expiryDate,
+              batchNumber: line.batchNumber,
+              manufacturingDate: line.manufacturingDate,
+              expiryDate: line.expiryDate,
               purchasePrice: poItem.purchasePrice,
-              sellingPrice: batch.sellingPrice,
-              quantityReceived: batch.quantityReceived,
-              quantityRemaining: batch.quantityReceived,
+              sellingPrice: line.sellingPrice,
+              quantityReceived: line.quantityReceived,
+              quantityRemaining: line.quantityReceived,
             },
             session,
             {
@@ -595,13 +685,25 @@ export class PurchaseOrderService {
               remarks: `Received from PO ${purchaseOrder.invoiceNumber}`,
             },
           );
+
+          poItem.receivedQuantity = alreadyReceived + line.quantityReceived;
+          await this.purchaseOrderItemRepo.update(
+            poItem._id.toString(),
+            { receivedQuantity: poItem.receivedQuantity },
+            session,
+          );
         }
+
+        const fullyReceived = purchaseOrderItems.every(
+          (item) => (item.receivedQuantity ?? 0) >= item.quantity,
+        );
 
         await this.purchaseOrderRepo.update(
           purchaseOrderId,
           {
-            status: "received",
-            receivedDate: new Date(),
+            status: fullyReceived ? "received" : "partially_received",
+            ...(fullyReceived ? { receivedDate: new Date() } : {}),
+            receivedBy: new Types.ObjectId(performedBy),
           },
           session,
         );

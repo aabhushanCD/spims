@@ -10,6 +10,7 @@ import type { ReturnController } from "../controller/return.controller.ts";
 import {
   CreateReturnSchema,
   ReturnListQuerySchema,
+  ReverseReturnSchema,
   UpdateReturnSchema,
   returnIdParamSchema,
 } from "../schema/return.schema.ts";
@@ -46,6 +47,13 @@ export function buildReturnRouter(controller: ReturnController): Router {
     "/:id/complete",
     validateParams(returnIdParamSchema),
     controller.completeReturn,
+  );
+  router.patch(
+    "/:id/reverse",
+    validateParams(returnIdParamSchema),
+    validate(ReverseReturnSchema),
+    authorize(["owner", "inventory_manager"]),
+    controller.reverseReturn,
   );
 
   router.get(

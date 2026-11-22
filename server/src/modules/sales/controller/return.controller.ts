@@ -105,4 +105,19 @@ export class ReturnController {
     );
     res.status(200).json({ success: true, data: completed });
   });
+
+  // PATCH /returns/:id/reverse — undoes a completed return
+  reverseReturn = asyncHandler(async (req: Request, res: Response) => {
+    const performedBy = req.user?.userId;
+    if (!performedBy) {
+      throw AppError.unauthorized("Authenticated user required");
+    }
+
+    const reversed = await this.returnService.reverseReturn(
+      req.params.id as string,
+      performedBy,
+      req.body?.reversalReason as string | undefined,
+    );
+    res.status(200).json({ success: true, data: reversed });
+  });
 }

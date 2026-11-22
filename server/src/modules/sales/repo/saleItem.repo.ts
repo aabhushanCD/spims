@@ -60,6 +60,16 @@ export class SaleItemRepo {
       .exec();
   }
 
+  async findBySalesIdDetailed(salesId: string): Promise<ISalesItem[]> {
+    return await this.saleItemModel
+      .find({ salesId })
+      .populate("medicineId", "medicineName strength dosageForm barcode")
+      .populate("batchId", "batchNumber expiryDate sellingPrice")
+      .sort({ createdAt: 1, _id: 1 })
+      .lean()
+      .exec();
+  }
+
   async findBySalesId(
     salesId: string,
     session?: mongoose.ClientSession,
@@ -394,5 +404,77 @@ export class SaleItemRepo {
       dailySales.push(salesByDate.get(key) ?? 0);
     }
     return dailySales; // index 0 = oldest (day 1), last index = today (day 30)
+  }
+
+  async getTotalsByCategory(
+    start: Date,
+    endExclusive: Date,
+  ): Promise<Array<{ categoryId: string; categoryName: string; quantity: number; total: number }>> {
+    const rows = await this.saleItemModel
+      .aggregate<{
+        _id: mongoose.Types.ObjectId;
+        quantity: number;
+        total: number;
+        category?: { name?: string };
+      }>([
+        {
+          $lookup: {
+            from: "sales",
+            localField: "salesId",
+            foreignField: "_id",
+            as: "sale",
+          },
+        },
+        { $unwind: "$sale" },
+        {
+          $match: {
+            "sale.status": { $ne: "CANCELLED" },
+            "sale.saleDate": { $gte: start, $lt: endExclusive },
+          },
+        },
+        {
+          $lookup: {
+            from: "medicines",
+            localField: "medicineId",
+            foreignField: "_id",
+            as: "medicine",
+          },
+        },
+        { $unwind: { path: "$medicine", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "categories",
+            localField: "medicine.categoryId",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: "$medicine.categoryId",
+            quantity: { $sum: "$quantity" },
+            total: { $sum: "$totalPrice" },
+          },
+        },
+        {
+          $lookup: {
+            from: "categories",
+            localField: "_id",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+        { $sort: { total: -1 } },
+      ])
+      .exec();
+
+    return rows.map((row) => ({
+      categoryId: row._id ? String(row._id) : "uncategorized",
+      categoryName: row.category?.name ?? "Uncategorized",
+      quantity: row.quantity,
+      total: roundCurrency(row.total),
+    }));
   }
 }

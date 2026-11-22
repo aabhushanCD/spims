@@ -41,6 +41,7 @@ Static factories:
 | `gone` | 410 | Resource no longer available |
 | `unsupportedMediaType` | 415 | Unsupported Media Type |
 | `unprocessableEntity` | 422 | Validation failed |
+| `locked` | 423 | Account temporarily locked |
 | `tooManyRequests` | 429 | Too many requests |
 | `internal` | 500 | Internal Server Error |
 | `notImplemented` | 501 | Not Implemented |
@@ -48,7 +49,9 @@ Static factories:
 | `serviceUnavailable` | 503 | Service Unavailable |
 | `gatewayTimeout` | 504 | Gateway Timeout |
 
-400, 401, 403, 404, and 409 are used in practice. `authorize` returns `403 { message: "Access denied" }`; notification service checks also throw `AppError.forbidden`, which produces `{ success: false, message }`.
+400, 401, 403, 404, 409, 423, and 429 are used in practice. `authorize` returns `403 { message: "Access denied" }`; notification service checks also throw `AppError.forbidden`, which produces `{ success: false, message }`.
+
+Phase 6.1 codes: `ACCOUNT_LOCKED` (423, with a `Retry-After` header), `SESSION_REVOKED` (401 for a deny-listed or stale token version), `ACCOUNT_DEACTIVATED`, and `EMAIL_NOT_VERIFIED`. `AppError` now accepts optional response headers so the lockout factory can emit `Retry-After`.
 
 ## 3. Zod validation errors
 

@@ -64,6 +64,12 @@ function buildService() {
   const returnRepo = {
     hasActiveBySale: vi.fn().mockResolvedValue(false),
   };
+  const paymentService = {
+    recordSalePayment: vi.fn().mockResolvedValue({}),
+  };
+  const customerRepo = {
+    findById: vi.fn(),
+  };
 
   const service = new SalesService(
     salesRepo as never,
@@ -74,6 +80,9 @@ function buildService() {
     returnRepo as never,
     AppError,
     connection as never,
+    undefined,
+    paymentService as never,
+    customerRepo as never,
   );
 
   return {
@@ -85,6 +94,8 @@ function buildService() {
     inventoryService,
     counterRepo,
     returnRepo,
+    paymentService,
+    customerRepo,
   };
 }
 
@@ -103,6 +114,93 @@ describe("SalesService", () => {
         message: "Cart is empty",
         statusCode: 400,
       });
+      expect(connection.startSession).not.toHaveBeenCalled();
+    });
+
+    it("records a full payment for non-credit sales", async () => {
+      const { service, inventoryService, paymentService } = buildService();
+      inventoryService.sellMedicine.mockResolvedValue([
+        {
+          batchId: BATCH_ID,
+          medicineId: MEDICINE_ID,
+          quantity: 1,
+          unitPrice: 100,
+          purchasePrice: 60,
+        },
+      ]);
+
+      await service.createSale(buildDto());
+
+      expect(paymentService.recordSalePayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 113,
+          method: "CASH",
+          performedBy: USER_ID,
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("leaves CREDIT sales unpaid until a payment is recorded", async () => {
+      const { service, inventoryService, paymentService } = buildService();
+      inventoryService.sellMedicine.mockResolvedValue([
+        {
+          batchId: BATCH_ID,
+          medicineId: MEDICINE_ID,
+          quantity: 1,
+          unitPrice: 100,
+          purchasePrice: 60,
+        },
+      ]);
+
+      await service.createSale(buildDto({ paymentMethod: "CREDIT" }));
+
+      expect(paymentService.recordSalePayment).not.toHaveBeenCalled();
+    });
+
+    it("uses the customer name snapshot when customerId is supplied", async () => {
+      const { service, inventoryService, customerRepo, salesRepo } =
+        buildService();
+      customerRepo.findById.mockResolvedValue({
+        _id: { toString: () => "507f1f77bcf86cd799439071" },
+        name: "Registered Customer",
+        isActive: true,
+      });
+      inventoryService.sellMedicine.mockResolvedValue([
+        {
+          batchId: BATCH_ID,
+          medicineId: MEDICINE_ID,
+          quantity: 1,
+          unitPrice: 100,
+          purchasePrice: 60,
+        },
+      ]);
+
+      await service.createSale(
+        buildDto({
+          customerId: "507f1f77bcf86cd799439071",
+          customerName: "",
+        }),
+      );
+
+      expect(salesRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerName: "Registered Customer",
+          customerId: expect.anything(),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("rejects an unknown or inactive customer", async () => {
+      const { service, customerRepo, connection } = buildService();
+      customerRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        service.createSale(
+          buildDto({ customerId: "507f1f77bcf86cd799439071" }),
+        ),
+      ).rejects.toMatchObject({ statusCode: 404 });
       expect(connection.startSession).not.toHaveBeenCalled();
     });
 

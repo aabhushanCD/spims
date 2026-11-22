@@ -73,6 +73,30 @@ export class CounterRepository {
   }
 
   /**
+   * Purchase Return Number
+   * PRET-000001
+   */
+  async generatePurchaseReturnNumber(
+    session?: mongoose.ClientSession,
+  ): Promise<string> {
+    return this.generateNumber(
+      "PRET",
+      COUNTERS.PURCHASE_RETURN,
+      session,
+    );
+  }
+
+  /**
+   * Stocktake Number
+   * ST-000001
+   */
+  async generateStocktakeNumber(
+    session?: mongoose.ClientSession,
+  ): Promise<string> {
+    return this.generateNumber("ST", COUNTERS.STOCKTAKE, session);
+  }
+
+  /**
    * Stock Adjustment Number
    * ADJ-000001
    */

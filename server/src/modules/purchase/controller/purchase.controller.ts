@@ -61,7 +61,10 @@ export class PurchaseController {
 
   async cancelPurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
-      await this.purchaseService.cancelPurchaseOrder(req.params.id as string);
+      await this.purchaseService.cancelPurchaseOrder(
+        req.params.id as string,
+        req.user?.userId,
+      );
       return res.status(200).json({
         message: "Purchase order canceled successfully",
       });
@@ -70,9 +73,38 @@ export class PurchaseController {
     }
   }
 
+  async uploadInvoice(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) {
+        throw new AppError("Invoice file is required", 400, "FILE_REQUIRED");
+      }
+      const purchaseOrder = await this.purchaseService.uploadInvoiceFile(
+        req.params.id as string,
+        req.file.path,
+      );
+      res.status(200).json({ success: true, data: purchaseOrder });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getInvoice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filePath = await this.purchaseService.getInvoiceFile(
+        req.params.id as string,
+      );
+      res.sendFile(filePath);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async approvePurchaseOrder(req: Request, res: Response, next: NextFunction) {
     try {
-      await this.purchaseService.approvePurchaseOrder(req.params.id as string);
+      await this.purchaseService.approvePurchaseOrder(
+        req.params.id as string,
+        req.user?.userId,
+      );
       return res.status(200).json({
         message: "Purchase order approved successfully",
       });
@@ -164,6 +196,21 @@ export class PurchaseController {
         message: "Purchase order totals recalculated successfully",
         data: purchaseOrder,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getSupplierPerformance(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const data = await this.purchaseService.getSupplierPerformance(
+        req.params.id as string,
+      );
+      res.status(200).json({ success: true, data });
     } catch (error) {
       next(error);
     }

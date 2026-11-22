@@ -19,6 +19,7 @@ export const ReturnStatusSchema = z.enum([
   "REJECTED",
   "CANCELLED",
   "COMPLETED",
+  "REVERSED",
 ]);
 
 export const ReturnItemSchema = z.object({
@@ -28,6 +29,10 @@ export const ReturnItemSchema = z.object({
     .int("Quantity must be an integer")
     .positive("Quantity must be greater than 0"),
   condition: ReturnConditionSchema,
+  restockingFee: z
+    .number()
+    .min(0, "Restocking fee cannot be negative")
+    .optional(),
   remarks: z
     .string()
     .trim()
@@ -64,6 +69,15 @@ export const ReturnListQuerySchema = cursorPaginationQuerySchema
     salesId: objectIdSchema.optional(),
     search: z.string().trim().min(1).max(100).optional(),
   });
+
+export const ReverseReturnSchema = z.object({
+  reversalReason: z
+    .string()
+    .trim()
+    .min(3)
+    .max(500)
+    .optional(),
+});
 
 export const returnIdParamSchema = z.object({ id: objectIdSchema });
 

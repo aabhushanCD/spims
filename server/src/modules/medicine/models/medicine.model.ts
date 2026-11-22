@@ -11,6 +11,8 @@ export interface IMedicine extends Document {
   dosageForm?: string;
   strength: string;
   reorderLevel?: number;
+  moq?: number;
+  packSize?: number;
   description?: string;
   isActive: boolean;
 }
@@ -67,6 +69,8 @@ const MedicineSchema = new Schema<IMedicine>(
       type: Number,
       min: 0,
     },
+    moq: { type: Number, min: 1 },
+    packSize: { type: Number, min: 1 },
     description: {
       type: String,
       trim: true,
@@ -83,6 +87,16 @@ const MedicineSchema = new Schema<IMedicine>(
 );
 
 MedicineSchema.index({ isActive: 1, createdAt: -1 });
+MedicineSchema.index(
+  { medicineName: 1, strength: 1, brandId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      medicineName: { $type: "string" },
+      strength: { $type: "string" },
+    },
+  },
+);
 MedicineSchema.index(
   { barcode: 1 },
   {

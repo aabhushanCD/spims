@@ -5,10 +5,8 @@ export const paymentMethodEnum = z.enum([
   "CASH",
   "CARD",
   "QR",
-  "MOBILE_BANKING",
+  "Mobile Banking",
   "CREDIT",
-  "ESEWA",
-  "KHALTI",
 ]);
 export type PaymentMethod = z.infer<typeof paymentMethodEnum>;
 
@@ -46,7 +44,6 @@ export const saleFormSchema = z
     discountPercentage: z.coerce.number().min(0).max(100).default(0),
     paymentMethod: paymentMethodEnum,
     discount: z.number().min(0).default(0), // sale-level discount
-    paidAmount: z.number().min(0).optional(),
     notes: z.string().max(500, "Notes must be under 500 characters").optional(),
     items: z
       .array(saleItemSchema)

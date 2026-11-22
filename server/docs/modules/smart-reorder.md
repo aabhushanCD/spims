@@ -144,7 +144,7 @@ Notes:
 - The newest day gets the largest weight (30/465).
 - `expiryRiskUnits` is added to the order quantity, which increases ordering when stock is about to expire.
 - `reviewPeriod`, Z-value, and confidence weights are hardcoded constants.
-- `moq` is supported by `calculateROQ` but never supplied; there is no MOQ field on suppliers or medicines.
+- `moq` and `packSize` are supplied from the medicine; ROQ is rounded to the pack size.
 
 ## 9. Cache behavior
 
@@ -160,9 +160,9 @@ Notes:
 
 ## 10. Validation
 
-- `suggestedQuantity > 0` and `confidenceScore` 0–1 in the unused `createRecommendation` method.
-- HTTP routes validate ObjectId params; generate actions accept no body.
-- `threshold`/`targetStock` are ignored.
+- `POST /smart-reorders` validates `medicineId`, `supplierId`, positive `suggestedQuantity`, and `confidenceScore` 0–100.
+- Approve/reject accepts optional PO creation/reason bodies; ObjectId params are validated.
+- `threshold`/`targetStock` are ignored by generation.
 - Medicine existence is checked; supplier existence is checked.
 
 ## 11. Middleware
@@ -229,18 +229,18 @@ A recommendation for 45 units is stored, with confidence derived from data cover
 
 | Issue | Status | Phase |
 |---|---|---|
-| Auto-create purchase orders | Needs decision | Phase 6 |
-| MOQ / pack size | Needs decision | Phase 6 |
-| Seasonality/trend modeling | Needs decision | Phase 6 |
+| Auto-create purchase orders | Implemented: approval can create a draft PO | — |
+| MOQ / pack size | Implemented: medicine `moq`/`packSize` round the ROQ | — |
+| Seasonality/trend modeling | Still open | Phase 6.8 |
 | Cache invalidation | Fixed: stock, purchase, sale, return, batch, and notification writes invalidate the dashboard; stock changes invalidate the medicine reorder key | — |
 | Negative results returned as success on cache hits | Fixed: cached negative results keep the 400 contract | — |
 | Missing `expectedDeliveryDate` handling (`NaN`) | Fixed: missing/invalid dates are ignored when averaging delays | — |
 | Duplicate recommendations per run | Fixed: pending recommendations are upserted and the partial unique index prevents a second PENDING row | — |
 | Recommendation deduplication | Fixed: one PENDING recommendation per medicine | — |
-| Approval audit (who/when) | Needs decision | Phase 6 |
+| Approval audit (who/when) | Implemented: `approvedBy/At`, `rejectedBy/At`, reason | — |
 | `expiryRiskUnits` includes already-expired stock | Fixed: expiry risk is bounded by `now` and the cutoff | — |
 | Indexes on medicine/status | Fixed: medicine/status/generatedAt and status/generatedAt indexes added | — |
-| `createRecommendation` manual path | Needs decision | Phase 6 |
+| `createRecommendation` manual path | Implemented at `POST /smart-reorders` with required algorithm fields | — |
 | Manual confidence scale (0–1) differs from generated scale (0–100) | Fixed: both use 0–100 | — |
 | `supplier.reliabilityScore` unused | Fixed: computed from valid delivery history and persisted | — |
 

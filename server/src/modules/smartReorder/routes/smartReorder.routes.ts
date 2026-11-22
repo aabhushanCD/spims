@@ -5,9 +5,12 @@ import { authorize } from "../../../shared/middleware/authorize.ts";
 import { validateParams } from "../../../shared/middleware/validate.middleware.ts";
 import { smartReorderController } from "../../../app/container.ts";
 import {
+  createSmartReorderSchema,
+  rejectSmartReorderSchema,
   smartReorderIdParamSchema,
   smartReorderMedicineParamSchema,
 } from "../schema/smartReorder.schema.ts";
+import { validate } from "../../../shared/middleware/validate.middleware.ts";
 
 const router = Router();
 
@@ -16,6 +19,12 @@ router.get(
   "/medicine/:medicineId",
   validateParams(smartReorderMedicineParamSchema),
   smartReorderController.getByMedicineId,
+);
+router.post(
+  "/",
+  authorize(["owner", "inventory_manager"]),
+  validate(createSmartReorderSchema),
+  smartReorderController.create,
 );
 router.get("/", smartReorderController.getAll);
 router.get(
@@ -32,6 +41,7 @@ router.patch(
 router.patch(
   "/:id/reject",
   validateParams(smartReorderIdParamSchema),
+  validate(rejectSmartReorderSchema),
   smartReorderController.reject,
 );
 

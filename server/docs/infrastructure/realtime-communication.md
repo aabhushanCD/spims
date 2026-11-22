@@ -141,15 +141,16 @@ at +1m/+5m. In-app delivery has no provider failure to retry.
 | Retry of email/SMS failures | Implemented in the notification service |
 | Multi-instance fan-out | Not Implemented |
 | Payload ids/types | Not Implemented |
-| Origin validation | Not Implemented |
+| Origin validation | Implemented — same allow-list as CORS; `Origin` required in production |
 | Socket cleanup on error | Not Implemented |
 
 ## 10. Security observations
 
-- The upgrade does not check `Origin`, unlike the HTTP CORS policy.
-- Token verification uses the same long-lived JWT; there is no re-authentication.
+- The upgrade checks `Origin` against the same allow-list as CORS; production rejects a missing `Origin`.
+- Token verification uses the short-lived access JWT; there is no WebSocket-specific re-authentication.
+- The upgrade checks the Redis session deny-list and `User.tokenVersion`, so a revoked or stale access token cannot open a new socket. An already-open socket can outlive a logout until it disconnects.
 - Any allowed role can open a socket, but messages are only sent to the socket's own user id.
-- A stolen token allows both HTTP and WebSocket access.
+- A stolen token allows both HTTP and WebSocket access until it expires or the socket closes.
 
 ## Related documents
 

@@ -47,7 +47,13 @@ export const purchaseOrderListQuerySchema = cursorPaginationQuerySchema
   .extend({
     search: z.string().trim().min(1).max(100).optional(),
     status: z
-      .enum(["pending", "approved", "received", "cancelled"])
+      .enum([
+        "pending",
+        "approved",
+        "partially_received",
+        "received",
+        "cancelled",
+      ])
       .optional(),
     supplierId: objectIdSchema.optional(),
   });

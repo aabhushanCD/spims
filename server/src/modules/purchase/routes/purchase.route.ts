@@ -24,6 +24,7 @@ import {
 } from "../../../shared/middleware/validate.middleware.ts";
 import { verifyToken } from "../../../shared/middleware/verifyToken.ts";
 import { purchaseOrderController } from "../../../app/container.ts";
+import { invoiceUpload } from "../middleware/invoiceUpload.middleware.ts";
 
 const router = Router();
 
@@ -91,6 +92,21 @@ router.post(
     purchaseOrderController.receivePurchaseOrder(req, res, next),
 );
 
+// Invoice file upload/download
+router.post(
+  "/:id/invoice",
+  validateParams(purchaseIdParamSchema),
+  invoiceUpload.single("file"),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.uploadInvoice(req, res, next),
+);
+router.get(
+  "/:id/invoice",
+  validateParams(purchaseIdParamSchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.getInvoice(req, res, next),
+);
+
 // Recalculate Total
 router.patch(
   "/:id/recalculate",
@@ -140,6 +156,14 @@ router.delete(
 /* -------------------------------------------------------------------------- */
 /*                                 Supplier                                   */
 /* -------------------------------------------------------------------------- */
+
+// Supplier performance (static before /:id)
+router.get(
+  "/suppliers/:id/performance",
+  validateParams(purchaseIdParamSchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    purchaseOrderController.getSupplierPerformance(req, res, next),
+);
 
 // Purchase orders by supplier
 router.get(

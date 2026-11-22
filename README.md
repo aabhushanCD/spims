@@ -113,10 +113,11 @@ Scheduled Cron Jobs continuously monitor medicine expiry.
 
 Features include
 
-- Invoice Generation
+- Invoice Generation and populated invoice data
 - Multiple Sale Items
 - Automatic Inventory Deduction
-- Payment Recording
+- Payment/refund ledger with credit-sale settlement
+- Customer records with a name snapshot on sales
 - Sales History
 
 Inventory updates happen automatically after every successful sale.
@@ -131,6 +132,7 @@ Inventory updates happen automatically after every successful sale.
 - Update Inventory
 - Batch Creation
 - Purchase History
+- Supplier returns with supplier credit
 
 ---
 
@@ -320,9 +322,9 @@ SPIMS
 
 Used for
 
-- Faster Data Access
-- Session Storage
-- Frequently Accessed Data
+- Dashboard/reorder caching
+- Auth rate limiting and account lockout
+- Access-token revocation and token-version caching
 
 ---
 
@@ -462,9 +464,9 @@ Benefits
 
 # 📚 API Documentation
 
-Future improvements
-
-- Swagger/OpenAPI Documentation
+Swagger UI is served at `/api-docs` and the raw OpenAPI 3.0 document at
+`/api-docs/openapi.json`. In production, set `ENABLE_API_DOCS=true` and sign in
+as an owner; outside production the UI is open.
 
 ---
 
@@ -489,6 +491,19 @@ Frontend
 cd client
 npm install
 ```
+
+First database setup (from the repository root):
+
+```bash
+npm run db:migrate
+SEED_OWNER_EMAIL=owner@example.com \
+SEED_OWNER_PASSWORD='choose-a-strong-password' \
+SEED_OWNER_NAME='Pharmacy Owner' \
+npm run db:seed
+```
+
+See [`migrations-and-seeding.md`](server/docs/development/migrations-and-seeding.md)
+for the ledger, dry runs, and production guard.
 
 ---
 
@@ -582,7 +597,7 @@ http://localhost:5173
 Backend
 
 ```
-http://localhost:8000
+http://localhost:3000
 ```
 
 Deployed for Demo
@@ -602,9 +617,9 @@ https://spims-rmuk.vercel.app/
 - AI Demand Forecasting
 - Prescription Management
 - Inventory Forecast Dashboard
-- Docker Deployment
-- Expanded test coverage
-- Integration Testing
+- MFA and Google OAuth
+- External payment gateways
+- Partial receiving and stocktake
 
 ---
 

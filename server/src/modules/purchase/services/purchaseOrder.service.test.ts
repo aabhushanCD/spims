@@ -498,7 +498,8 @@ describe("PurchaseOrderService", () => {
           USER_ID,
         ),
       ).rejects.toMatchObject({
-        message: "Only approved purchase orders can be received",
+        message:
+          "Only approved or partially received purchase orders can be received",
         statusCode: 400,
       });
       expect(build.session.endSession).toHaveBeenCalledTimes(1);

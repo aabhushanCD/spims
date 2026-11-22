@@ -206,11 +206,12 @@ sequenceDiagram
 | Update item leaves total stale | Fixed (recalculates on add/update/remove) | — |
 | `receive` body unvalidated at runtime | Already fixed (runtime receive schema) | — |
 | Hard delete orphans items and batches | Fixed (blocks received/batched orders, cascades items) | — |
-| No partial receiving | Needs decision | Phase 6 |
-| No PO numbering (counter unused) | Still open | Phase 6 |
-| No invoice file upload | Needs decision | Phase 6 |
-| No purchase returns | Needs decision | Phase 6 |
-| No approval audit (who/when) | Needs decision | Phase 6 |
+| No partial receiving | Fixed: `receivedQuantity`, `partially_received`, multiple receipts/batches per line | — |
+| No PO numbering (counter unused) | Fixed: `orderNumber` (`PO-000001`), unique sparse index | — |
+| No invoice file upload | Fixed: multipart upload/download, type and size limits | — |
+| No purchase returns | Fixed: `purchase-returns` module with lifecycle, batch deduction, supplier credit | — |
+| No approval audit (who/when) | Fixed: `approvedBy/At`, `cancelledBy/At`, `receivedBy` | — |
+| No supplier performance endpoint | Fixed: `/purchases/suppliers/:id/performance` | — |
 | `PurchaseOrderItemRepo.create` saves twice with a session | Fixed (single save) | — |
 | No index on status/supplier/date | Fixed: supplier/date, status/date, and order-date indexes | — |
 | No list pagination/filtering | Fixed: cursor pagination, status, supplier, date range, search | — |

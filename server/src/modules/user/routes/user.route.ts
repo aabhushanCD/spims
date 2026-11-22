@@ -108,6 +108,22 @@ router.patch(
   (req: Request, res: Response, next: NextFunction) =>
     userController.toggleUserActivation(req, res, next),
 );
+router.post(
+  "/:id/reset-password",
+  ownerOnly,
+  validateParams(userIdParamSchema),
+  validate(deleteUserBodySchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    userController.resetUserPassword(req, res, next),
+);
+router.post(
+  "/:id/force-logout",
+  ownerOnly,
+  validateParams(userIdParamSchema),
+  validate(deleteUserBodySchema),
+  (req: Request, res: Response, next: NextFunction) =>
+    userController.forceLogout(req, res, next),
+);
 router.delete(
   "/:id",
   ownerOnly,

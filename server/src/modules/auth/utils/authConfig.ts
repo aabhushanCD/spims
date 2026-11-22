@@ -11,6 +11,9 @@ const DEFAULT_RESET_TTL_MS = 30 * 60_000;
 const DEFAULT_VERIFICATION_TTL_MS = 24 * 3_600_000;
 const DEFAULT_MAX_SESSIONS = 10;
 const DEFAULT_REFRESH_REUSE_GRACE_MS = 60_000;
+const DEFAULT_LOCKOUT_THRESHOLD = 5;
+const DEFAULT_LOCKOUT_WINDOW_MS = 15 * 60_000;
+const DEFAULT_LOCKOUT_DURATION_MS = 15 * 60_000;
 
 export function parseDuration(value: string | undefined, fallbackMs: number): number {
   if (!value) {
@@ -67,6 +70,27 @@ export function getMaxSessionsPerUser(): number {
   return Number.isFinite(value) && value > 0
     ? Math.floor(value)
     : DEFAULT_MAX_SESSIONS;
+}
+
+export function getLockoutThreshold(): number {
+  const value = Number(process.env.AUTH_LOCKOUT_THRESHOLD);
+  return Number.isInteger(value) && value > 0
+    ? value
+    : DEFAULT_LOCKOUT_THRESHOLD;
+}
+
+export function getLockoutWindowMs(): number {
+  return parseDuration(
+    process.env.AUTH_LOCKOUT_WINDOW,
+    DEFAULT_LOCKOUT_WINDOW_MS,
+  );
+}
+
+export function getLockoutDurationMs(): number {
+  return parseDuration(
+    process.env.AUTH_LOCKOUT_DURATION,
+    DEFAULT_LOCKOUT_DURATION_MS,
+  );
 }
 
 export function getClientUrl(): string {

@@ -180,15 +180,18 @@ enumeration.
 
 ### Behavior
 
-1. `findByEmail` with an explicit `+password` projection.
-2. Compare the bcrypt hash.
-3. Generic `401` for unknown email, missing password, or wrong password.
-4. After a valid password, reject deactivated accounts (`403`) and
-   unverified accounts (`403`, `EMAIL_NOT_VERIFIED`).
-5. Update `lastLogin`.
-6. Create an `AuthSession` with device/browser/OS/IP/location metadata.
-7. Sign an access token and a refresh token.
-8. Set both cookies and return the public user.
+1. Check the Redis account lockout for the normalized email.
+2. `findByEmail` with an explicit `+password` projection.
+3. Compare the bcrypt hash.
+4. Generic `401` for unknown email, missing password, or wrong password.
+   Failures increment the lockout counter; the threshold returns `423`.
+5. After a valid password, clear the failure counter and reject deactivated
+   accounts (`403`) and unverified accounts (`403`, `EMAIL_NOT_VERIFIED`).
+6. Update `lastLogin`.
+7. Create an `AuthSession` with device/browser/OS/IP/location metadata.
+8. Sign an access token (including the user's `tokenVersion` as `ver`) and a
+   refresh token.
+9. Set both cookies, write an audit row, and return the public user.
 
 ### Response (`200`)
 
@@ -217,6 +220,7 @@ No token is included in the JSON body; tokens are httpOnly cookies only.
 | 401 | — | Invalid email or password |
 | 403 | `ACCOUNT_DEACTIVATED` | Valid password, inactive account |
 | 403 | `EMAIL_NOT_VERIFIED` | Valid password, unverified account |
+| 423 | `ACCOUNT_LOCKED` | 5 failed sign-ins for this account; `Retry-After` is set |
 | 429 | `RATE_LIMITED` | More than 10 attempts per IP per 15 minutes |
 
 ## 8. `POST /api/auth/refresh`
@@ -251,7 +255,9 @@ On failure both cookies are cleared.
 ## 9. `POST /api/auth/logout`
 
 Reads the refresh cookie, revokes the matching session if the token is
-valid, clears both cookies, and returns `200`.
+valid, adds the session's access token to the Redis deny-list for the
+remaining access-token TTL, writes an audit row, clears both cookies, and
+returns `200`.
 
 Logout does not require a valid access token, so a client with an expired
 access cookie can still clear its httpOnly cookies.
@@ -263,7 +269,8 @@ access cookie can still clear its httpOnly cookies.
 ## 10. `POST /api/auth/logout-all`
 
 Requires a valid access cookie. Revokes every active session for the user,
-clears both cookies, and returns:
+bumps `User.tokenVersion` so existing access tokens fail immediately, writes
+an audit row, clears both cookies, and returns:
 
 ```json
 { "message": "All sessions have been signed out" }

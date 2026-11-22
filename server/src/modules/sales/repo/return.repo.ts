@@ -27,6 +27,8 @@ function statusFilter(status?: ReturnStatus): { status: ReturnStatus } | Record<
       return { status: "CANCELLED" };
     case "COMPLETED":
       return { status: "COMPLETED" };
+    case "REVERSED":
+      return { status: "REVERSED" };
     default:
       throw AppError.badRequest("Invalid return status");
   }
@@ -336,7 +338,16 @@ export class ReturnRepo {
         {
           $match: {
             status: "COMPLETED",
-            returnDate: { $gte: start, $lt: endExclusive },
+            $or: [
+              { completedAt: { $gte: start, $lt: endExclusive } },
+              {
+                $or: [
+                  { completedAt: { $exists: false } },
+                  { completedAt: null },
+                ],
+                returnDate: { $gte: start, $lt: endExclusive },
+              },
+            ],
           },
         },
         {
@@ -408,6 +419,26 @@ export class ReturnRepo {
   }
 
   /** True when a sale has returns that still reference it. */
+  async findRowsInRange(
+    start: Date,
+    endExclusive: Date,
+  ): Promise<ISalesReturn[]> {
+    return await this.returnModel
+      .find({
+        status: "COMPLETED",
+        $or: [
+          { completedAt: { $gte: start, $lt: endExclusive } },
+          {
+            completedAt: null,
+            returnDate: { $gte: start, $lt: endExclusive },
+          },
+        ],
+      })
+      .sort({ returnDate: 1 })
+      .lean()
+      .exec();
+  }
+
   async hasActiveBySale(
     salesId: string,
     session?: mongoose.ClientSession,

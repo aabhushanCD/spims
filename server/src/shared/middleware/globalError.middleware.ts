@@ -25,6 +25,11 @@ export const errorHandler: ErrorRequestHandler = (
   _next: NextFunction,
 ) => {
   if (err instanceof AppError) {
+    if (err.headers) {
+      for (const [name, value] of Object.entries(err.headers)) {
+        res.setHeader(name, value);
+      }
+    }
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,

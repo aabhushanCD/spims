@@ -79,12 +79,43 @@ import { SalesService } from "../modules/sales/services/sales.service.ts";
 import { DashboardService } from "../modules/dashboard/service/dashboard.service.ts";
 import { DashboardController } from "../modules/dashboard/controller/dashboard.controller.ts";
 import { CounterRepository } from "../modules/sales/repo/counter.repo.ts";
+import AuditLog from "../modules/audit/model/auditLog.model.ts";
+import { AuditLogRepo } from "../modules/audit/repo/auditLog.repo.ts";
+import { AuditService } from "../modules/audit/service/audit.service.ts";
+import { AuditController } from "../modules/audit/controller/audit.controller.ts";
 import { redisCacheInvalidator } from "../shared/provider/redis.provider.ts";
+import { redisLoginAttemptTracker } from "../shared/security/loginAttemptTracker.ts";
+import { redisSessionRevocation } from "../shared/security/sessionRevocation.ts";
+import { redisTokenVersionMaintenance } from "../shared/security/tokenVersion.ts";
+import Customer from "../modules/customer/model/customer.model.ts";
+import { CustomerRepo } from "../modules/customer/repo/customer.repo.ts";
+import { CustomerService } from "../modules/customer/service/customer.service.ts";
+import { CustomerController } from "../modules/customer/controller/customer.controller.ts";
+import Payment from "../modules/payment/model/payment.model.ts";
+import { PaymentRepo } from "../modules/payment/repo/payment.repo.ts";
+import { PaymentService } from "../modules/payment/service/payment.service.ts";
+import { PaymentController } from "../modules/payment/controller/payment.controller.ts";
+import PurchaseReturn from "../modules/purchaseReturn/model/purchaseReturn.model.ts";
+import { PurchaseReturnRepo } from "../modules/purchaseReturn/repo/purchaseReturn.repo.ts";
+import { PurchaseReturnService } from "../modules/purchaseReturn/service/purchaseReturn.service.ts";
+import { PurchaseReturnController } from "../modules/purchaseReturn/controller/purchaseReturn.controller.ts";
+import SupplierLedgerEntry from "../modules/purchaseReturn/model/supplierLedger.model.ts";
+import { SupplierLedgerRepo } from "../modules/purchaseReturn/repo/supplierLedger.repo.ts";
+import Stocktake from "../modules/stocktake/model/stocktake.model.ts";
+import { StocktakeRepo } from "../modules/stocktake/repo/stocktake.repo.ts";
+import { StocktakeService } from "../modules/stocktake/service/stocktake.service.ts";
+import { StocktakeController } from "../modules/stocktake/controller/stocktake.controller.ts";
+import NotificationTemplate from "../modules/notification/model/notificationTemplate.model.ts";
+import { NotificationTemplateRepo } from "../modules/notification/repo/notificationTemplate.repo.ts";
+import { NotificationTemplateService } from "../modules/notification/service/notificationTemplate.service.ts";
+import { NotificationTemplateController } from "../modules/notification/controller/notificationTemplate.controller.ts";
 
 // This file serves as a centralized container for all repository instances used throughout the application. It imports the necessary models and repository classes, then creates instances of each repository, which can be exported and used in other parts of the application. This approach promotes modularity and makes it easier to manage dependencies.
 const userRepo = new UserRepository(User);
 const authSessionRepo = new AuthSessionRepo(AuthSession);
 const authMailer = createAuthMailer();
+const auditLogRepo = new AuditLogRepo(AuditLog);
+const auditService = new AuditService(auditLogRepo);
 const backgroundJobRepository = new BackgroundJobRepo(BackgroundJobModel);
 const medicineBatchRepo = new MedicineBatchRepo(Batch);
 const inventoryRepo = new InventoryRepo(Inventory);
@@ -107,14 +138,32 @@ const saleRepo = new SalesRepo(Sales);
 const smartReorderRepo = new SmartReorderRepo(SmartReorderModel);
 const supplierRepo = new SupplierRepo(Supplier);
 const counterRepo = new CounterRepository();
+const customerRepo = new CustomerRepo(Customer);
+const paymentRepo = new PaymentRepo(Payment);
+const purchaseReturnRepo = new PurchaseReturnRepo(PurchaseReturn);
+const supplierLedgerRepo = new SupplierLedgerRepo(SupplierLedgerEntry);
+const stocktakeRepo = new StocktakeRepo(Stocktake);
+const notificationTemplateRepo = new NotificationTemplateRepo(
+  NotificationTemplate,
+);
 // services
 
-const userService = new UserService(userRepo);
+const userService = new UserService(
+  userRepo,
+  authSessionRepo,
+  authMailer,
+  auditService,
+  redisTokenVersionMaintenance,
+);
 const authService = new AuthService(
   userRepo,
   authSessionRepo,
   AppError,
   authMailer,
+  redisLoginAttemptTracker,
+  auditService,
+  redisSessionRevocation,
+  redisTokenVersionMaintenance,
 );
 
 const backgroundJobService = new BackgroundJobService(
@@ -180,6 +229,7 @@ const notificationService = new NotificationService(
   AppError,
   mongoose.connection,
   redisCacheInvalidator,
+  notificationTemplateRepo,
 );
 
 const purchaseOrderService = new PurchaseOrderService(
@@ -191,6 +241,31 @@ const purchaseOrderService = new PurchaseOrderService(
   AppError,
   mongoose.connection,
   redisCacheInvalidator,
+  counterRepo,
+);
+
+const customerService = new CustomerService(customerRepo);
+const paymentService = new PaymentService(paymentRepo, saleRepo);
+const notificationTemplateService = new NotificationTemplateService(
+  notificationTemplateRepo,
+);
+const stocktakeService = new StocktakeService(
+  stocktakeRepo,
+  medicineBatchRepo,
+  stockMutationService,
+  counterRepo,
+  AppError,
+  mongoose.connection,
+);
+const purchaseReturnService = new PurchaseReturnService(
+  purchaseReturnRepo,
+  purchaseOrderRepo,
+  medicineBatchRepo,
+  inventoryService,
+  counterRepo,
+  AppError,
+  mongoose.connection,
+  supplierLedgerRepo,
 );
 
 const returnService = new ReturnService(
@@ -202,6 +277,7 @@ const returnService = new ReturnService(
   counterRepo,
   mongoose.connection,
   redisCacheInvalidator,
+  paymentService,
 );
 const saleItemService = new SaleItemService(
   saleItemRepo,
@@ -220,6 +296,8 @@ const saleService = new SalesService(
   AppError,
   mongoose.connection,
   redisCacheInvalidator,
+  paymentService,
+  customerRepo,
 );
 
 const smartReorderService = new SmartReorderService(
@@ -232,6 +310,7 @@ const smartReorderService = new SmartReorderService(
   supplierRepo,
   AppError,
   redisCacheInvalidator,
+  purchaseOrderService,
 );
 
 const supplierService = new SupplierService(
@@ -256,6 +335,7 @@ const dashboardService = new DashboardService(
 // controllers
 const authController = new AuthController(authService);
 const userController = new UserController(userService);
+const auditController = new AuditController(auditService);
 const inventoryController = new InventoryController(
   inventoryService,
   inventoryMovementService,
@@ -266,6 +346,15 @@ const purchaseOrderController = new PurchaseController(purchaseOrderService);
 const returnController = new ReturnController(returnService);
 const saleItemController = new SaleItemController(saleItemService);
 const saleController = new SalesController(saleService);
+const paymentController = new PaymentController(paymentService);
+const customerController = new CustomerController(customerService);
+const purchaseReturnController = new PurchaseReturnController(
+  purchaseReturnService,
+);
+const stocktakeController = new StocktakeController(stocktakeService);
+const notificationTemplateController = new NotificationTemplateController(
+  notificationTemplateService,
+);
 const smartReorderController = new SmartReorderController(smartReorderService);
 const supplierController = new SupplierController(supplierService);
 const batchController = new BatchController(medicineBatchService);
@@ -280,6 +369,8 @@ export {
   authSessionRepo,
   authService,
   authController,
+  auditService,
+  auditController,
   backgroundJobRepository,
   medicineBatchRepo,
   inventoryRepo,
@@ -314,6 +405,11 @@ export {
   returnService,
   saleItemService,
   saleService,
+  paymentService,
+  customerService,
+  purchaseReturnService,
+  stocktakeService,
+  notificationTemplateService,
   smartReorderService,
   supplierService,
   userController,
@@ -329,6 +425,11 @@ export {
   purchaseOrderController,
   saleItemController,
   saleController,
+  paymentController,
+  customerController,
+  purchaseReturnController,
+  stocktakeController,
+  notificationTemplateController,
   returnController,
   smartReorderController,
   supplierController,

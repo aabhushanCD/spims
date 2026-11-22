@@ -42,4 +42,9 @@ describe("user routes", () => {
   it("exposes the role-change route used by the client", () => {
     expect(routePaths()).toContain("/:id/role");
   });
+
+  it("exposes owner-triggered reset and force-logout routes", () => {
+    expect(routePaths()).toContain("/:id/reset-password");
+    expect(routePaths()).toContain("/:id/force-logout");
+  });
 });

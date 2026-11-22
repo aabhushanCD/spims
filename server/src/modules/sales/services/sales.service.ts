@@ -22,6 +22,9 @@ import {
 } from "../../../shared/provider/cacheInvalidator.ts";
 import { isDuplicateKeyError } from "../../../shared/utils/mongoError.ts";
 import { logger } from "../../../shared/logger.ts";
+import { getVatPercent } from "../../../config/vat.config.ts";
+import type { PaymentService } from "../../payment/service/payment.service.ts";
+import type { CustomerRepo } from "../../customer/repo/customer.repo.ts";
 
 export class SalesService {
   constructor(
@@ -35,6 +38,8 @@ export class SalesService {
 
     private readonly connection: mongoose.Connection,
     private readonly cacheInvalidator: CacheInvalidator = noopCacheInvalidator,
+    private readonly paymentService?: PaymentService,
+    private readonly customerRepo?: CustomerRepo,
   ) {}
 
   private async invalidateDashboard(): Promise<void> {
@@ -84,11 +89,31 @@ export class SalesService {
 
     dto.items = this.mergeDuplicateItems(dto.items);
 
+    let customerId: Types.ObjectId | undefined;
+    let customerName = dto.customerName?.trim() || "Walk-in Customer";
+
+    if (dto.customerId) {
+      if (!this.customerRepo) {
+        throw this.appError.badRequest("Customer lookup is not configured");
+      }
+      const customer = await this.customerRepo.findById(dto.customerId);
+      if (!customer || !customer.isActive) {
+        throw this.appError.notFound("Customer not found");
+      }
+      customerId = customer._id;
+      customerName = customer.name;
+    }
+
     const session = await this.connection.startSession();
 
     try {
       try {
-        const sale = await this.runCreateSaleTransaction(dto, session);
+        const sale = await this.runCreateSaleTransaction(
+          dto,
+          session,
+          customerName,
+          customerId,
+        );
         const saved = await this.salesRepo.findById(
           sale._id.toString(),
           session,
@@ -118,8 +143,11 @@ export class SalesService {
   private async runCreateSaleTransaction(
     dto: CreateSaleDto,
     session: mongoose.ClientSession,
+    customerName: string,
+    customerId?: Types.ObjectId,
   ) {
     let sale;
+    const vatPercent = getVatPercent();
 
     await session.withTransaction(async () => {
       const invoiceNumber =
@@ -130,9 +158,13 @@ export class SalesService {
 
           cashierId: new Types.ObjectId(dto.cashierId),
 
-          customerName: dto.customerName,
+          customerName,
+
+          ...(customerId ? { customerId } : {}),
 
           paymentMethod: dto.paymentMethod,
+
+          vatRate: vatPercent,
 
           saleDate: dto.saleDate,
 
@@ -205,6 +237,8 @@ export class SalesService {
 
               unitPrice: allocation.unitPrice,
 
+              vatRate: vatPercent,
+
               purchasePrice: allocation.purchasePrice,
 
               discount: lineDiscount,
@@ -232,7 +266,7 @@ export class SalesService {
 
       const taxable = roundCurrency(discountedSubtotal - invoiceDiscount);
 
-      const vat = calculateVat(taxable);
+      const vat = calculateVat(taxable, vatPercent / 100);
 
       const total = roundCurrency(taxable + vat);
 
@@ -251,6 +285,22 @@ export class SalesService {
 
         session,
       );
+
+      // Cash/card/QR/mobile sales are fully settled at creation. CREDIT sales
+      // start with an outstanding balance and are settled through the payment
+      // ledger endpoint.
+      if (this.paymentService && dto.paymentMethod !== "CREDIT") {
+        await this.paymentService.recordSalePayment(
+          {
+            saleId: sale._id,
+            amount: total,
+            method: dto.paymentMethod,
+            performedBy: dto.cashierId,
+            paidAt: dto.saleDate,
+          },
+          session,
+        );
+      }
     });
 
     return sale!;
@@ -265,6 +315,33 @@ export class SalesService {
     return { ...sale, items };
   }
 
+  /**
+   * Print-ready invoice payload: sale, populated items, cashier/customer, and
+   * payment summary. Kept separate from `getSaleById` so the POS detail view
+   * does not pay for the joins.
+   */
+  async getInvoice(id: string) {
+    const sale = await this.salesRepo.findByIdDetailed(id);
+    if (!sale) {
+      throw this.appError.notFound("Sale not found");
+    }
+    const items = await this.saleItemRepo.findBySalesIdDetailed(id);
+
+    let payments: unknown[] = [];
+    let summary = {
+      totalAmount: sale.totalAmount,
+      paidAmount: 0,
+      amountDue: sale.totalAmount,
+    };
+    if (this.paymentService) {
+      const result = await this.paymentService.getForSale(id);
+      payments = result.items;
+      summary = result.summary;
+    }
+
+    return { sale, items, payments, summary };
+  }
+
   async getAllSales() {
     return await this.salesRepo.findAll();
   }
@@ -276,6 +353,7 @@ export class SalesService {
         ...(query.search ? { search: query.search } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.cashierId ? { cashierId: query.cashierId } : {}),
+        ...(query.customerId ? { customerId: query.customerId } : {}),
         ...(query.from ? { from: query.from } : {}),
         ...(query.to ? { to: query.to } : {}),
       },
@@ -295,9 +373,29 @@ export class SalesService {
   // should go through a return + new sale, not a silent edit.
   async updateSale(
     id: string,
-    updateData: Partial<{ customerName: string; paymentMethod: string }>,
+    updateData: Partial<{
+      customerId: string | null;
+      customerName: string;
+      paymentMethod: string;
+    }>,
   ) {
-    const updated = await this.salesRepo.update(id, updateData);
+    const patch: Record<string, unknown> = { ...updateData };
+
+    if (updateData.customerId) {
+      if (!this.customerRepo) {
+        throw this.appError.badRequest("Customer lookup is not configured");
+      }
+      const customer = await this.customerRepo.findById(updateData.customerId);
+      if (!customer || !customer.isActive) {
+        throw this.appError.notFound("Customer not found");
+      }
+      patch.customerId = customer._id;
+      patch.customerName = customer.name;
+    } else if (updateData.customerId === null) {
+      patch.customerId = null;
+    }
+
+    const updated = await this.salesRepo.update(id, patch);
     if (!updated) {
       throw this.appError.notFound("Sale not found");
     }

@@ -26,7 +26,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Runtime | Node.js 22 (CI matrix) | ESM (`"type": "module"`) |
 | HTTP | Express 5 | `express.json()`, `cookie-parser`, `cors` |
 | Language | TypeScript | NodeNext, strict, `.ts` import specifiers |
-| Database | MongoDB + Mongoose 9 | 22 models, no migrations |
+| Database | MongoDB + Mongoose 9 | 26 models, ordered migrations + ledger |
 | Validation | Zod 4 | Body middleware + `parseOrThrow` for params/query |
 | Auth | `jsonwebtoken`, `bcrypt` | 15m access JWT + rotating 7d refresh sessions, httpOnly cookies |
 | Cache | `ioredis` | Cache and auth rate limiting; `@upstash/redis` is installed but unused |
@@ -34,7 +34,9 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | Realtime | `ws` | `/ws`, cookie-authenticated, server push only |
 | Email | `nodemailer` | Lazy SMTP transport; console fallback when unconfigured |
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
-| Tests | Vitest | 46 test files, 335 tests |
+| Security | `helmet`, CSRF, Redis lockout | Origin allow-list, audit log, token-version revocation |
+| API docs | `swagger-ui-express` | Typed OpenAPI 3.0 at `/api-docs` |
+| Tests | Vitest | 79 unit test files, 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -96,6 +98,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | [development/setup-and-installation.md](development/setup-and-installation.md) | Local setup and run commands |
 | [development/environment-variables.md](development/environment-variables.md) | Every environment variable used |
 | [development/development-workflow.md](development/development-workflow.md) | Scripts, build, CI, conventions |
+| [development/migrations-and-seeding.md](development/migrations-and-seeding.md) | Ordered migrations, ledger, and baseline seeding |
 | [development/testing.md](development/testing.md) | Test setup and coverage |
 | [project-status.md](project-status.md) | Implemented / partial / missing matrix |
 
@@ -103,27 +106,28 @@ The backend uses a **modular layered architecture** with manual dependency injec
 
 | Area | Status |
 |---|---|
-| Authentication (login, JWT cookie, logout, current user) | Implemented |
-| Role-based authorization | Partially Implemented — three roles, effectively identical permissions |
-| User administration | Implemented |
+| Authentication (login, JWT cookie, logout, current user) | Implemented — lockout, immediate access-token revocation, admin reset, audit |
+| Role-based authorization | Partially Implemented — user writes are owner-only; other modules remain broadly shared |
+| User administration | Implemented — owner-only writes, admin reset, force logout, audit trail |
 | Medicine catalog | Implemented |
 | Supplier management | Implemented |
-| Batch inventory and FEFO | Partially Implemented — FEFO implemented; batch creation validates |
-| Aggregate inventory | Partially Implemented — reconciliation gaps |
-| Purchase orders and receiving | Implemented — VAT/discount totals, guarded delete |
-| Sales and VAT | Implemented |
-| Sales returns | Implemented — approval workflow, VAT refunds |
-| Purchase returns | Not Implemented |
-| Stock adjustments | Partially Implemented — service not exposed |
-| Smart reorder | Implemented |
+| Batch inventory and FEFO | Implemented — FEFO, transactional writes, movement history |
+| Aggregate inventory | Implemented — single write path, reconciliation guards, version CAS |
+| Purchase orders and receiving | Implemented — VAT/discount totals, guarded delete; partial receiving remains Phase 6.4 |
+| Sales and VAT | Implemented — VAT snapshot/config, customers, payment ledger, invoice payload |
+| Sales returns | Implemented — approval workflow, VAT refunds, restocking fees, refund ledger, reversal |
+| Purchase returns | Implemented — lifecycle, batch stock deduction, supplier credit |
+| Stock adjustments | Not Implemented — the old service is dead; stocktake is Phase 6.4 |
+| Smart reorder | Implemented; approval audit and auto-PO remain Phase 6.6 |
 | Dashboard analytics | Implemented |
-| Notifications | Implemented — InApp/email/SMS, retries, preferences, read state, pagination; templates out of scope |
-| Redis caching | Partially Implemented |
-| Background jobs | Implemented |
-| WebSocket push | Implemented |
-| Swagger/OpenAPI | Not Implemented (unmounted stubs) |
-| Pagination | Not Implemented |
-| Automated tests | Partially Implemented - 58 files / 425 tests; no HTTP integration tests |
+| Notifications | Implemented — InApp/email/SMS, retries, preferences, read state, pagination; templates remain Phase 6.6 |
+| Redis caching | Implemented — dashboard/reorder cache with invalidation |
+| Background jobs | Implemented — distributed locks |
+| WebSocket push | Implemented — origin-checked upgrade |
+| Swagger/OpenAPI | Implemented — typed OpenAPI 3.0 spec at `/api-docs/openapi.json`, Swagger UI at `/api-docs`; production requires `ENABLE_API_DOCS=true` and an owner session |
+| Pagination | Implemented — cursor pagination on the main lists |
+| Security headers / audit | Implemented — Helmet, CSRF, lockout, audit log; MFA and OAuth deferred |
+| Automated tests | 79 unit files / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 2 client files / 17 tests |
 
 ## Conventions used in this documentation
 
@@ -137,4 +141,4 @@ The backend uses a **modular layered architecture** with manual dependency injec
 
 ## Important caveat
 
-Several behaviors in the code are still incomplete. Phase 4 corrected refund VAT, invoice-discount apportionment, purchase totals, sale-item recalculation, reporting, GOOD-only COGS reversal, and historical cost snapshots; historical rows are not backfilled. Expiry flagging still does not sync aggregates until the next mutation or sync call, list endpoints still lack pagination, and the dashboard cache is not invalidated. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents.
+Several behaviors are still incomplete or deliberately deferred. Historical financial rows are not fully backfilled. Live SMTP/SMS/Upstash behavior remains unverified. MFA/OAuth/geo-IP, partial receiving, invoice upload, seasonality, multi-branch, and most client UI remain deferred; Docker/NGINX deployment is declined. Payments, customers, purchase returns, migrations/seeders, and Swagger/OpenAPI are implemented. These are documented as **current behavior**, with the corresponding risk called out in the module and business-logic documents.

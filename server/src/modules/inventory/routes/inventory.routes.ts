@@ -30,6 +30,10 @@ router.post(
 );
 
 router.get(
+  "/reconciliation",
+  inventoryController.getReconciliationReport,
+);
+router.get(
   "/medicines/search",
   validateQuery(inventorySearchQuerySchema),
   inventoryController.searchMedicines,

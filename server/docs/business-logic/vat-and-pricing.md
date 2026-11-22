@@ -8,7 +8,7 @@
 | VAT on purchases | **Implemented** (percentage applied to taxable subtotal) |
 | VAT refund on returns | **Implemented** (line VAT persisted) |
 | Tax-inclusive pricing | **Not Implemented** |
-| Configurable VAT rate | **Not Implemented** (shared constant 13/0.13) |
+| Configurable VAT rate | **Implemented** via `VAT_PERCENT`; snapshotted on sales/returns |
 | Rounding to 2 decimals | **Implemented** (line and header monetary values) |
 
 ## 2. Sales pricing pipeline
@@ -96,8 +96,12 @@ All persisted monetary values are rounded to two decimals through
 
 ```ts
 roundCurrency(value)   // Math.round(|value| * 100) / 100, sign preserved
-calculateVat(net)      // roundCurrency(net * VAT_RATE)
+calculateVat(net, rate) // defaults to getVatRate() from VAT_PERCENT
 ```
+
+Sales store `vatRate` at creation, returns store the sale's rate, and sale-item
+corrections/refunds reuse the stored rate. Changing `VAT_PERCENT` never rewrites
+historical documents.
 
 - Line totals, line discounts, `subtotal`, `totalAmount`, refunds, and purchase
   totals are rounded.

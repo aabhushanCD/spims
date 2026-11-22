@@ -178,10 +178,11 @@ It does not include `_id` explicitly but Mongo includes it, and it does not filt
 | Pagination/filtering on medicine list | Fixed: cursor pagination, search, active/category/brand/generic/unit filters | — |
 | `unitId` existence check | Already fixed (validated on create/update) | — |
 | Cascading/deactivation checks for lookup deletes | Already fixed (references block hard delete) | — |
-| Unique index for name+strength+brand | Deferred; service-level duplicate check remains | Phase 6 |
+| Unique index for name+strength+brand | Implemented (compound partial unique index + update check) | — |
 | Search query escaping (raw regex) | Already fixed (`escapeRegex`) | — |
 | Inactive filtering | Already fixed (catalog list/search return active medicines) | — |
-| Batch/price data in medicine list | Needs decision | Phase 6 |
+| Barcode lookup | Implemented (`GET /medicines/barcode/:barcode`) | — |
+| Batch/price data in medicine list | Still open | Phase 6.8 |
 
 ## Related documents
 

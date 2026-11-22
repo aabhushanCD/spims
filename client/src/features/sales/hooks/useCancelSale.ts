@@ -10,12 +10,13 @@ export function useCancelSale() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
-      salesService.cancelSale(id, reason),
-    onSuccess: (sale) => {
+    mutationFn: ({ id }: { id: string }) => salesService.cancelSale(id),
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: saleKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: saleKeys.detail(sale.id) });
-      toast.success(`Sale ${sale.invoiceNo} cancelled`);
+      queryClient.invalidateQueries({
+        queryKey: saleKeys.detail(variables.id),
+      });
+      toast.success("Sale cancelled and stock restored");
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Failed to cancel sale."));

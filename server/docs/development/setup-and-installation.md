@@ -116,11 +116,30 @@ The root README says port 8000; the code defaults to 3000 unless `PORT` is set.
 6. Create a purchase order, approve it, and receive it with batch data.
 7. Create a sale.
 
-There are no seed scripts, fixtures, or default users.
+Fixtures and default users are not created automatically. Run the baseline
+seeder to create default lookups and the first owner:
+
+```bash
+npm run db:seed
+```
+
+It requires `SEED_OWNER_EMAIL` and `SEED_OWNER_PASSWORD`; see
+[migrations and seeding](migrations-and-seeding.md).
 
 ## 7. Database initialization
 
-There are no migrations or seeders. Mongoose creates collections and indexes on first use (default `autoIndex`). To start clean, drop the database and restart.
+Mongoose creates collections and indexes on first use (default `autoIndex`).
+Apply ordered data migrations and the baseline seed explicitly:
+
+```bash
+npm run db:migrate:dry-run
+npm run db:migrate
+npm run db:seed:dry-run
+npm run db:seed
+```
+
+Migrations are recorded in the `migrations` collection and are not run at boot.
+To start clean, drop the database and rerun both commands.
 
 ## 8. Common issues
 

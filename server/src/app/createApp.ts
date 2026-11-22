@@ -1,13 +1,18 @@
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
 import mongoose from "mongoose";
 import appRoutes from "../modules/app.routes.ts";
 import redis from "../config/redis.config.ts";
 import { errorHandler } from "../shared/middleware/globalError.middleware.ts";
 import { requestLogger } from "../shared/middleware/requestLogger.ts";
 import { csrfProtection } from "../shared/middleware/csrf.middleware.ts";
-import { logger } from "../shared/logger.ts";
+import { getAllowedOrigins } from "../shared/utils/allowedOrigins.ts";
+import { verifyToken } from "../shared/middleware/verifyToken.ts";
+import { authorize } from "../shared/middleware/authorize.ts";
+import { swaggerSpec } from "../docs/index.ts";
 
 export interface ReadinessProbes {
   mongo: () => Promise<boolean>;
@@ -56,17 +61,17 @@ export function createApp(
     app.set("trust proxy", Number(trustProxy));
   }
 
-  let allowedOrigins: string[];
-  try {
-    allowedOrigins = process.env.ALLOWED_ORIGINS
-      ? JSON.parse(process.env.ALLOWED_ORIGINS)
-      : ["http://localhost:5173", "http://localhost:5174"];
-  } catch {
-    logger.error("invalid_allowed_origins_json", {
-      message: "Falling back to local development origins",
-    });
-    allowedOrigins = ["http://localhost:5173", "http://localhost:5174"];
-  }
+  const allowedOrigins = getAllowedOrigins();
+
+  // The API returns JSON and does not render HTML, so a page CSP would add no
+  // protection while breaking Swagger/static clients. The remaining Helmet
+  // headers (nosniff, frameguard, HSTS, referrer policy, etc.) still apply.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    }),
+  );
 
   app.use(
     cors({
@@ -104,6 +109,36 @@ export function createApp(
       checks,
     });
   });
+
+  const docsEnabled =
+    process.env.NODE_ENV !== "production" ||
+    process.env.ENABLE_API_DOCS === "true";
+
+  if (docsEnabled) {
+    const docsRouter = express.Router();
+
+    // In production the docs are opt-in and owner-only. Outside production they
+    // stay open for local development and Swagger UI experiments.
+    if (process.env.NODE_ENV === "production") {
+      docsRouter.use(verifyToken, authorize(["owner"]));
+    }
+
+    docsRouter.get("/openapi.json", (_req: Request, res: Response) => {
+      res.json(swaggerSpec);
+    });
+    docsRouter.use(
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        customSiteTitle: "SPIMS API",
+        swaggerOptions: {
+          persistAuthorization: true,
+          withCredentials: true,
+        },
+      }),
+    );
+
+    app.use("/api-docs", docsRouter);
+  }
 
   app.use("/api", appRoutes);
 
