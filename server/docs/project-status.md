@@ -132,7 +132,7 @@ It is not production-hardened. The main risks are:
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
 | Server tests | 22 files, 223 tests passed (Phase 0 baseline; current client-parity suite is 80 unit files / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
-| Client tests | 2 files, 17 tests passed (Phase 0 baseline; current client-parity suite is 23 files / 105 tests) |
+| Client tests | 2 files, 17 tests passed (Phase 0 baseline; current client-parity suite is 24 files / 109 tests) |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
 

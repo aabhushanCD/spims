@@ -173,7 +173,7 @@ Paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and r
 
 ### Test coverage today
 
-Per `docs/testing.md`: **23 client test files, 105 tests**, currently pure
+Per `docs/testing.md`: **24 client test files, 109 tests**, currently pure
 logic and validation tests covering permissions, payload mapping, formatting,
 notification parsing, smart-reorder summary/rules, and purchase flows.
 
@@ -1172,20 +1172,40 @@ npm run build      PASS (Vite chunk-size warning only)
 **Size:** Medium  
 **Dependencies:** Phases 0–3
 
-- [ ] Add missing dashboard service methods.
-- [ ] Reporting page/tabs.
-- [ ] Date-range analytics.
-- [ ] By-cashier/by-category/top-selling/profit views.
-- [ ] CSV export.
-- [ ] Supplier counts.
-- [ ] Remove hardcoded dashboard datasets.
-- [ ] Role-aware quick actions/widgets.
-- [ ] Tests for report query serialization and CSV download.
+- [x] Add missing dashboard service methods.
+- [x] Reporting page.
+- [x] Date-range analytics.
+- [x] By-cashier/by-category/top-selling/profit views.
+- [x] CSV export.
+- [x] Supplier counts.
+- [x] Remove hardcoded dashboard datasets.
+- [x] Role-aware quick actions/widgets.
+- [x] Tests for report range serialization and CSV filenames (network download not unit-tested).
 
 **Exit criteria**
 
 - Every reporting endpoint is used or explicitly deferred.
 - No hardcoded chart data remains.
+
+#### Phase 5 implementation notes (2026-11-22)
+
+- Added `/reports` with date-range KPIs, cashier/category tables, top-selling, sales year summary, purchases by status, and supplier counts.
+- Top-selling is labelled all-time and purchase status counts are labelled all-time; only the purchases total is current-month, matching the server endpoints.
+- A note documents that month/year cards use the server reporting timezone while range reports use browser-local dates.
+- Added typed dashboard service methods for range, cashier, category, top-selling limit, sales year, suppliers, and CSV export.
+- CSV export downloads sales/purchases/returns (range) and inventory snapshot files.
+- Date ranges send the selected start day and the next local midnight as an exclusive end, matching the server's `[from, to)` bounds.
+- Quick Actions are role-aware, and a Reports shortcut was added.
+- Added `reportRange.test.ts` for defaults, range expansion, invalid ranges, and filenames.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 543 unit + 15 integration; client 109)
+npm run build      PASS (Vite chunk-size warning only)
+```
 
 ---
 
@@ -1266,7 +1286,7 @@ npm run build      PASS (Vite chunk-size warning only)
 | D-10 | Supplier performance | 3 | ✅ |
 | D-11 | Smart reorder actions | 4 | ✅ |
 | D-12 | Notification admin/templates | 4 | ✅ |
-| D-13 | Reporting/CSV | 5 | ☐ |
+| D-13 | Reporting/CSV | 5 | ✅ |
 | D-14 | User administration | 6 | ☐ |
 | D-15 | Audit log | 6 | ☐ |
 | D-16 | Medicine search/barcode | 2 | ✅ lookup (camera deferred) |
