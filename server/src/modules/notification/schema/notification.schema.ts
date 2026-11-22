@@ -37,6 +37,8 @@ export const paginationQuerySchema = z.object({
     .min(1)
     .max(MAX_PAGE_LIMIT)
     .default(DEFAULT_PAGE_LIMIT),
+  status: z.enum(["Pending", "Sent", "Failed"]).optional(),
+  type: z.enum(["Email", "SMS", "InApp"]).optional(),
 });
 
 const booleanString = z

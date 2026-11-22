@@ -66,6 +66,8 @@ export interface DispatchOptions {
 export interface PageOptions {
   cursor?: string | undefined;
   limit: number;
+  status?: "Pending" | "Sent" | "Failed" | undefined;
+  type?: "Email" | "SMS" | "InApp" | undefined;
 }
 
 export interface NotificationView {
@@ -529,7 +531,14 @@ export class NotificationService {
 
   async getAll(page: PageOptions): Promise<NotificationListPage> {
     const cursor = page.cursor ? decodeCursor(page.cursor) : null;
-    const rows = await this.notificationRepo.findAllPaged(cursor, page.limit);
+    const rows = await this.notificationRepo.findAllPaged(
+      cursor,
+      page.limit,
+      {
+        ...(page.status ? { status: page.status } : {}),
+        ...(page.type ? { type: page.type } : {}),
+      },
+    );
     const hasMore = rows.length > page.limit;
     const items = hasMore ? rows.slice(0, page.limit) : rows;
     const last = items.at(-1);
