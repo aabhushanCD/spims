@@ -1,82 +1,106 @@
-// features/batch/hooks/useMutateBatch.ts
-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-toastify";
 
-import { batchService } from "../services/batch.service";
+import { getApiErrorMessage } from "@/api/getApiErrorMessage";
+import {
+  batchService,
+  type BatchListParams,
+  type CreateBatchInput,
+  type UpdateBatchInput,
+} from "../services/batch.service";
+import { batchKeys } from "./useQueryBatch";
 
-export const useCreateBatch = () => {
+function useInvalidateBatch() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: batchService.createBatch,
+  return (id?: string, _variables?: unknown) => {
+    queryClient.invalidateQueries({ queryKey: batchKeys.all });
+    if (id) {
+      queryClient.invalidateQueries({ queryKey: batchKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: batchKeys.history(id) });
+    }
+  };
+}
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
+export const useCreateBatch = () => {
+  const invalidate = useInvalidateBatch();
+
+  return useMutation({
+    mutationFn: (data: CreateBatchInput) => batchService.createBatch(data),
+    onSuccess: (batch) => {
+      toast.success(`Batch ${batch.batchNumber} created`);
+      invalidate(batch._id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to create batch"));
     },
   });
 };
 
 export const useUpdateBatch = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: unknown }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateBatchInput }) =>
       batchService.updateBatch(id, data),
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
+    onSuccess: (batch) => {
+      toast.success("Batch updated");
+      invalidate(batch._id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to update batch"));
     },
   });
 };
 
 export const useDeleteBatch = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
     mutationFn: batchService.deleteBatch,
-
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
+      toast.success("Batch deleted");
+      invalidate();
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to delete batch"));
     },
   });
 };
 
 export const useMarkExpiredBatches = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
     mutationFn: batchService.markExpiredBatches,
-
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["expired-batches", "batches"],
-      });
+      toast.success("Expired batches marked");
+      invalidate();
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to mark expired batches"));
     },
   });
 };
 
 export const useConfirmDisposal = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
-    mutationFn: batchService.confirmDisposal,
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["expired-awaiting-disposal"],
-      });
+    mutationFn: ({ id, remarks }: { id: string; remarks?: string }) =>
+      batchService.confirmDisposal(id, remarks),
+    onSuccess: (_data, variables) => {
+      toast.success("Expired stock disposed");
+      invalidate(variables.id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to dispose batch"));
     },
   });
 };
 
 export const useDeductQuantity = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
     mutationFn: ({
@@ -84,21 +108,20 @@ export const useDeductQuantity = () => {
       data,
     }: {
       id: string;
-      data: {
-        quantity: number;
-      };
+      data: { quantity: number; remarks?: string };
     }) => batchService.deductQuantity(id, data),
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
+    onSuccess: (_data, variables) => {
+      toast.success("Batch stock deducted");
+      invalidate(variables.id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to deduct stock"));
     },
   });
 };
 
 export const useIncreaseQuantity = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
     mutationFn: ({
@@ -106,21 +129,20 @@ export const useIncreaseQuantity = () => {
       data,
     }: {
       id: string;
-      data: {
-        quantity: number;
-      };
+      data: { quantity: number; remarks?: string };
     }) => batchService.increaseQuantity(id, data),
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
+    onSuccess: (_data, variables) => {
+      toast.success("Batch stock increased");
+      invalidate(variables.id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to increase stock"));
     },
   });
 };
 
 export const useAdjustStock = () => {
-  const queryClient = useQueryClient();
+  const invalidate = useInvalidateBatch();
 
   return useMutation({
     mutationFn: ({
@@ -128,19 +150,16 @@ export const useAdjustStock = () => {
       data,
     }: {
       id: string;
-      data: {
-        quantity: number;
-        remarks?: string;
-      };
+      data: { quantity: number; remarks?: string };
     }) => batchService.adjustStock(id, data),
-
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["batches"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["batch-history", variables.id],
-      });
+      toast.success("Batch stock adjusted");
+      invalidate(variables.id);
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Failed to adjust stock"));
     },
   });
 };
+
+export type { BatchListParams };

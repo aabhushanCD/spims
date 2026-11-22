@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +12,9 @@ import {
 import { useState } from "react";
 import { InventoryStats } from "../components/InventoryStats";
 import { InventoryTable } from "../components/InventoryTable";
+import ReserveStockDialog from "../components/ReserveStockDialog";
 import { useInventory } from "../hooks/useInventory";
+import type { InventoryItem } from "../types/inventory.types";
 import { useInventoryAnalytics } from "../hooks/useInventoryAnalytics";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { formatCurrency } from "@/lib/format";
@@ -20,6 +23,10 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const { data: inventory, isLoading, error, refetch } = useInventory(search);
   const analytics = useInventoryAnalytics();
+  const [stockAction, setStockAction] = useState<{
+    item: InventoryItem;
+    mode: "reserve" | "release";
+  } | null>(null);
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -73,10 +80,18 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        <Button onClick={() => refetch()}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/inventory/movements">Movements</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/inventory/reconciliation">Reconciliation</Link>
+          </Button>
+          <Button onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <InventoryStats stats={stats} />
@@ -94,11 +109,25 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {inventory && <InventoryTable inventory={inventory} />}
+      {inventory && (
+        <InventoryTable
+          inventory={inventory}
+          onAction={(item, mode) => setStockAction({ item, mode })}
+        />
+      )}
       {!inventory && (
         <div className="text-muted-foreground text-center">
           No inventory data available.
         </div>
+      )}
+
+      {stockAction && (
+        <ReserveStockDialog
+          key={`${stockAction.mode}-${stockAction.item._id}`}
+          mode={stockAction.mode}
+          item={stockAction.item}
+          onOpenChange={(open) => !open && setStockAction(null)}
+        />
       )}
     </div>
   );

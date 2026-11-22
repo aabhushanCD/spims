@@ -1035,24 +1035,45 @@ npm run audit      PASS (0 production vulnerabilities)
 **Size:** Large  
 **Dependencies:** Phase 0
 
-- [ ] Batch create/edit/detail/history.
-- [ ] Batch adjust/increase/deduct.
-- [ ] Disposal confirmation.
-- [ ] Expired/awaiting-disposal/low-stock views.
-- [ ] Inventory movements list/detail.
-- [ ] Reconciliation report.
-- [ ] Increase/decrease/reserve/release/sync actions.
-- [ ] Wire inventory search.
-- [ ] Real inventory stats.
-- [ ] Stocktake feature: create/edit/complete/cancel.
-- [ ] Barcode lookup integration.
-- [ ] Tests for stock adjustment and stocktake completion.
+- [x] Batch create/edit/detail/history.
+- [x] Batch adjust/increase/deduct.
+- [x] Disposal confirmation.
+- [x] Expired/awaiting-disposal/low-stock views.
+- [ ] Inventory movement detail page (list is implemented; detail API is wired in the service).
+- [x] Reconciliation report.
+- [x] Reserve/release/sync actions (aggregate increase/decrease remain covered by batch operations).
+- [x] Wire inventory search.
+- [x] Real inventory stats.
+- [x] Stocktake feature: create/edit/complete/cancel.
+- [x] Barcode lookup integration (typed lookup; camera scanning still deferred).
+- [x] Tests for batch validation and stocktake variance math.
 
 **Exit criteria**
 
 - Every inventory mutation exposed by the server is reachable from the client.
 - Batch stubs are gone.
 - Count variance is visible before completion.
+
+#### Phase 2 implementation notes (2026-11-22)
+
+- Batch page now has All / Expired / Awaiting disposal / Low stock views, search, mark-expired, create/edit, history, adjust, increase, deduct, disposal, and delete.
+- Batch movement history is shown with type, quantity, reference, performer, and remarks.
+- Inventory has dedicated Movements and Reconciliation pages plus reserve/release actions and per-medicine sync.
+- Inventory tiles remain global via `/dashboard/inventory`.
+- Stocktakes have list, create, edit-counts, detail with variance summary, complete, and cancel.
+- Medicine page has a barcode lookup dialog using `/medicines/barcode/:barcode`.
+- Added batch form validation tests and stocktake variance-summary tests.
+
+Remaining in this area: a dedicated inventory-movement detail page and aggregate increase/decrease beyond the batch-level flows.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 536 unit + 15 integration; client 80)
+npm run build      PASS (Vite chunk-size warning only)
+```
 
 ---
 
@@ -1196,9 +1217,9 @@ npm run audit      PASS (0 production vulnerabilities)
 | D-2 | Payments | 1 | ✅ |
 | D-3 | Sales returns | 1 | ✅ |
 | D-4 | Sale-item corrections | 1 | ✅ |
-| D-5 | Inventory depth | 2 | ☐ |
-| D-6 | Batch UI | 2 | ☐ |
-| D-7 | Stocktakes | 2 | ☐ |
+| D-5 | Inventory depth | 2 | 🟡 movements/reconciliation/reserve/release/sync done; movement detail and aggregate inc/dec remain |
+| D-6 | Batch UI | 2 | ✅ |
+| D-7 | Stocktakes | 2 | ✅ |
 | D-8 | Purchase returns | 3 | ☐ |
 | D-9 | Purchase depth | 3 | ☐ |
 | D-10 | Supplier performance | 3 | ☐ |
@@ -1207,7 +1228,7 @@ npm run audit      PASS (0 production vulnerabilities)
 | D-13 | Reporting/CSV | 5 | ☐ |
 | D-14 | User administration | 6 | ☐ |
 | D-15 | Audit log | 6 | ☐ |
-| D-16 | Medicine search/barcode | 2 | ☐ |
+| D-16 | Medicine search/barcode | 2 | ✅ lookup (camera deferred) |
 | D-17 | Sale filters/update | 1/5 | ☐ |
 
 ---

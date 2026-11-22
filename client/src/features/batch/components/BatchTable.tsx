@@ -13,30 +13,36 @@ import { BatchActions } from "./BatchActions";
 
 interface Props {
   batches: Batch[];
-
+  onView: (batch: Batch) => void;
+  onEdit: (batch: Batch) => void;
   onAdjust: (batch: Batch) => void;
-
-  onDelete: (id: string) => void;
+  onIncrease: (batch: Batch) => void;
+  onDeduct: (batch: Batch) => void;
+  onDispose: (batch: Batch) => void;
+  onDelete: (batch: Batch) => void;
 }
 
-export default function BatchTable({ batches, onAdjust, onDelete }: Props) {
+export default function BatchTable({
+  batches,
+  onView,
+  onEdit,
+  onAdjust,
+  onIncrease,
+  onDeduct,
+  onDispose,
+  onDelete,
+}: Props) {
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Medicine</TableHead>
-
             <TableHead>Batch No</TableHead>
-
             <TableHead>Expiry</TableHead>
-
             <TableHead>Received</TableHead>
-
             <TableHead>Remaining</TableHead>
-
             <TableHead>Status</TableHead>
-
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -56,7 +62,6 @@ export default function BatchTable({ batches, onAdjust, onDelete }: Props) {
                     <p className="font-medium">
                       {batch.medicineId?.medicineName}
                     </p>
-
                     <p className="text-muted-foreground text-sm">
                       {batch.medicineId?.strength}
                     </p>
@@ -70,7 +75,6 @@ export default function BatchTable({ batches, onAdjust, onDelete }: Props) {
                 </TableCell>
 
                 <TableCell>{batch.quantityReceived}</TableCell>
-
                 <TableCell>{batch.quantityRemaining}</TableCell>
 
                 <TableCell>
@@ -79,8 +83,14 @@ export default function BatchTable({ batches, onAdjust, onDelete }: Props) {
 
                 <TableCell>
                   <BatchActions
+                    batch={batch}
+                    onView={() => onView(batch)}
+                    onEdit={() => onEdit(batch)}
                     onAdjust={() => onAdjust(batch)}
-                    onDelete={() => onDelete(batch._id)}
+                    onIncrease={() => onIncrease(batch)}
+                    onDeduct={() => onDeduct(batch)}
+                    onDispose={() => onDispose(batch)}
+                    onDelete={() => onDelete(batch)}
                   />
                 </TableCell>
               </TableRow>

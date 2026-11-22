@@ -17,9 +17,10 @@ import type { InventoryItem } from "../types/inventory.types";
 
 interface InventoryTableProps {
   inventory: ApiResponse<InventoryItem[]>;
+  onAction?: (item: InventoryItem, mode: "reserve" | "release") => void;
 }
 const ITEMS_PER_PAGE = 10;
-export function InventoryTable({ inventory }: InventoryTableProps) {
+export function InventoryTable({ inventory, onAction }: InventoryTableProps) {
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const items = inventory?.data ?? [];
@@ -44,6 +45,7 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
             <TableHead>Available</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Updated</TableHead>
+            <TableHead className="w-40" />
           </TableRow>
         </TableHeader>
 
@@ -75,11 +77,33 @@ export function InventoryTable({ inventory }: InventoryTableProps) {
                 <TableCell>
                   {new Date(item.lastUpdated).toLocaleDateString()}
                 </TableCell>
+                <TableCell>
+                  {onAction && (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAction(item, "reserve")}
+                        disabled={item.availableStock === 0}
+                      >
+                        Reserve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAction(item, "release")}
+                        disabled={item.reservedStock === 0}
+                      >
+                        Release
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center">
+              <TableCell colSpan={8} className="h-24 text-center">
                 No inventory found.
               </TableCell>
             </TableRow>
