@@ -34,7 +34,12 @@ export class NotificationTemplateRepo {
   }
 
   async findByKey(key: string): Promise<INotificationTemplate | null> {
-    return await this.model.findOne({ key }).lean().exec();
+    return await this.model
+      .findOne()
+      .where("key")
+      .equals(key)
+      .lean()
+      .exec();
   }
 
   async update(
@@ -44,20 +49,22 @@ export class NotificationTemplateRepo {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return null;
     }
-    const update: Record<string, string | boolean> = {};
-    if (data.key !== undefined) update.key = data.key;
-    if (data.name !== undefined) update.name = data.name;
-    if (data.channel !== undefined) update.channel = data.channel;
-    if (data.subject !== undefined) update.subject = data.subject;
-    if (data.body !== undefined) update.body = data.body;
-    if (data.isActive !== undefined) update.isActive = data.isActive;
-
-    return await this.model
-      .findByIdAndUpdate(new mongoose.Types.ObjectId(id), update, {
-        new: true,
-      })
-      .lean()
+    const template = await this.model
+      .findById(new mongoose.Types.ObjectId(id))
       .exec();
+    if (!template) {
+      return null;
+    }
+
+    if (data.key !== undefined) template.key = data.key;
+    if (data.name !== undefined) template.name = data.name;
+    if (data.channel !== undefined) template.channel = data.channel;
+    if (data.subject !== undefined) template.subject = data.subject;
+    if (data.body !== undefined) template.body = data.body;
+    if (data.isActive !== undefined) template.isActive = data.isActive;
+
+    await template.save();
+    return template.toObject() as INotificationTemplate;
   }
 
   async delete(id: string): Promise<INotificationTemplate | null> {

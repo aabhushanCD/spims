@@ -58,19 +58,21 @@ export class CustomerRepo {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return null;
     }
-    const update: Record<string, string | boolean | null> = {};
-    if (data.name !== undefined) update.name = data.name;
-    if (data.phone !== undefined) update.phone = data.phone ?? null;
-    if (data.email !== undefined) update.email = data.email ?? null;
-    if (data.address !== undefined) update.address = data.address ?? null;
-    if (data.isActive !== undefined) update.isActive = data.isActive;
-
-    return await this.customerModel
-      .findByIdAndUpdate(new mongoose.Types.ObjectId(id), update, {
-        new: true,
-      })
-      .lean()
+    const customer = await this.customerModel
+      .findById(new mongoose.Types.ObjectId(id))
       .exec();
+    if (!customer) {
+      return null;
+    }
+
+    if (data.name !== undefined) customer.name = data.name;
+    if (data.phone !== undefined) customer.phone = data.phone ?? null;
+    if (data.email !== undefined) customer.email = data.email ?? null;
+    if (data.address !== undefined) customer.address = data.address ?? null;
+    if (data.isActive !== undefined) customer.isActive = data.isActive;
+
+    await customer.save();
+    return customer.toObject() as ICustomer;
   }
 
   async delete(id: string): Promise<ICustomer | null> {
