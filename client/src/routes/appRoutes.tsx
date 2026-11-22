@@ -17,6 +17,8 @@ import CategoryPage from "@/features/genericName/pages/CategoryPage";
 import GenericNamePage from "@/features/genericName/pages/GenericNamePage";
 import UnitPage from "@/features/genericName/pages/UnitPage";
 import InventoryPage from "@/features/inventory/pages/InventoryPage";
+import InventoryMovementsPage from "@/features/inventory/pages/InventoryMovementsPage";
+import ReconciliationPage from "@/features/inventory/pages/ReconciliationPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import NotificationsPage from "@/features/notification/pages/NotificationsPage";
 import NotificationSettingsPage from "@/features/notification/pages/NotificationSettingsPage";
@@ -27,6 +29,8 @@ import SalesPage from "@/features/sales/pages/SalesPage";
 import CustomerPage from "@/features/customer/pages/CustomerPage";
 import ReturnDetailsPage from "@/features/returns/pages/ReturnDetailsPage";
 import ReturnsPage from "@/features/returns/pages/ReturnsPage";
+import StocktakeDetailsPage from "@/features/stocktake/pages/StocktakeDetailsPage";
+import StocktakesPage from "@/features/stocktake/pages/StocktakesPage";
 import SupplierPage from "@/features/supplier/pages/SupplierPage";
 import UserPage from "@/features/user/pages/UserPage";
 import { BrowserRouter, Routes, Route } from "react-router";
@@ -75,6 +79,30 @@ export default function AppRoutes() {
           />
           <Route path="/batches" element={<BatchPage />} />
           <Route path="/stock" element={<InventoryPage />} />
+          <Route
+            path="/inventory/movements"
+            element={<InventoryMovementsPage />}
+          />
+          <Route
+            path="/inventory/reconciliation"
+            element={<ReconciliationPage />}
+          />
+          <Route
+            path="/stocktakes"
+            element={
+              <RequireRole allowedRoles={["owner", "inventory_manager"]}>
+                <StocktakesPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/stocktakes/:id"
+            element={
+              <RequireRole allowedRoles={["owner", "inventory_manager"]}>
+                <StocktakeDetailsPage />
+              </RequireRole>
+            }
+          />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route
             path="/settings/notifications"

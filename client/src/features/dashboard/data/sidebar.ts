@@ -42,6 +42,22 @@ export const sidebarItems: NavItem[] = [
         title: "Stock",
         path: "/stock",
       },
+
+      {
+        title: "Movements",
+        path: "/inventory/movements",
+      },
+
+      {
+        title: "Reconciliation",
+        path: "/inventory/reconciliation",
+      },
+
+      {
+        title: "Stocktakes",
+        path: "/stocktakes",
+        roles: ["owner", "inventory_manager"],
+      },
     ],
   },
 
