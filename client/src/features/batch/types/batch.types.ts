@@ -2,9 +2,14 @@ export interface Batch {
   _id: string;
 
   medicineId?: {
+    _id?: string;
     medicineName: string;
     strength?: string;
   };
+
+  purchaseOrderId?: string;
+
+  isActive?: boolean;
 
   batchNumber: string;
 
@@ -23,4 +28,5 @@ export interface Batch {
   isExpired: boolean;
 
   createdAt: string;
+  updatedAt?: string;
 }

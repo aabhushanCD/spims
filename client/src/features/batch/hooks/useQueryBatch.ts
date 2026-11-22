@@ -1,43 +1,58 @@
-// features/batch/hooks/useQueryBatch.ts
-
 import { useQuery } from "@tanstack/react-query";
-import { batchService } from "../services/batch.service";
+import { batchService, type BatchListParams } from "../services/batch.service";
 
-export const useBatches = () => {
+const allBatches = ["batches"] as const;
+
+export const batchKeys = {
+  all: allBatches,
+  list: (params: BatchListParams) =>
+    [...allBatches, "list", params] as const,
+  detail: (id: string) => [...allBatches, "detail", id] as const,
+  history: (id: string) => [...allBatches, "history", id] as const,
+  expired: [...allBatches, "expired"] as const,
+  lowStock: [...allBatches, "low-stock"] as const,
+  awaitingDisposal: [...allBatches, "awaiting-disposal"] as const,
+};
+
+export const useBatches = (
+  params: BatchListParams = {},
+  enabled = true,
+) => {
   return useQuery({
-    queryKey: ["batches"],
-    queryFn: batchService.getAllBatches,
+    queryKey: batchKeys.list(params),
+    queryFn: () => batchService.getBatches(params),
+    enabled,
   });
 };
 
 export const useBatch = (id: string) => {
   return useQuery({
-    queryKey: ["batch", id],
+    queryKey: batchKeys.detail(id),
     queryFn: () => batchService.getBatchById(id),
     enabled: !!id,
   });
 };
 
-export const useExpiredBatches = () => {
+export const useExpiredBatches = (enabled = true) => {
   return useQuery({
-    queryKey: ["expired-batches"],
+    queryKey: batchKeys.expired,
     queryFn: batchService.getExpiredBatches,
+    enabled,
   });
 };
 
-export const useLowStockBatches = () => {
+export const useLowStockBatches = (enabled = true) => {
   return useQuery({
-    queryKey: ["low-stock-batches"],
-    queryFn: batchService.getLowStockBatches,
+    queryKey: batchKeys.lowStock,
+    queryFn: () => batchService.getLowStockBatches(),
+    enabled,
   });
 };
 
 export const useMedicineBatches = (medicineId: string) => {
   return useQuery({
     queryKey: ["medicine-batches", medicineId],
-
     queryFn: () => batchService.getBatchByMedicineId(medicineId),
-
     enabled: !!medicineId,
   });
 };
@@ -45,27 +60,23 @@ export const useMedicineBatches = (medicineId: string) => {
 export const useAvailableBatches = (medicineId: string) => {
   return useQuery({
     queryKey: ["available-batches", medicineId],
-
     queryFn: () => batchService.getAvailableBatches(medicineId),
-
     enabled: !!medicineId,
   });
 };
 
-export const useExpiredAwaitingDisposal = () => {
+export const useExpiredAwaitingDisposal = (enabled = true) => {
   return useQuery({
-    queryKey: ["expired-awaiting-disposal"],
-
+    queryKey: batchKeys.awaitingDisposal,
     queryFn: batchService.getExpiredAwaitingDisposal,
+    enabled,
   });
 };
 
-export const useBatchHistory = (id: string) => {
+export const useBatchHistory = (id: string, enabled = true) => {
   return useQuery({
-    queryKey: ["batch-history", id],
-
+    queryKey: batchKeys.history(id),
     queryFn: () => batchService.getBatchHistory(id),
-
-    enabled: !!id,
+    enabled: Boolean(id) && enabled,
   });
 };
