@@ -58,6 +58,11 @@ export const sidebarItems: NavItem[] = [
         path: "/stocktakes",
         roles: ["owner", "inventory_manager"],
       },
+
+      {
+        title: "Reorder",
+        path: "/smart-reorders",
+      },
     ],
   },
 
@@ -151,6 +156,17 @@ export const sidebarItems: NavItem[] = [
       {
         title: "Notifications",
         path: "/settings/notifications",
+      },
+
+      {
+        title: "Notification Admin",
+        path: "/notifications/admin",
+        roles: ["owner", "pharmacist"],
+      },
+
+      {
+        title: "Templates",
+        path: "/notification-templates",
       },
     ],
   },

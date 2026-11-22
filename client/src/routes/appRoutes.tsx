@@ -19,9 +19,12 @@ import UnitPage from "@/features/genericName/pages/UnitPage";
 import InventoryPage from "@/features/inventory/pages/InventoryPage";
 import InventoryMovementsPage from "@/features/inventory/pages/InventoryMovementsPage";
 import ReconciliationPage from "@/features/inventory/pages/ReconciliationPage";
+import ReorderRecommendationsPage from "@/features/smart/pages/ReorderRecommendationsPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import NotificationsPage from "@/features/notification/pages/NotificationsPage";
+import NotificationAdminPage from "@/features/notification/pages/NotificationAdminPage";
 import NotificationSettingsPage from "@/features/notification/pages/NotificationSettingsPage";
+import NotificationTemplatesPage from "@/features/notificationTemplate/pages/NotificationTemplatesPage";
 import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
@@ -95,6 +98,10 @@ export default function AppRoutes() {
             element={<ReconciliationPage />}
           />
           <Route
+            path="/smart-reorders"
+            element={<ReorderRecommendationsPage />}
+          />
+          <Route
             path="/stocktakes"
             element={
               <RequireRole allowedRoles={["owner", "inventory_manager"]}>
@@ -111,6 +118,18 @@ export default function AppRoutes() {
             }
           />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route
+            path="/notifications/admin"
+            element={
+              <RequireRole allowedRoles={["owner", "pharmacist"]}>
+                <NotificationAdminPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/notification-templates"
+            element={<NotificationTemplatesPage />}
+          />
           <Route
             path="/settings/notifications"
             element={<NotificationSettingsPage />}

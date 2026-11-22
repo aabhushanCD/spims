@@ -553,15 +553,15 @@ Router-level roles: all three. Additional checks:
 
 | Method | Path | Purpose | Input | Success | Notes |
 |---|---|---|---|---|---|
-| GET | `/smart-reorders` | List recommendations | — | `200` `{ success, data }` | Repository filters to `PENDING` when no session |
+| GET | `/smart-reorders` | List recommendations | `status?` = `PENDING \| APPROVED \| REJECTED \| ALL` | `200` `{ success, data }` | Defaults to `PENDING`; `ALL` returns every status |
 | GET | `/smart-reorders/pending` | Pending list | — | `200` | |
 | GET | `/smart-reorders/medicine/:medicineId` | By medicine | — | `200`; `404` medicine | Multiple recommendations possible |
 | GET | `/smart-reorders/:id` | Detail | — | `200`; `404` | |
 | POST | `/smart-reorders` | Manual recommendation | `medicineId`, `supplierId`, `suggestedQuantity`, `confidenceScore`, `recommendationReason` | `201` | Owner/inventory manager |
-| PATCH | `/smart-reorders/:id/approve` | Approve | `{ createPurchaseOrder?: boolean }` | `200`; `400` if not pending; `404` | Records approver/time; optional draft PO |
-| PATCH | `/smart-reorders/:id/reject` | Reject | `{ reason? }` | `200`; `400` if not pending; `404` | Records rejecter/time/reason |
+| PATCH | `/smart-reorders/:id/approve` | Approve | `{ createPurchaseOrder?: boolean }` | `200`; `400` if not pending; `404` | Owner/inventory manager; records approver/time; optional draft PO |
+| PATCH | `/smart-reorders/:id/reject` | Reject | `{ reason? }` | `200`; `400` if not pending; `404` | Owner/inventory manager; records rejecter/time/reason |
 | POST | `/smart-reorders/generate` | Generate for all medicines | body ignored | `200` `{ results[] }` | Each item: `created` or `skipped` (with `reason`) |
-| POST | `/smart-reorders/generate/:medicineId` | Generate one | — | `201` recommendation | `400` not below ROP (cache miss) or no purchase history; `404` medicine; cached negative result returns `201` with `reorderNeeded: false` |
+| POST | `/smart-reorders/generate/:medicineId` | Generate one | — | `201` recommendation | `400` not below ROP (cache miss) or no purchase history; `404` medicine; a cached negative result returns `400` with the skip reason |
 | DELETE | `/smart-reorders/:id` | Delete | — | `200` `{ message }`; `404` | Owner only |
 
 `generate` accepts but ignores `threshold` and `targetStock`.
@@ -577,7 +577,7 @@ Source: `server/src/modules/notification/routes/notification.routes.ts`
 | GET | `/notifications/me` | Current user's inbox | `cursor`, `limit` | `200` `{ success, data: { items, nextCursor, unreadCount } }` |
 | GET | `/notifications/user/:userId` | Another user's inbox (role hierarchy) | `cursor`, `limit` | `200`; `403` lower role; `404` target |
 | POST | `/notifications` | Create + dispatch | `title`, `message`, `type`, `userIds[]` | `201` `{ success, data: notification }` |
-| GET | `/notifications` | List all notifications | `cursor`, `limit` | `200` `{ success, data: { items, nextCursor } }` |
+| GET | `/notifications` | List all notifications | `cursor`, `limit`, `status?`, `type?` | `200` `{ success, data: { items, nextCursor } }` |
 | GET | `/notifications/:id` | Detail + recipients (owner/pharmacist) | — | `200`; `403`; `404` |
 | POST | `/notifications/:id/dispatch` | Dispatch eligible recipients (owner/pharmacist) | `force=true\|false\|1\|0` | `200` `{ success, data }`; `404` |
 | POST | `/notifications/:id/retry` | Forced retry of failed recipients (owner/pharmacist) | — | `200` `{ success, data }`; `404` |
@@ -591,8 +591,9 @@ Source: `server/src/modules/notification/routes/notification.routes.ts`
 
 Notification templates live at `/notification-templates`: owner-only create/
 update/delete, all roles read, and `POST /notification-templates/:id/render`
-with `{ data }` renders `{{placeholders}}`. Templates are not yet wired into
-notification creation.
+with `{ data }` renders `{{placeholders}}`. `POST /notifications` also accepts
+`templateKey` + `templateData` and renders the template into the notification
+title, message, and channel before dispatch.
 
 Create checks:
 

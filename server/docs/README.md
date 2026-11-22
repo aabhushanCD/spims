@@ -36,7 +36,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
 | Security | `helmet`, CSRF, Redis lockout | Origin allow-list, audit log, token-version revocation |
 | API docs | `swagger-ui-express` | Typed OpenAPI 3.0 at `/api-docs` |
-| Tests | Vitest | 79 unit test files, 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
+| Tests | Vitest | 80 unit test files, 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -113,21 +113,21 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | Supplier management | Implemented |
 | Batch inventory and FEFO | Implemented — FEFO, transactional writes, movement history |
 | Aggregate inventory | Implemented — single write path, reconciliation guards, version CAS |
-| Purchase orders and receiving | Implemented — VAT/discount totals, guarded delete; partial receiving remains Phase 6.4 |
+| Purchase orders and receiving | Implemented — VAT/discount totals, guarded delete, partial and multi-batch receiving, invoice upload/download, supplier performance |
 | Sales and VAT | Implemented — VAT snapshot/config, customers, payment ledger, invoice payload |
 | Sales returns | Implemented — approval workflow, VAT refunds, restocking fees, refund ledger, reversal |
 | Purchase returns | Implemented — lifecycle, batch stock deduction, supplier credit |
-| Stock adjustments | Not Implemented — the old service is dead; stocktake is Phase 6.4 |
-| Smart reorder | Implemented; approval audit and auto-PO remain Phase 6.6 |
+| Stock adjustments | Implemented — batch adjustments/disposal, inventory movements/reconciliation, stocktake lifecycle |
+| Smart reorder | Implemented — WADS/SS/ROP/ROQ, approval/rejection audit, optional draft PO behind `SMART_REORDER_AUTO_PO=true`, status filtering |
 | Dashboard analytics | Implemented |
-| Notifications | Implemented — InApp/email/SMS, retries, preferences, read state, pagination; templates remain Phase 6.6 |
+| Notifications | Implemented — InApp/email/SMS, retries, preferences, read state, pagination, admin filters, templates wired into creation |
 | Redis caching | Implemented — dashboard/reorder cache with invalidation |
 | Background jobs | Implemented — distributed locks |
 | WebSocket push | Implemented — origin-checked upgrade |
 | Swagger/OpenAPI | Implemented — typed OpenAPI 3.0 spec at `/api-docs/openapi.json`, Swagger UI at `/api-docs`; production requires `ENABLE_API_DOCS=true` and an owner session |
 | Pagination | Implemented — cursor pagination on the main lists |
 | Security headers / audit | Implemented — Helmet, CSRF, lockout, audit log; MFA and OAuth deferred |
-| Automated tests | 79 unit files / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 2 client files / 17 tests |
+| Automated tests | 80 unit files / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 23 client files / 105 tests |
 
 ## Conventions used in this documentation
 

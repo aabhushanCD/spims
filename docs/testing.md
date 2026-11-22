@@ -44,8 +44,9 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the latest Phase 6 baseline: **79 server unit test files, 536 tests** plus
-**15 integration cases (10 HTTP + 5 migration/seeder)** and **11 client test files, 55 tests**, all passing.
+As of the latest client-parity Phase 4 baseline: **80 server unit test files,
+543 tests** plus **15 integration cases (10 HTTP + 5 migration/seeder)** and
+**23 client test files, 105 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -140,12 +141,22 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `lock.provider.test.ts` | Redis `SET NX` acquisition, compare-and-delete release, skip/run helper |
 | `redis.config.test.ts` | Explicit `REDIS_URL`, Upstash REST conversion, host/port fallback, unsupported scheme |
 | `logger.test.ts` | JSON line output, secret redaction, `LOG_LEVEL` filtering |
-| `smartReorder.service.test.ts` | Cached negative result stays 400, pending recommendation upsert, missing delivery dates, expiry lower bound |
+| `smartReorder.service.test.ts` | Cached negative result stays 400, pending recommendation upsert, missing delivery dates, expiry lower bound, status-filter defaults |
+| `smartReorder.routes.test.ts` | Approve/reject are owner + inventory manager; delete is owner-only |
 | `indexes.test.ts` | Phase 5 indexes and smart-reorder partial unique index |
 | `coreFlows.integration.test.ts` | Purchase receipt, sale + idempotency, return completion, disposal, reorder |
 | `mongoError.test.ts` | Mapping and pass-through of MongoDB duplicate/cast/validation errors |
 | `notificationSocketUrl.test.ts` (client) | Explicit WS URL, http(s)→ws(s), absolute API origin, relative `/api` via proxy origin, query/hash stripping, unparseable-origin fallback |
 | `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
+| `reorderPermissions.test.ts` (client) | Smart-reorder manage/delete/action role gating |
+| `reorderSummary.test.ts` (client) | High-confidence threshold (80), pending-only units, non-pending exclusion |
+| `notificationPayload.test.ts` (client) | Template JSON parsing, primitive-value validation, notification-admin role helper |
+| `permissions.test.ts` (client) | Role-aware navigation filtering |
+| `format.test.ts` (client) | Currency, date, and percent formatting |
+| `saleQuery.test.ts` / `salePayload.test.ts` (client) | Blank-search omission, FEFO payload contract |
+| `invoiceMapper.test.ts` (client) | Invoice batch mapping and payment summary |
+| `validatePayment.test.ts` (client) | Partial/full/over-payment validation |
+| `purchaseItemDiff.test.ts` / `receiptRows.test.ts` (client) | Purchase item diffing and multi-batch receipt totals |
 
 ## Test isolation
 

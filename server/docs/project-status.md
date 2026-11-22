@@ -28,7 +28,7 @@ It is not production-hardened. The main risks are:
 | Transactions | 7 flows |
 | Migrations | 4 registered (`001`–`004`) |
 | Cron jobs | 3 active |
-| Tests | 79 unit files / 535 cases + 15 integration cases (10 HTTP + 5 migration/seeder) |
+| Tests | 80 unit files / 543 cases + 15 integration cases (10 HTTP + 5 migration/seeder) |
 
 ## 3. Module status matrix
 
@@ -43,7 +43,7 @@ It is not production-hardened. The main risks are:
 | Purchases | Implemented | Create/approve/partial/full receive, persisted totals, PO numbering, approval/cancel/receive audit, supplier performance, supplier returns, invoice upload/download | Multi-batch split is supported per receipt line |
 | Sales | Implemented | FEFO, header+line VAT snapshots, customers, payment ledger, invoice payload, sale-item corrections, delete guard | No external payment gateway |
 | Returns | Implemented | PENDING → APPROVED/REJECTED/CANCELLED → COMPLETED/REVERSED workflow, VAT-inclusive refunds, restocking fees, GOOD/write-off semantics, refund ledger, reversal | No partial-refund approval workflow |
-| Notifications | Implemented | Dispatch, inbox, WS/email/SMS, retries, preferences, read state, pagination, hierarchy authz, template CRUD/render | Templates are not yet wired into notification creation |
+| Notifications | Implemented | Dispatch, inbox, WS/email/SMS, retries, preferences, read state, pagination, hierarchy authz, status/type filters, template CRUD/render wired into creation | Templates are not yet editable by non-owners |
 | Smart reorder | Implemented | WADS/SS/ROP/ROQ/confidence, cache, approve/reject audit, manual route, MOQ/pack rounding, optional draft PO creation, reliability persistence | No seasonality model; auto-PO creates a draft only |
 | Dashboard/reporting | Implemented | Cached payload, COGS profit, timezone series, returns excluded, range analytics, by-cashier/category, CSV export, completion-date refunds, reconciliation | No per-category dashboard UI |
 | Redis caching | Implemented | Dashboard + reorder cache with invalidation; explicit `REDIS_URL`/Upstash target resolution | Redis still required at startup |
@@ -59,7 +59,7 @@ It is not production-hardened. The main risks are:
 | Invoice | Implemented | `GET /sales/:id/invoice` with populated items, cashier/customer, payments, amount due | Client print view still uses the old field names (Phase 6.7) |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/NGINX deployment | Declined | — | Not required for this project; no Dockerfile/compose/NGINX config will be added |
-| Automated tests | Implemented | 79 unit suites / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash provider behavior still unverified |
+| Automated tests | Implemented | 80 unit suites / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash provider behavior still unverified |
 
 ## 4. Implemented features
 
@@ -98,7 +98,7 @@ It is not production-hardened. The main risks are:
 | Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls; expiry flagging reconciles affected medicines immediately | Optimistic conflicts surface as `409` and must be retried by the caller |
 | Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed, cache invalidated on writes | No arbitrary date-range analytics |
 | Swagger | Typed OpenAPI 3.0 spec; Swagger UI served at `/api-docs` | Production docs are opt-in and owner-only |
-| Tests | 79 unit suites / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash behavior remains unverified |
+| Tests | 80 unit suites / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash behavior remains unverified |
 
 ## 6. Not implemented
 
@@ -131,15 +131,15 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current 6.4–6.6 suite is 79 unit files / 535 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
-| Client tests | 2 files, 17 tests passed |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current client-parity suite is 80 unit files / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
+| Client tests | 2 files, 17 tests passed (Phase 0 baseline; current client-parity suite is 23 files / 105 tests) |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
 
 ### Verified during this audit
 
 - `npx tsc --noEmit -p tsconfig.json` completes with no diagnostics.
-- `npx vitest run` passes: 79 files, 535 tests (server).
+- `npx vitest run` passes: 80 files, 543 tests (server).
 - Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all ten `referenceType` values validate (including `PURCHASE_RETURN`).
 
 ### Phase 4 state (2026-11-21)
@@ -217,7 +217,7 @@ Engineering follow-up:
 4. Add client-side role gating for user-management actions so pharmacists see a clear disabled state instead of a `403` (Phase 6.7).
 5. Client contract drift is fixed for sale cancellation (uses `DELETE`), payment methods, invoice data, dead inventory calls, and dead report/roles links. Remaining client work: load-more, payments/stocktake/upload/reorder UI, barcode camera, component tests.
 6. Phase 6.2 Swagger/OpenAPI, migrations, and seeders are done. Docker/NGINX/compose and a deploy workflow are declined.
-7. Phase 6.3 is done. 6.4 PO numbering, stocktake, medicine barcode/index, supplier performance, and approval audit are done; partial receiving and invoice upload remain. 6.5 range/CSV/bylines are done. 6.6 MOQ/audit/manual/auto-PO/templates are done server-side.
+7. Phase 6.3 is done. 6.4 PO numbering, stocktake, medicine barcode/index, supplier performance, approval audit, partial/multi-batch receiving, and invoice upload/download are done. 6.5 range/CSV/bylines are done. 6.6 MOQ/audit/manual/auto-PO/templates are done server-side and wired into the client parity work.
 8. MFA (6.1b) and Google OAuth/geo-IP (deferred) remain accepted gaps.
 
 ## 12. Documentation set
