@@ -1,17 +1,14 @@
+export type UserRole = "owner" | "inventory_manager" | "pharmacist";
+
 export interface User {
-    _id: string;
-
-    fullName: string;
-
-    email: string;
-
-    phone: string;
-
-    role: "owner"
-        | "inventory_manager"
-        | "pharmacist";
-
-    isActive: boolean;
-
-    createdAt: string;
+  _id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  emailVerified: boolean;
+  provider: "local" | "google";
+  lastLogin: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
