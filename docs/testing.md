@@ -45,8 +45,8 @@ npm run test:watch       # watch mode
 ## Current coverage
 
 As of the latest client-parity Phase 5 baseline: **80 server unit test files,
-543 tests** plus **15 integration cases (10 HTTP + 5 migration/seeder)** and
-**24 client test files, 109 tests**, all passing.
+544 tests** plus **15 integration cases (10 HTTP + 5 migration/seeder)** and
+**26 client test files, 114 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -92,7 +92,7 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `migrationsAndSeed.integration.test.ts` | Real backfills, ledger idempotency, seed idempotency/dry run, non-owner guard |
 | `authTokens.test.ts` | Access/refresh signing, token-type separation, hashing and constant-time comparison |
 | `rateLimit.middleware.test.ts` | Under-limit pass-through, 429 + `Retry-After`, Redis failure fails open |
-| `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, admin reset/force logout, session revocation and token-version bumps, password hashing, invalid-role rejection |
+| `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, admin reset/force logout, session revocation and token-version bumps, password hashing, invalid-role rejection, aggregate user stats |
 | `user.route.test.ts` | Static-before-dynamic ordering, single status route, removed `/:id/inactive`, role-change route |
 | `user.schema.test.ts` | ObjectId/role/status/date params, strict delete body |
 | `register.schema.test.ts` | Public registration strips a supplied `role` |
@@ -150,7 +150,9 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `inboxCache.test.ts` (client) | Read-state update for plain and infinite inbox caches, global-count decrement on `pages[0]` only, already-read/missing no-ops, immutability |
 | `reorderPermissions.test.ts` (client) | Smart-reorder manage/delete/action role gating |
 | `reorderSummary.test.ts` (client) | High-confidence threshold (80), pending-only units, non-pending exclusion |
-| `reportRange.test.ts` (client) | Current-month defaults, complete-day range expansion, invalid ranges, CSV filenames |
+| `reportRange.test.ts` (client) | Current-month defaults, exclusive next-day range, invalid ranges, CSV filenames |
+| `userPermissions.test.ts` (client) | Owner-only user management and self-action blocking |
+| `auditQuery.test.ts` (client) | Blank filter omission, audit filter serialization, inclusive day end |
 | `notificationPayload.test.ts` (client) | Template JSON parsing, primitive-value validation, notification-admin role helper |
 | `permissions.test.ts` (client) | Role-aware navigation filtering |
 | `format.test.ts` (client) | Currency, date, and percent formatting |

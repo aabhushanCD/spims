@@ -36,7 +36,7 @@ SPIMS is a single-pharmacy inventory and point-of-sale backend. Its responsibili
 | SMS | `fetch` | Generic HTTP webhook; 5s timeout, bearer key optional |
 | Security | `helmet`, CSRF, Redis lockout | Origin allow-list, audit log, token-version revocation |
 | API docs | `swagger-ui-express` | Typed OpenAPI 3.0 at `/api-docs` |
-| Tests | Vitest | 80 unit test files, 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
+| Tests | Vitest | 80 unit test files, 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder) |
 | Build | `tsc` | Output in `dist/` |
 
 ## Architecture at a glance
@@ -127,7 +127,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | Swagger/OpenAPI | Implemented — typed OpenAPI 3.0 spec at `/api-docs/openapi.json`, Swagger UI at `/api-docs`; production requires `ENABLE_API_DOCS=true` and an owner session |
 | Pagination | Implemented — cursor pagination on the main lists |
 | Security headers / audit | Implemented — Helmet, CSRF, lockout, audit log; MFA and OAuth deferred |
-| Automated tests | 80 unit files / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 24 client files / 109 tests |
+| Automated tests | 80 unit files / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 26 client files / 114 tests |
 
 ## Conventions used in this documentation
 
