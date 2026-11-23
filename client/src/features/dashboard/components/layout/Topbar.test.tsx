@@ -37,9 +37,14 @@ vi.mock("@/components/MobileSidebar", () => ({
   default: () => <div data-testid="mobile-sidebar" />,
 }));
 
+const renderTopbar = (onToggleSidebar = vi.fn()) =>
+  renderWithProviders(
+    <Topbar collapsed={false} onToggleSidebar={onToggleSidebar} />,
+  );
+
 describe("Topbar", () => {
   it("shows a humanized role and a working theme toggle", () => {
-    renderWithProviders(<Topbar />);
+    renderTopbar();
 
     expect(screen.getByText("Inventory manager")).toBeInTheDocument();
 
@@ -48,9 +53,18 @@ describe("Topbar", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes the desktop sidebar toggle", () => {
+    const onToggleSidebar = vi.fn();
+    renderTopbar(onToggleSidebar);
+
+    expect(
+      screen.getByRole("button", { name: "Collapse sidebar" }),
+    ).toBeInTheDocument();
+  });
+
   it("exposes one profile entry and logout in the account menu", async () => {
     const actor = userEvent.setup();
-    renderWithProviders(<Topbar />);
+    renderTopbar();
 
     await actor.click(screen.getByRole("button", { name: /asha sharma/i }));
 

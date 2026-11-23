@@ -17,9 +17,15 @@ import { useAuth } from "@/features/auth/context/authContext";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useNavigate } from "react-router";
 import { formatRole } from "@/lib/permissions";
+import SidebarToggle from "./SidebarToggle";
 import ThemeToggle from "./ThemeToggle";
 
-export default function Topbar() {
+interface Props {
+  collapsed: boolean;
+  onToggleSidebar: () => void;
+}
+
+export default function Topbar({ collapsed, onToggleSidebar }: Props) {
   const { currentUser } = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
@@ -31,7 +37,8 @@ export default function Topbar() {
   return (
     <header className="bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md">
       {/* Left */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        <SidebarToggle collapsed={collapsed} onToggle={onToggleSidebar} />
         <MobileSidebar />
       </div>
 

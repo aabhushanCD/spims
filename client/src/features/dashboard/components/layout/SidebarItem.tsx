@@ -2,6 +2,15 @@ import { useId, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { ChevronDown, type LucideIcon } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface SidebarChild {
@@ -14,6 +23,8 @@ interface SidebarItemProps {
   icon: LucideIcon;
   path?: string;
   children?: SidebarChild[];
+  /** Icon-only rail mode on desktop. */
+  collapsed?: boolean;
   /** Called after a navigation link is clicked, e.g. to close the mobile sheet. */
   onNavigate?: () => void;
 }
@@ -32,6 +43,7 @@ export default function SidebarItem({
   icon: Icon,
   path,
   children,
+  collapsed = false,
   onNavigate,
 }: SidebarItemProps) {
   const { pathname } = useLocation();
@@ -45,6 +57,51 @@ export default function SidebarItem({
 
   // Menu with children
   if (children?.length) {
+    if (collapsed) {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={title}
+              className={cn(
+                "flex w-full items-center justify-center rounded-lg px-0 py-2.5 text-sm font-medium transition-colors",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                hasActiveChild ? activeClasses : inactiveClasses,
+              )}
+            >
+              <Icon size={18} aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent side="right" align="start" className="w-48">
+            <DropdownMenuLabel>{title}</DropdownMenuLabel>
+
+            <DropdownMenuSeparator />
+
+            {children.map((child) => {
+              const active = isNavPathActive(pathname, child.path);
+
+              return (
+                <DropdownMenuItem key={child.path} asChild>
+                  <NavLink
+                    to={child.path}
+                    onClick={onNavigate}
+                    className={cn(
+                      "w-full cursor-pointer",
+                      active && "text-emerald-700 dark:text-emerald-300",
+                    )}
+                  >
+                    {child.title}
+                  </NavLink>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
     return (
       <div className="space-y-1">
         <button
@@ -96,22 +153,36 @@ export default function SidebarItem({
   }
 
   // Normal menu item
-  return (
+  const link = (
     <NavLink
       to={path ?? "/"}
       end={path === "/"}
       onClick={onNavigate}
+      aria-label={collapsed ? title : undefined}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+          collapsed && "justify-center px-0 py-2.5",
           isActive ? activeClasses : inactiveClasses,
         )
       }
     >
       <Icon size={18} aria-hidden="true" />
 
-      {title}
+      {!collapsed && <span className="truncate">{title}</span>}
     </NavLink>
+  );
+
+  if (!collapsed) {
+    return link;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+
+      <TooltipContent side="right">{title}</TooltipContent>
+    </Tooltip>
   );
 }
