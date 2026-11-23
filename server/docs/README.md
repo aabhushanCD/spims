@@ -127,7 +127,7 @@ The backend uses a **modular layered architecture** with manual dependency injec
 | Swagger/OpenAPI | Implemented — typed OpenAPI 3.0 spec at `/api-docs/openapi.json`, Swagger UI at `/api-docs`; production requires `ENABLE_API_DOCS=true` and an owner session |
 | Pagination | Implemented — cursor pagination on the main lists |
 | Security headers / audit | Implemented — Helmet, CSRF, lockout, audit log; MFA and OAuth deferred |
-| Automated tests | 80 unit files / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 26 client files / 114 tests |
+| Automated tests | 80 unit files / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder); 30 client files / 122 tests |
 
 ## Conventions used in this documentation
 

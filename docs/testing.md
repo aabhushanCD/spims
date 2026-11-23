@@ -2,16 +2,25 @@
 
 ## Framework
 
-- **Vitest 5.1.1** with the Node environment on both packages.
+- **Vitest 5.1.1**.
 - Server coverage via `@vitest/coverage-v8`.
 - Configuration: `server/vitest.config.ts` and `client/vitest.config.ts`.
-- Tests live next to the code as `*.test.ts`.
+- Server and client pure-logic tests live next to the code as `*.test.ts`.
+- Client component tests use `*.test.tsx` with jsdom, React Testing Library,
+  `user-event`, MSW, and `vitest-axe`:
 
-The frontend harness is intentionally minimal: Node environment, pure logic
-only, no jsdom and no React Testing Library. It covers the notification socket
-URL resolver and the inbox cache updater. Component and hook behaviour is
-verified manually; add jsdom + Testing Library before claiming component
-coverage.
+  ```text
+  client/src/test/setup.ts        # jsdom polyfills, MSW lifecycle, axe matchers
+  client/src/test/render.tsx      # QueryClient + MemoryRouter helpers
+  client/src/test/mocks/server.ts # MSW server
+  ```
+
+  The client Vitest config runs three projects: `unit` (Node, pure logic),
+  `contract` (jsdom, MSW service contracts), and `ui` (jsdom, component tests).
+  Contract tests use jsdom because axios resolves the relative `/api` base URL
+  through the browser adapter. Component tests currently cover payment, user
+  actions, and a shared accessibility surface. Sale, receive, return,
+  stocktake, and adjustment component tests and hook tests remain.
 
 ## Commands
 
@@ -44,9 +53,9 @@ npm run test:watch       # watch mode
 
 ## Current coverage
 
-As of the latest client-parity Phase 5 baseline: **80 server unit test files,
+As of the latest client-parity Phase 7 baseline: **80 server unit test files,
 544 tests** plus **15 integration cases (10 HTTP + 5 migration/seeder)** and
-**26 client test files, 114 tests**, all passing.
+**30 client test files, 122 tests**, all passing.
 Overall statement coverage
 is still modest because the coverage report includes the entire backend
 (controllers, routes, providers, models). Coverage of the targeted business
@@ -153,6 +162,10 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `reportRange.test.ts` (client) | Current-month defaults, exclusive next-day range, invalid ranges, CSV filenames |
 | `userPermissions.test.ts` (client) | Owner-only user management and self-action blocking |
 | `auditQuery.test.ts` (client) | Blank filter omission, audit filter serialization, inclusive day end |
+| `UserStats.test.tsx` (client) | Counts and axe accessibility check |
+| `UserActions.test.tsx` (client) | Owner action menu and self-protection |
+| `RecordPaymentDialog.test.tsx` (client) | Full/overpayment validation and payment payload |
+| `user.service.contract.test.ts` (client) | MSW contract for stats and blank-search omission |
 | `notificationPayload.test.ts` (client) | Template JSON parsing, primitive-value validation, notification-admin role helper |
 | `permissions.test.ts` (client) | Role-aware navigation filtering |
 | `format.test.ts` (client) | Currency, date, and percent formatting |
