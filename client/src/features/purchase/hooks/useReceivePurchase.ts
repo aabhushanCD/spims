@@ -25,6 +25,10 @@ export const useReceivePurchase = () => {
       queryClient.invalidateQueries({
         queryKey: ["batches"],
       });
+
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+      });
     },
   });
 };

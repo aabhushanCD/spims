@@ -14,6 +14,10 @@ export function useCreateMedicine() {
       queryClient.invalidateQueries({
         queryKey: ["medicines"],
       });
+
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+      });
     },
   });
 }

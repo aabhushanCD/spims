@@ -16,6 +16,10 @@ export const useCreatePurchase = () => {
       queryClient.invalidateQueries({
         queryKey: ["purchase-orders"],
       });
+
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+      });
     },
 
     onError: (error) => {

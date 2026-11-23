@@ -14,6 +14,7 @@ export function useCreateSale() {
     mutationFn: (payload: CreateSaleInput) => salesService.createSale(payload),
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: saleKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(`Sale ${sale.invoiceNo} completed`);
     },
     onError: (error) => {
