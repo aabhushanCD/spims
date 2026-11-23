@@ -1,7 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NotificationRecipientRepo } from "../../notification/repo/notificationRecipient.repo.ts";
 import { DashboardService } from "./dashboard.service.ts";
+
+const cacheMocks = vi.hoisted(() => ({
+  getCache: vi.fn(),
+  setCache: vi.fn(),
+}));
+
+vi.mock("../../../shared/provider/redis.provider.ts", () => ({
+  getCache: cacheMocks.getCache,
+  setCache: cacheMocks.setCache,
+}));
 
 function buildService() {
   const salesRepo = {
@@ -206,5 +216,46 @@ describe("DashboardService financial reporting", () => {
       30,
       undefined,
     );
+  });
+});
+
+describe("DashboardService full dashboard bundle", () => {
+  beforeEach(() => {
+    cacheMocks.getCache.mockReset().mockResolvedValue(null);
+    cacheMocks.setCache.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("includes the top five selling medicines", async () => {
+    const { service, saleItemRepo } = buildService();
+    const topSelling = [
+      {
+        medicineId: "medicine-1",
+        medicineName: "Paracetamol",
+        strength: "500mg",
+        totalQuantitySold: 120,
+        totalRevenue: 12500,
+      },
+    ];
+
+    saleItemRepo.getTopSellingMedicines.mockResolvedValue(topSelling);
+
+    const result = await service.getFullDashboard();
+
+    expect(result.topSelling).toEqual(topSelling);
+    expect(saleItemRepo.getTopSellingMedicines).toHaveBeenCalledWith(
+      5,
+      undefined,
+    );
+    expect(cacheMocks.setCache).toHaveBeenCalled();
+  });
+
+  it("returns a cached bundle without recomputing repositories", async () => {
+    const { service, saleItemRepo } = buildService();
+    const cached = { summary: { totalSales: 10 } };
+
+    cacheMocks.getCache.mockResolvedValue(cached);
+
+    await expect(service.getFullDashboard()).resolves.toBe(cached);
+    expect(saleItemRepo.getTopSellingMedicines).not.toHaveBeenCalled();
   });
 });
