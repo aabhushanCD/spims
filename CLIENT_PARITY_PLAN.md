@@ -173,12 +173,10 @@ Paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and r
 
 ### Test coverage today
 
-Per `docs/testing.md`: **26 client test files, 114 tests**, currently pure
-logic and validation tests covering permissions, payload mapping, formatting,
-notification parsing, smart-reorder summary/rules, and purchase flows.
-
-There is still no jsdom, no React Testing Library, and no component/hook
-coverage.
+Per `docs/testing.md`: **30 client test files, 122 tests**, covering pure logic,
+payload/schema validation, MSW service contracts, and component/a11y coverage
+for payment, user, and one shared UI surface. Sale, receive, return, stocktake,
+and adjustment component tests, plus hook tests, remain.
 
 ---
 
@@ -376,16 +374,16 @@ All request `limit=100` and discard `nextCursor`. Only the notification inbox im
 
 #### X-7 — Minimal frontend test harness (P1)
 
-**Evidence**
+**Evidence (pre-Phase 7 state)**
 
-- `docs/testing.md` explicitly states that component/hook coverage does not exist.
-- `client/package.json` has `vitest` but no jsdom/testing-library dependencies.
+- `docs/testing.md` stated that component/hook coverage did not exist.
+- `client/package.json` had `vitest` but no jsdom/testing-library dependencies.
 
 **Fix**
 
-- Add `jsdom`, `@testing-library/react`, `@testing-library/user-event`, and a request mocking layer.
-- Configure a jsdom test environment for component tests while keeping existing pure tests.
-- Add tests in phases 0–7 for each new flow.
+- Add `jsdom`, `@testing-library/react`, `@testing-library/user-event`, and a request mocking layer. *(Done in Phase 7.)*
+- Configure a jsdom test environment for component tests while keeping existing pure tests. *(Done: `unit`, `contract`, and `ui` Vitest projects.)*
+- Add tests in phases 0–7 for each new flow. *(In progress: payment and user flows are covered; sale, receive, return, stocktake, adjustment, and hook tests remain.)*
 
 **Acceptance**
 
@@ -1238,7 +1236,7 @@ npm run build      PASS (Vite chunk-size warning only)
 - Added the owner-only `/audit` page with action/actor/entity/status/date filters, load-more, detail metadata, and public-user actor resolution.
 - Added `GET /users/stats` for aggregate counts and switched user stats to it.
 - Audit rows now include a populated `actor` object, avoiding the first-100 user lookup cap for display.
-- Added a shared server-searched user picker for the audit actor filter, notification recipients, and per-user preferences.
+- Added a shared server-searched user picker used by the audit actor filter and per-user preferences; notification compose uses the shared server-search hook with its multi-select UI.
 - Added `userPermissions.test.ts`, `auditQuery.test.ts`, and a server user-stats test.
 
 Verification:
@@ -1246,7 +1244,7 @@ Verification:
 ```text
 npm run lint       PASS
 npm run typecheck  PASS
-npm test           PASS (server 544 unit + 15 integration; client 114)
+npm test           PASS (server 544 unit + 15 integration; client 122)
 npm run build      PASS (Vite chunk-size warning only)
 ```
 - Audit rows are readable and filterable.
@@ -1258,21 +1256,43 @@ npm run build      PASS (Vite chunk-size warning only)
 **Size:** Medium  
 **Dependencies:** All phases
 
-- [ ] Add jsdom + RTL + user-event + request mocking.
-- [ ] Component tests for sale, receive, return, payment, stocktake, adjustment.
+- [x] Add jsdom + RTL + user-event + request mocking.
+- [ ] Component tests for every critical flow (payment and user actions are covered; sale/receive/return/stocktake/adjustment remain).
 - [ ] Hook tests with `QueryClientProvider`.
-- [ ] Service contract tests.
-- [ ] Optional OpenAPI type generation.
-- [ ] Standardize loading/empty/error/toast states.
-- [ ] Accessibility pass on dialogs/forms.
-- [ ] Responsive table pass.
-- [ ] Remove remaining dead code.
-- [ ] Update `docs/testing.md` and `server/docs/project-status.md`.
+- [x] Service contract tests (user service via MSW).
+- [ ] Optional OpenAPI type generation (deferred).
+- [x] Add shared loading/empty/error state components and apply to key pages.
+- [ ] Accessibility pass on all dialogs/forms (axe added; one surface covered).
+- [ ] Responsive table pass (key tables wrapped; full audit remains).
+- [x] Remove remaining dead code and confirmed-unused dependencies.
+- [x] Update `docs/testing.md` and `server/docs/project-status.md`.
 
 **Exit criteria**
 
 - Critical flows have client tests.
 - Full quality gate passes.
+
+#### Phase 7 implementation notes (2026-11-23)
+
+- Added jsdom, React Testing Library, user-event, MSW, and vitest-axe.
+- Split client Vitest into `unit` (Node), `contract` (jsdom + MSW), and `ui` (jsdom) projects with a shared setup and render helper.
+- Added component tests for payment recording and user actions, plus an axe check on shared user stats.
+- Added MSW contract tests for `GET /users` blank-search handling and `GET /users/stats`; they run in the `contract` project because axios needs the browser adapter for relative URLs.
+- Added shared `EmptyState`, `ErrorState`, and `TableSkeleton` components and applied them to user, inventory, and batch states.
+- Added accessible labels to the user action menu and horizontal wrappers to key tables.
+- Removed unused `SaleDetailsDialog`, `BatchColumns`, and confirmed-unused dependencies.
+- Deferred OpenAPI generation and the remaining exhaustive component/hook/a11y pass.
+- Remaining bundle-size warning is still documented and not suppressed.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 544 unit + 15 integration; client 122)
+npm run build      PASS (Vite chunk-size warning only)
+npm run audit      PASS (0 production vulnerabilities)
+```
 
 ---
 
@@ -1282,11 +1302,11 @@ npm run build      PASS (Vite chunk-size warning only)
 |---|---|---|---|
 | X-1 | Permission model and route guards | 0 | ✅ for existing routes |
 | X-2 | Cursor pagination/load-more | 0 | 🟡 medicines pilot only |
-| X-3 | Type/contract safety | 0/7 | ☐ |
+| X-3 | Type/contract safety | 0/7 | 🟡 MSW contract tests added; OpenAPI types deferred |
 | X-4 | Error/empty/loading/404 | 0/7 | ✅ 404, role guards, error boundary |
 | X-5 | Formatting helpers | 0 | ✅ |
 | X-6 | Remove stubs/dead code/hardcoded data | 0 | ✅ |
-| X-7 | Frontend test harness | 7 | ☐ |
+| X-7 | Frontend test harness | 7 | 🟡 jsdom/RTL/MSW/axe installed; critical-flow and hook coverage incomplete |
 | C-1 | Purchase edit contract | 0 | ✅ |
 | C-2 | FEFO batch selection | 0 | ✅ |
 | C-3 | Batch adjust `remarks` | 0 | ✅ |

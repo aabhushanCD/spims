@@ -12,7 +12,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
+import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
+import TableSkeleton from "@/components/common/TableSkeleton";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 import { UserStats } from "../components/UserStats";
 import { UserTable } from "../components/UserTable";
@@ -92,7 +94,11 @@ const UserPage = () => {
   const list = users.data?.pages.flatMap((page) => page.items) ?? [];
 
   if (users.isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="space-y-6">
+        <TableSkeleton rows={6} columns={6} />
+      </div>
+    );
   }
 
   const runConfirm = () => {
@@ -148,28 +154,38 @@ const UserPage = () => {
       />
 
       {users.isError ? (
-        <div className="text-destructive rounded-lg border p-6 text-center text-sm">
-          {getApiErrorMessage(users.error, "Failed to load users.")}
-        </div>
+        <ErrorState
+          message={getApiErrorMessage(users.error, "Failed to load users.")}
+          onRetry={() => void users.refetch()}
+        />
       ) : (
         <>
-          <UserTable
-            users={list}
-            canManage={canManage}
-            currentUserId={currentUser?._id}
-            onEdit={setEditingUser}
-            onChangeRole={setRoleUser}
-            onResetPassword={(user) =>
-              setConfirmTarget({ action: "reset-password", user })
-            }
-            onForceLogout={(user) =>
-              setConfirmTarget({ action: "force-logout", user })
-            }
-            onToggleActive={(user) =>
-              setConfirmTarget({ action: "toggle", user })
-            }
-            onDelete={(user) => setConfirmTarget({ action: "delete", user })}
-          />
+          {list.length === 0 ? (
+            <EmptyState
+              title="No users found"
+              description="Try a different search or filter."
+            />
+          ) : (
+            <UserTable
+              users={list}
+              canManage={canManage}
+              currentUserId={currentUser?._id}
+              onEdit={setEditingUser}
+              onChangeRole={setRoleUser}
+              onResetPassword={(user) =>
+                setConfirmTarget({ action: "reset-password", user })
+              }
+              onForceLogout={(user) =>
+                setConfirmTarget({ action: "force-logout", user })
+              }
+              onToggleActive={(user) =>
+                setConfirmTarget({ action: "toggle", user })
+              }
+              onDelete={(user) =>
+                setConfirmTarget({ action: "delete", user })
+              }
+            />
+          )}
 
           <div className="flex justify-center">
             <Button

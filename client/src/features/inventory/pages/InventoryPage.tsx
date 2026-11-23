@@ -17,6 +17,8 @@ import { useInventory } from "../hooks/useInventory";
 import type { InventoryItem } from "../types/inventory.types";
 import { useInventoryAnalytics } from "../hooks/useInventoryAnalytics";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import { formatCurrency } from "@/lib/format";
 
 export default function InventoryPage() {
@@ -34,9 +36,10 @@ export default function InventoryPage() {
 
   if (error) {
     return (
-      <div className="text-center text-red-500">
-        Error loading inventory data.
-      </div>
+      <ErrorState
+        message="Error loading inventory data."
+        onRetry={() => void refetch()}
+      />
     );
   }
 
@@ -109,16 +112,16 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {inventory && (
+      {inventory && inventory.data.length > 0 ? (
         <InventoryTable
           inventory={inventory}
           onAction={(item, mode) => setStockAction({ item, mode })}
         />
-      )}
-      {!inventory && (
-        <div className="text-muted-foreground text-center">
-          No inventory data available.
-        </div>
+      ) : (
+        <EmptyState
+          title="No inventory found"
+          description="Try a different search or add stock through purchasing."
+        />
       )}
 
       {stockAction && (
