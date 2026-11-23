@@ -4,22 +4,32 @@ import type {
   CashierSalesRow,
   CategorySalesRow,
   CsvExportType,
+  DashboardMovement,
+  DashboardPayload,
+  DashboardSummary,
+  ExpirySummary,
   InventoryAnalytics,
+  NotificationSummary,
   ProfitSummary,
   PurchaseAnalytics,
   RangeAnalytics,
+  ReorderSummary,
   SalesAnalytics,
+  SalesComparison,
   SupplierAnalytics,
+  SystemHealthSummary,
   TopSellingRow,
 } from "../types/dashboard";
 
-const getDashboard = async () => {
-  const response = await api.get("/dashboard");
+const getDashboard = async (): Promise<ApiResponse<DashboardPayload>> => {
+  const response = await api.get<ApiResponse<DashboardPayload>>("/dashboard");
   return response.data;
 };
 
-const getSummary = async () => {
-  const response = await api.get("/dashboard/summary");
+const getSummary = async (): Promise<ApiResponse<DashboardSummary>> => {
+  const response = await api.get<ApiResponse<DashboardSummary>>(
+    "/dashboard/summary",
+  );
   return response.data;
 };
 
@@ -60,28 +70,40 @@ const getTopSelling = async (limit = 10): Promise<TopSellingRow[]> => {
   return response.data.data;
 };
 
-const getExpiry = async () => {
-  const response = await api.get("/dashboard/expiry");
+const getExpiry = async (): Promise<ApiResponse<ExpirySummary>> => {
+  const response = await api.get<ApiResponse<ExpirySummary>>("/dashboard/expiry");
   return response.data;
 };
 
-const getReorder = async () => {
-  const response = await api.get("/dashboard/reorder");
+const getReorder = async (): Promise<ApiResponse<ReorderSummary>> => {
+  const response = await api.get<ApiResponse<ReorderSummary>>(
+    "/dashboard/reorder",
+  );
   return response.data;
 };
 
-const getNotifications = async () => {
-  const response = await api.get("/dashboard/notifications");
+const getNotifications = async (): Promise<
+  ApiResponse<NotificationSummary>
+> => {
+  const response = await api.get<ApiResponse<NotificationSummary>>(
+    "/dashboard/notifications",
+  );
   return response.data;
 };
 
-const getRecentActivity = async () => {
-  const response = await api.get("/dashboard/recent-activity");
+const getRecentActivity = async (): Promise<
+  ApiResponse<DashboardMovement[]>
+> => {
+  const response = await api.get<ApiResponse<DashboardMovement[]>>(
+    "/dashboard/recent-activity",
+  );
   return response.data;
 };
 
-const getSystemHealth = async () => {
-  const response = await api.get("/dashboard/system-health");
+const getSystemHealth = async (): Promise<ApiResponse<SystemHealthSummary>> => {
+  const response = await api.get<ApiResponse<SystemHealthSummary>>(
+    "/dashboard/system-health",
+  );
   return response.data;
 };
 
@@ -92,8 +114,10 @@ const getSupplierAnalytics = async (): Promise<SupplierAnalytics> => {
   return response.data.data;
 };
 
-const getSalesComparison = async () => {
-  const response = await api.get("/dashboard/sales-comparison");
+const getSalesComparison = async (): Promise<ApiResponse<SalesComparison>> => {
+  const response = await api.get<ApiResponse<SalesComparison>>(
+    "/dashboard/sales-comparison",
+  );
   return response.data;
 };
 

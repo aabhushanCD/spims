@@ -2,8 +2,9 @@ import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/format";
 
-import type { DashboardStat } from "@/types/dashboard";
+import type { DashboardStat } from "../types/dashboard";
 
 interface Props {
   stat: DashboardStat;
@@ -13,6 +14,9 @@ export default function StatsCard({ stat }: Props) {
   const Icon = stat.icon;
 
   const positive = stat.change >= 0;
+  const displayValue = stat.prefix?.includes("Rs.")
+    ? formatCurrency(stat.value)
+    : stat.value.toLocaleString();
 
   return (
     <motion.div
@@ -31,10 +35,7 @@ export default function StatsCard({ stat }: Props) {
               <p className="text-muted-foreground text-sm">{stat.title}</p>
 
               <h2 className="mt-4 text-3xl font-bold">
-                {stat.prefix}
-
-                {stat.value}
-
+                {displayValue}
                 {stat.suffix}
               </h2>
 

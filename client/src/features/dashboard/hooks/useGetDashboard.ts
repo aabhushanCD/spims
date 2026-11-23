@@ -5,6 +5,11 @@ export const useGetDashboard = () => {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: dashboardService.getDashboard,
+    // The server caches the dashboard bundle for 60s and invalidates it on
+    // every sale/purchase/stock/reorder write, so client-side staleness only
+    // delays post-mutation freshness without saving a database round-trip.
+    staleTime: 0,
+    retry: 1,
   });
 };
 

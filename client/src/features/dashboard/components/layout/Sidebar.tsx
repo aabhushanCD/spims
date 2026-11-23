@@ -5,7 +5,7 @@ import { sidebarItems } from "../../data/sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import SidebarItem from "@/components/dashboard/SidebarItem";
+import SidebarItem from "./SidebarItem";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuth } from "@/features/auth/context/authContext";
 import { filterNavigation } from "@/lib/permissions";

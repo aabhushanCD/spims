@@ -2,6 +2,12 @@
 
 import type { LucideIcon } from "lucide-react";
 
+export interface MonthlySalesPoint {
+  month: number;
+  total: number;
+  count: number;
+}
+
 export interface DashboardSummary {
   totalSales: number;
   totalPurchases: number;
@@ -11,6 +17,7 @@ export interface DashboardSummary {
   lowStockCount: number;
   outOfStockCount: number;
   expiringSoonCount: number;
+  revenueTrend: MonthlySalesPoint[];
 }
 
 export interface DashboardStat {
@@ -72,12 +79,6 @@ export interface SupplierAnalytics {
   total: number;
 }
 
-export interface MonthlySalesPoint {
-  month: number;
-  total: number;
-  count: number;
-}
-
 export interface SalesAnalytics {
   year: number;
   totalSales: number;
@@ -104,3 +105,73 @@ export interface InventoryAnalytics {
 }
 
 export type CsvExportType = "sales" | "purchases" | "returns" | "inventory";
+
+export type MovementType =
+  | "PURCHASE"
+  | "SALE"
+  | "RETURN"
+  | "ADJUSTMENT"
+  | "EXPIRED"
+  | "RESERVE"
+  | "RELEASE"
+  | "PURCHASE_RETURN";
+
+export interface DashboardMovement {
+  _id: string;
+  movementType: MovementType;
+  quantity: number;
+  remarks: string;
+  createdAt: string;
+}
+
+export interface ReorderSummary {
+  pendingCount: number;
+  highConfidenceCount: number;
+  totalSuggestedUnits: number;
+}
+
+export interface ExpirySummary {
+  batchesAwaitingDisposal: number;
+  unitsAwaitingDisposal: number;
+  expiringSoonCount: number;
+}
+
+export type BackgroundJobStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "FAILED";
+
+export interface SystemHealthSummary {
+  staleJobCount: number;
+  staleJobs: Array<{
+    jobName: string;
+    startedAt: string;
+    status: BackgroundJobStatus;
+  }>;
+}
+
+export interface NotificationSummary {
+  failedDeliveries: number;
+  pendingDeliveries: number;
+  skippedDeliveries: number;
+}
+
+export interface SalesComparison {
+  thisMonth: number;
+  lastMonth: number;
+  /** null when the previous month had no sales, so no baseline exists. */
+  percentChange: number | null;
+}
+
+/** Everything returned by `GET /dashboard` in a single cached payload. */
+export interface DashboardPayload {
+  summary: DashboardSummary;
+  reorder: ReorderSummary;
+  expiry: ExpirySummary;
+  recentActivity: DashboardMovement[];
+  systemHealth: SystemHealthSummary;
+  notifications: NotificationSummary;
+  profit: ProfitSummary;
+  salesComparison: SalesComparison;
+}

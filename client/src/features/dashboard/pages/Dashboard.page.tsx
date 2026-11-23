@@ -1,25 +1,18 @@
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import StatsGrid from "@/components/dashboard/StatsGrid";
-import RevenueChart from "@/components/dashboard/RevenueChart";
-
-import InventoryHealth from "@/components/dashboard/InventoryHealth";
-// import RecentSales from "@/components/dashboard/RecentSales";
-// import LowStockMedicines from "@/components/dashboard/LowStockMedicines";
-// import ExpiringMedicines from "@/components/dashboard/ExpiringMedicines";
-import QuickActions from "@/components/dashboard/QuickActions";
-import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
+import ActivityTimeline from "../components/ActivityTimeline";
+import DashboardHeader from "../components/DashboardHeader";
+import InventoryHealth from "../components/InventoryHealth";
+import QuickActions from "../components/QuickActions";
+import RevenueChart from "../components/RevenueChart";
+import StatsGrid from "../components/StatsGrid";
 import NotificationsPanel from "@/features/notification/components/NotificationsPanel";
-import { useAuth } from "@/features/auth/context/authContext";
 import { useGetDashboard } from "../hooks/useGetDashboard";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
-// import { ReorderSummary } from "@/features/smart/components/ReorderSummary";
 import { ReorderRecommendationCard } from "@/features/smart/components/ReorderRecommendationCard";
 import { useGetRecommendations } from "@/features/smart/hooks/useSmartQuery";
 
 export default function Dashboard() {
   const { data, isLoading, isError } = useGetDashboard();
   const recommendations = useGetRecommendations(); // Fetch recommendations using the custom hook
-  const { theme } = useAuth();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -32,10 +25,14 @@ export default function Dashboard() {
       </div>
     );
   }
-  const dashboard = data.data;
+  const dashboard = data?.data;
+
+  if (!dashboard) {
+    return <LoadingSpinner />;
+  }
 
   return (
-    <div className={`space-y-8 ${theme === "dark" ? "dark" : ""}`}>
+    <div className="space-y-8">
       {/* Header */}
       <DashboardHeader />
 
@@ -56,10 +53,6 @@ export default function Dashboard() {
 
       {/* Sales + Stock */}
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* <LowStockMedicines
-        // summary={dashboard.summary}
-        // reorder={dashboard.reorder}
-        /> */}
         <InventoryHealth
           summary={dashboard.summary}
           reorder={dashboard.reorder}
@@ -68,19 +61,9 @@ export default function Dashboard() {
         <QuickActions />
       </section>
 
-      {/* Expiry + Actions */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        {/* <ExpiringMedicines
-        //  expiry={dashboard.expiry}
-        /> */}
-      </section>
-
       {/* Activity */}
       <section className="grid gap-6 lg:grid-cols-2">
         <ActivityTimeline activities={dashboard.recentActivity} />
-        {/* <RecentSales
-        // activities={dashboard.recentActivity}
-        /> */}
         <NotificationsPanel />
       </section>
     </div>
