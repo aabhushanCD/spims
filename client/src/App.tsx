@@ -6,7 +6,11 @@ import { ToastContainer } from "react-toastify";
 function App() {
   const { theme } = useAuth();
   return (
-    <div className={` ${theme === "dark" ? "dark" : ""}`}>
+    <div
+      className={`bg-background text-foreground min-h-screen ${
+        theme === "dark" ? "dark" : ""
+      }`}
+    >
       <ToastContainer />
       <ErrorBoundary>
         <AppRoutes />
