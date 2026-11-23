@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Loader2, Search } from "lucide-react";
+import { useDeferredValue, useState } from "react";
+import { Loader2, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useGetAllUsers } from "@/features/user/hooks/useUser";
+import { useUserSearch } from "@/features/user/hooks/useUser";
+import type { User } from "@/features/user/types/user.types";
 import { useNotificationTemplates } from "@/features/notificationTemplate/hooks/useNotificationTemplates";
 import { parseTemplateData } from "../lib/notificationPayload";
 import { useCreateAdminNotification } from "../hooks/useNotificationAdmin";
@@ -34,7 +35,6 @@ const channels: NotificationChannel[] = ["InApp", "Email", "SMS"];
 export default function ComposeNotificationDialog({
   onOpenChange,
 }: Props) {
-  const users = useGetAllUsers();
   const templates = useNotificationTemplates();
   const create = useCreateAdminNotification();
 
@@ -44,24 +44,17 @@ export default function ComposeNotificationDialog({
   const [type, setType] = useState<NotificationChannel>("InApp");
   const [templateKey, setTemplateKey] = useState("");
   const [templateData, setTemplateData] = useState("{}");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<User[]>([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const deferredSearch = useDeferredValue(search);
+  const userResults = useUserSearch(deferredSearch);
 
-  const filteredUsers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const list = users.data ?? [];
-    if (!query) return list;
-    return list.filter((user) =>
-      `${user.name} ${user.email}`.toLowerCase().includes(query),
-    );
-  }, [search, users.data]);
-
-  function toggleUser(id: string) {
+  function toggleUser(user: User) {
     setSelected((current) =>
-      current.includes(id)
-        ? current.filter((userId) => userId !== id)
-        : [...current, id],
+      current.some((entry) => entry._id === user._id)
+        ? current.filter((entry) => entry._id !== user._id)
+        : [...current, user],
     );
   }
 
@@ -95,7 +88,7 @@ export default function ComposeNotificationDialog({
     create.mutate(
       {
         type,
-        userIds: selected,
+        userIds: selected.map((user) => user._id),
         ...(mode === "template"
           ? {
               templateKey,
@@ -211,6 +204,27 @@ export default function ComposeNotificationDialog({
 
           <div className="space-y-2">
             <Label>Recipients ({selected.length})</Label>
+
+            {selected.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selected.map((user) => (
+                  <span
+                    key={user._id}
+                    className="bg-muted flex items-center gap-1 rounded-full px-2 py-1 text-xs"
+                  >
+                    {user.name}
+                    <button
+                      type="button"
+                      onClick={() => toggleUser(user)}
+                      aria-label={`Remove ${user.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="relative">
               <Search className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
               <Input
@@ -221,22 +235,34 @@ export default function ComposeNotificationDialog({
               />
             </div>
             <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border p-2">
-              {filteredUsers.map((user) => (
-                <label
-                  key={user._id}
-                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(user._id)}
-                    onChange={() => toggleUser(user._id)}
-                  />
-                  <span className="font-medium">{user.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {user.email}
-                  </span>
-                </label>
-              ))}
+              {userResults.isLoading ? (
+                <p className="text-muted-foreground px-2 py-2 text-sm">
+                  Loading users...
+                </p>
+              ) : (userResults.data?.items.length ?? 0) === 0 ? (
+                <p className="text-muted-foreground px-2 py-2 text-sm">
+                  No users found.
+                </p>
+              ) : (
+                userResults.data?.items.map((user) => (
+                  <label
+                    key={user._id}
+                    className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.some(
+                        (entry) => entry._id === user._id,
+                      )}
+                      onChange={() => toggleUser(user)}
+                    />
+                    <span className="font-medium">{user.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {user.email}
+                    </span>
+                  </label>
+                ))
+              )}
             </div>
           </div>
 
