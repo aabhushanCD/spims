@@ -1,6 +1,7 @@
 import { useDeferredValue, useState } from "react";
 
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import ErrorState from "@/components/common/ErrorState";
 import PageHeader from "@/components/common/PageToolbar";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
@@ -114,9 +115,10 @@ const BatchPage = () => {
       </div>
 
       {active.isError ? (
-        <div className="text-destructive rounded-lg border p-6 text-center text-sm">
-          {getApiErrorMessage(active.error, "Failed to load batches.")}
-        </div>
+        <ErrorState
+          message={getApiErrorMessage(active.error, "Failed to load batches.")}
+          onRetry={() => void active.refetch()}
+        />
       ) : (
         <BatchTable
           batches={batches}
