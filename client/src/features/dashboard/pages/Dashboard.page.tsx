@@ -1,3 +1,4 @@
+import ActionCenter from "../components/ActionCenter";
 import ActivityTimeline from "../components/ActivityTimeline";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardSkeleton from "../components/DashboardSkeleton";
@@ -6,6 +7,8 @@ import OnboardingChecklist from "../components/OnboardingChecklist";
 import QuickActions from "../components/QuickActions";
 import RevenueChart from "../components/RevenueChart";
 import StatsGrid from "../components/StatsGrid";
+import SystemHealthBanner from "../components/SystemHealthBanner";
+import TopSellingCard from "../components/TopSellingCard";
 import ErrorState from "@/components/common/ErrorState";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 import NotificationsPanel from "@/features/notification/components/NotificationsPanel";
@@ -73,6 +76,15 @@ export default function Dashboard() {
     <div className="space-y-8">
       {header}
 
+      <ActionCenter
+        summary={dashboard.summary}
+        expiry={dashboard.expiry}
+        reorder={dashboard.reorder}
+        notifications={dashboard.notifications}
+      />
+
+      <SystemHealthBanner systemHealth={dashboard.systemHealth} />
+
       <StatsGrid
         summary={dashboard.summary}
         profit={dashboard.profit}
@@ -99,14 +111,12 @@ export default function Dashboard() {
       </section>
 
       <section
-        aria-label="Stock health and shortcuts"
-        className="grid gap-6 lg:grid-cols-2"
+        aria-label="Stock health, shortcuts and top selling medicines"
+        className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
       >
-        <InventoryHealth
-          summary={dashboard.summary}
-          expiry={dashboard.expiry}
-        />
+        <InventoryHealth summary={dashboard.summary} expiry={dashboard.expiry} />
         <QuickActions />
+        <TopSellingCard topSelling={dashboard.topSelling} />
       </section>
 
       <section
