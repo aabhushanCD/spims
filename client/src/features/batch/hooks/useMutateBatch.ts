@@ -15,6 +15,7 @@ function useInvalidateBatch() {
 
   return (id?: string, _variables?: unknown) => {
     queryClient.invalidateQueries({ queryKey: batchKeys.all });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     if (id) {
       queryClient.invalidateQueries({ queryKey: batchKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: batchKeys.history(id) });

@@ -1,89 +1,73 @@
-import StatsCard from "./StatsCard";
+import { DollarSign, TrendingUp, Truck, Warehouse } from "lucide-react";
+
+import { formatPercent } from "@/lib/format";
+
 import type {
   DashboardStat,
   DashboardSummary,
-} from "@/features/dashboard/types/dashboard";
-import {
-  AlertTriangle,
-  Clock,
-  DollarSign,
-  Package,
-  ShoppingCart,
-  Truck,
-  Warehouse,
-  XCircle,
-} from "lucide-react";
+  ProfitSummary,
+  SalesComparison,
+} from "../types/dashboard";
+import StatsCard from "./StatsCard";
 
 interface Props {
   summary: DashboardSummary;
+  profit: ProfitSummary;
+  salesComparison: SalesComparison;
 }
 
-export default function StatsGrid({ summary }: Props) {
+export default function StatsGrid({ summary, profit, salesComparison }: Props) {
+  const change = salesComparison.percentChange;
+
   const stats: DashboardStat[] = [
     {
-      title: "Total Sales",
+      title: "Sales this month",
       value: summary.totalSales,
       prefix: "Rs. ",
-      change: 0,
+      change,
+      hint:
+        change === null ? "No prior month to compare" : "vs last month",
       icon: DollarSign,
-      color: "bg-green-500",
+      iconClassName:
+        "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+      href: "/sales",
     },
     {
-      title: "Purchases",
-      value: summary.totalPurchases,
+      title: "Gross profit",
+      value: profit.grossProfit,
       prefix: "Rs. ",
-      change: 0,
-      icon: ShoppingCart,
-      color: "bg-blue-500",
+      hint: `Margin ${formatPercent(profit.marginPercent)}`,
+      icon: TrendingUp,
+      iconClassName:
+        "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300",
+      href: "/reports",
     },
     {
-      title: "Inventory Value",
+      title: "Inventory value",
       value: summary.totalInventoryValue,
       prefix: "Rs. ",
-      change: 0,
+      hint: `${summary.totalMedicineBatches.toLocaleString()} batches on hand`,
       icon: Warehouse,
-      color: "bg-purple-500",
+      iconClassName:
+        "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300",
+      href: "/stock",
     },
     {
-      title: "Medicine Batches",
-      value: summary.totalMedicineBatches,
-      prefix: "",
-      change: 0,
-      icon: Package,
-      color: "bg-indigo-500",
-    },
-    {
-      title: "Suppliers",
+      title: "Active suppliers",
       value: summary.activeSuppliers,
-      change: 0,
+      hint: "View supplier list",
       icon: Truck,
-      color: "bg-cyan-500",
-    },
-    {
-      title: "Low Stock",
-      value: summary.lowStockCount,
-      change: 0,
-      icon: AlertTriangle,
-      color: "bg-orange-500",
-    },
-    {
-      title: "Out Of Stock",
-      value: summary.outOfStockCount,
-      change: 0,
-      icon: XCircle,
-      color: "bg-red-500",
-    },
-    {
-      title: "Expiring Soon",
-      value: summary.expiringSoonCount,
-      change: 0,
-      icon: Clock,
-      color: "bg-yellow-500",
+      iconClassName:
+        "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300",
+      href: "/suppliers",
     },
   ];
 
   return (
-    <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+    <section
+      aria-label="Key performance indicators"
+      className="grid gap-6 md:grid-cols-2 xl:grid-cols-4"
+    >
       {stats.map((stat) => (
         <StatsCard key={stat.title} stat={stat} />
       ))}

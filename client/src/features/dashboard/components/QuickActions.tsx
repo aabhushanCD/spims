@@ -1,129 +1,113 @@
 import {
-  Pill,
-  ShoppingCart,
-  Receipt,
-  Truck,
-  UserPlus,
   ArrowRight,
   BarChart3,
+  Boxes,
+  ClipboardList,
+  PackageSearch,
+  Truck,
+  Users,
 } from "lucide-react";
-
-import { motion } from "framer-motion";
+import { Link } from "react-router";
 
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 
-import { Link } from "react-router";
-import { useAuth } from "@/features/auth/context/authContext";
-import { canAccess, type Role } from "@/lib/permissions";
-
-interface QuickAction {
+interface Shortcut {
   title: string;
   description: string;
-  icon: typeof Pill;
+  icon: typeof Boxes;
   href: string;
-  roles?: readonly Role[];
 }
 
-const actions: QuickAction[] = [
+const shortcuts: Shortcut[] = [
   {
-    title: "Add Medicine",
-    description: "Create new medicine entry",
-    icon: Pill,
-    href: "/medicines",
+    title: "Stock overview",
+    description: "Check inventory levels",
+    icon: Boxes,
+    href: "/stock",
   },
   {
-    title: "New Purchase",
-    description: "Create purchase order",
-    icon: ShoppingCart,
-    href: "/purchase-orders",
+    title: "Batches",
+    description: "Track expiry and batches",
+    icon: PackageSearch,
+    href: "/batches",
   },
   {
-    title: "New Sale",
-    description: "Generate sales invoice",
-    icon: Receipt,
-    href: "/sales",
+    title: "Reorder queue",
+    description: "Review smart suggestions",
+    icon: ClipboardList,
+    href: "/smart-reorders",
   },
   {
-    title: "Add Supplier",
-    description: "Register supplier",
+    title: "Customers",
+    description: "Manage customer records",
+    icon: Users,
+    href: "/customers",
+  },
+  {
+    title: "Suppliers",
+    description: "Manage supplier accounts",
     icon: Truck,
     href: "/suppliers",
   },
   {
-    title: "Add User",
-    description: "Create staff account",
-    icon: UserPlus,
-    href: "/users",
-    roles: ["owner"],
-  },
-  {
-    title: "View Reports",
-    description: "Sales, profit, and inventory analytics",
+    title: "Reports",
+    description: "Sales and profit analytics",
     icon: BarChart3,
     href: "/reports",
   },
 ];
 
 export default function QuickActions() {
-  const { currentUser } = useAuth();
-  const visibleActions = actions.filter((action) =>
-    canAccess(currentUser?.role, action.roles),
-  );
-
   return (
     <Card className="shadow-md">
       <CardHeader>
-        <CardTitle>Quick Actions</CardTitle>
+        <CardTitle>Shortcuts</CardTitle>
 
-        <CardDescription>Frequently used operations</CardDescription>
+        <CardDescription>Jump to common areas</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        {visibleActions.map((action) => {
-          const Icon = action.icon;
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {shortcuts.map((shortcut) => {
+            const Icon = shortcut.icon;
 
-          return (
-            <motion.div
-              key={action.title}
-              whileHover={{
-                x: 5,
-              }}
-              transition={{
-                duration: 0.2,
-              }}
-            >
-              <Link to={action.href}  className="group hover:bg-muted flex h-auto w-full items-center justify-between rounded-xl border p-4">
-               
-               
-        
-                <div className="flex items-center gap-4">
-                  <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700">
-                    <Icon size={20} />
+            return (
+              <Link
+                key={shortcut.title}
+                to={shortcut.href}
+                className="group hover:bg-muted/60 focus-visible:ring-ring flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="rounded-lg bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                    <Icon size={18} aria-hidden="true" />
                   </div>
 
-                  <div className="text-left">
-                    <p className="font-semibold">{action.title}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {shortcut.title}
+                    </p>
 
-                    <p className="text-muted-foreground text-xs">
-                      {action.description}
+                    <p className="text-muted-foreground truncate text-xs">
+                      {shortcut.description}
                     </p>
                   </div>
                 </div>
 
                 <ArrowRight
-                  size={18}
-                  className="opacity-0 transition group-hover:opacity-100"
+                  size={16}
+                  className="text-muted-foreground shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  aria-hidden="true"
                 />
               </Link>
-            </motion.div>
-          );
-        })}
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

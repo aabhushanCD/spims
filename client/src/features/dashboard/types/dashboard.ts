@@ -23,11 +23,16 @@ export interface DashboardSummary {
 export interface DashboardStat {
   title: string;
   value: number;
-  change: number;
+  /** Percent change against the previous period. Null/absent hides the badge. */
+  change?: number | null;
+  /** Context shown under the value, e.g. "vs last month" or a margin. */
+  hint?: string;
   prefix?: string;
   suffix?: string;
   icon: LucideIcon;
-  color: string;
+  iconClassName: string;
+  /** Optional destination when the whole card is clickable. */
+  href?: string;
 }
 
 export interface ProfitSummary {

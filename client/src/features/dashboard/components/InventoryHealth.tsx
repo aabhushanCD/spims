@@ -1,141 +1,136 @@
-import { Package, AlertTriangle, Clock3, XCircle } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  PackageX,
+  XCircle,
+} from "lucide-react";
+import { Link } from "react-router";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
-import { Progress } from "@/components/ui/progress";
+import type { DashboardSummary, ExpirySummary } from "../types/dashboard";
 
 interface Props {
-  summary: {
-    totalMedicineBatches: number;
-    lowStockCount: number;
-    outOfStockCount: number;
-    expiringSoonCount: number;
-  };
-
-  reorder: {
-    pendingCount: number;
-    highConfidenceCount: number;
-    totalSuggestedUnits: number;
-  };
-
-  expiry: {
-    batchesAwaitingDisposal: number;
-    unitsAwaitingDisposal: number;
-    expiringSoonCount: number;
-  };
+  summary: Pick<
+    DashboardSummary,
+    "totalMedicineBatches" | "lowStockCount" | "outOfStockCount"
+  >;
+  expiry: ExpirySummary;
 }
 
-export default function InventoryHealth({ summary, reorder, expiry }: Props) {
-  const issues =
-    summary.lowStockCount + summary.outOfStockCount + expiry.expiringSoonCount;
-
-  const health = Math.max(0, 100 - issues * 5);
-
-  const inventoryData = [
+export default function InventoryHealth({ summary, expiry }: Props) {
+  const alerts = [
     {
-      title: "Medicine Batches",
-      value: summary.totalMedicineBatches,
-      icon: Package,
-      description: "Available batches",
-    },
-    {
-      title: "Low Stock",
+      title: "Low stock",
       value: summary.lowStockCount,
-      icon: AlertTriangle,
       description: "Need restocking",
+      href: "/stock",
+      icon: AlertTriangle,
+      iconClassName:
+        "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
     },
     {
-      title: "Expiring Soon",
-      value: expiry.expiringSoonCount,
-      icon: Clock3,
-      description: "Within 30 days",
-    },
-    {
-      title: "Out of Stock",
+      title: "Out of stock",
       value: summary.outOfStockCount,
+      description: "Unavailable to sell",
+      href: "/stock",
       icon: XCircle,
-      description: "Unavailable",
+      iconClassName:
+        "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+    },
+    {
+      title: "Expiring soon",
+      value: expiry.expiringSoonCount,
+      description: "Within 30 days",
+      href: "/batches",
+      icon: Clock3,
+      iconClassName:
+        "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
+    },
+    {
+      title: "Awaiting disposal",
+      value: expiry.batchesAwaitingDisposal,
+      description: `${expiry.unitsAwaitingDisposal.toLocaleString()} units to dispose`,
+      href: "/batches",
+      icon: PackageX,
+      iconClassName:
+        "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
     },
   ];
 
-  const status =
-    health >= 90 ? "Healthy" : health >= 70 ? "Warning" : "Critical";
+  const totalAlerts = alerts.reduce((sum, alert) => sum + alert.value, 0);
 
   return (
     <Card className="shadow-md">
       <CardHeader>
-        <CardTitle>Inventory Health</CardTitle>
+        <CardTitle>Stock health</CardTitle>
+
+        <CardDescription>
+          {summary.totalMedicineBatches.toLocaleString()} batches on hand
+        </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        {/* Progress section */}
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold">{health}%</p>
-
-              <p className="text-muted-foreground text-sm">Healthy inventory</p>
-            </div>
-
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-              {status}
-            </span>
+      <CardContent>
+        {totalAlerts === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <CheckCircle2
+              className="h-9 w-9 text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
+            <p className="font-medium">All stock healthy</p>
+            <p className="text-muted-foreground text-sm">
+              No low-stock, expiry, or disposal items right now.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-2">
+              <Link to="/stock">Review stock</Link>
+            </Button>
           </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {alerts.map((alert) => {
+              const Icon = alert.icon;
 
-          <Progress value={health} className="h-3" />
-        </div>
+              return (
+                <Link
+                  key={alert.title}
+                  to={alert.href}
+                  className="bg-muted/30 hover:bg-muted/60 focus-visible:ring-ring group rounded-xl border p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className={`rounded-lg p-2 ${alert.iconClassName}`}>
+                      <Icon size={18} aria-hidden="true" />
+                    </div>
 
-        {/* Stats */}
-
-        <div className="grid grid-cols-2 gap-4">
-          {inventoryData.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <motion.div
-                key={item.title}
-
-                whileHover={{
-                  scale: 1.03,
-                }}
-
-                className="bg-muted/30 rounded-xl border p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="bg-background rounded-lg p-2 shadow-sm">
-                    <Icon size={20} />
+                    <ArrowUpRight
+                      size={16}
+                      className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-hidden="true"
+                    />
                   </div>
-                </div>
 
-                <p className="mt-4 text-2xl font-bold">{item.value}</p>
+                  <p className="mt-4 text-2xl font-bold">
+                    {alert.value.toLocaleString()}
+                  </p>
 
-                <p className="text-sm font-medium">{item.title}</p>
+                  <p className="text-sm font-medium">{alert.title}</p>
 
-                <p className="text-muted-foreground mt-1 text-xs">
-                  {item.description}
-                </p>
-              </motion.div>
-            );
-          })}
-        </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span>Pending Reorders</span>
-            <span>{reorder.pendingCount}</span>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {alert.description}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
-
-          <div className="flex justify-between">
-            <span>High Confidence</span>
-            <span>{reorder.highConfidenceCount}</span>
-          </div>
-
-          <div className="flex justify-between">
-            <span>Awaiting Disposal</span>
-            <span>{expiry.batchesAwaitingDisposal}</span>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

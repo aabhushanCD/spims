@@ -9,6 +9,10 @@ export const useCreateSupplier = () => {
       queryClient.invalidateQueries({
         queryKey: ["suppliers"],
       });
+
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard"],
+      });
     },
   });
 };
