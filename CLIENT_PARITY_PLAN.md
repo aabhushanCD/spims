@@ -173,7 +173,7 @@ Paginated list endpoints accept `cursor` and `limit` (default 20, max 100) and r
 
 ### Test coverage today
 
-Per `docs/testing.md`: **24 client test files, 109 tests**, currently pure
+Per `docs/testing.md`: **26 client test files, 114 tests**, currently pure
 logic and validation tests covering permissions, payload mapping, formatting,
 notification parsing, smart-reorder summary/rules, and purchase flows.
 
@@ -1161,7 +1161,7 @@ Verification:
 ```text
 npm run lint       PASS
 npm run typecheck  PASS
-npm test           PASS (server 543 unit + 15 integration; client 105)
+npm test           PASS (server 544 unit + 15 integration; client 105)
 npm run build      PASS (Vite chunk-size warning only)
 ```
 
@@ -1203,7 +1203,7 @@ Verification:
 ```text
 npm run lint       PASS
 npm run typecheck  PASS
-npm test           PASS (server 543 unit + 15 integration; client 109)
+npm test           PASS (server 544 unit + 15 integration; client 109)
 npm run build      PASS (Vite chunk-size warning only)
 ```
 
@@ -1214,19 +1214,41 @@ npm run build      PASS (Vite chunk-size warning only)
 **Size:** Medium  
 **Dependencies:** Phase 0
 
-- [ ] User edit dialog.
-- [ ] Role change.
-- [ ] Delete user.
-- [ ] Admin reset-password.
-- [ ] Force-logout.
-- [ ] Search/filter/pagination.
-- [ ] Real user stats.
-- [ ] Audit log page (owner only).
-- [ ] Tests for role change/self-protection.
+- [x] User edit dialog.
+- [x] Role change.
+- [x] Delete user.
+- [x] Admin reset-password.
+- [x] Force-logout.
+- [x] Search/filter/pagination.
+- [x] Real user stats.
+- [x] Audit log page (owner only).
+- [x] Tests for role change/self-protection.
 
 **Exit criteria**
 
 - User administration matches server rules.
+
+#### Phase 6 implementation notes (2026-11-22)
+
+- Replaced the divergent user type with the server's public-user shape.
+- Added server-side user search/role/status filters and cursor load-more.
+- Added edit-profile, role-change, reset-password, force-logout, activation, and hard-delete actions.
+- Self-destructive actions are hidden for the signed-in user.
+- User stats use the global active/inactive endpoints.
+- Added the owner-only `/audit` page with action/actor/entity/status/date filters, load-more, detail metadata, and public-user actor resolution.
+- Added `GET /users/stats` for aggregate counts and switched user stats to it.
+- Audit rows now include a populated `actor` object, avoiding the first-100 user lookup cap for display.
+- Added a shared server-searched user picker for the audit actor filter, notification recipients, and per-user preferences.
+- Added `userPermissions.test.ts`, `auditQuery.test.ts`, and a server user-stats test.
+
+Verification:
+
+```text
+npm run lint       PASS
+npm run typecheck  PASS
+npm test           PASS (server 544 unit + 15 integration; client 114)
+npm run build      PASS (Vite chunk-size warning only)
+```
 - Audit rows are readable and filterable.
 
 ---
@@ -1287,8 +1309,8 @@ npm run build      PASS (Vite chunk-size warning only)
 | D-11 | Smart reorder actions | 4 | ✅ |
 | D-12 | Notification admin/templates | 4 | ✅ |
 | D-13 | Reporting/CSV | 5 | ✅ |
-| D-14 | User administration | 6 | ☐ |
-| D-15 | Audit log | 6 | ☐ |
+| D-14 | User administration | 6 | ✅ |
+| D-15 | Audit log | 6 | ✅ |
 | D-16 | Medicine search/barcode | 2 | ✅ lookup (camera deferred) |
 | D-17 | Sale filters/update | 1/5 | ☐ |
 

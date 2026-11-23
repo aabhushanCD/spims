@@ -175,6 +175,12 @@ export const sidebarItems: NavItem[] = [
         title: "Templates",
         path: "/notification-templates",
       },
+
+      {
+        title: "Audit Log",
+        path: "/audit",
+        roles: ["owner"],
+      },
     ],
   },
 ];

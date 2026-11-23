@@ -21,6 +21,7 @@ import InventoryMovementsPage from "@/features/inventory/pages/InventoryMovement
 import ReconciliationPage from "@/features/inventory/pages/ReconciliationPage";
 import ReorderRecommendationsPage from "@/features/smart/pages/ReorderRecommendationsPage";
 import ReportsPage from "@/features/report/pages/ReportsPage";
+import AuditLogPage from "@/features/audit/pages/AuditLogPage";
 import MedicinePage from "@/features/medicine/pages/Medicine.page";
 import NotificationsPage from "@/features/notification/pages/NotificationsPage";
 import NotificationAdminPage from "@/features/notification/pages/NotificationAdminPage";
@@ -102,6 +103,14 @@ export default function AppRoutes() {
           <Route
             path="/smart-reorders"
             element={<ReorderRecommendationsPage />}
+          />
+          <Route
+            path="/audit"
+            element={
+              <RequireRole allowedRoles={["owner"]}>
+                <AuditLogPage />
+              </RequireRole>
+            }
           />
           <Route
             path="/stocktakes"

@@ -10,16 +10,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
-import { useGetAllUsers } from "@/features/user/hooks/useUser";
+import UserSearchSelect from "@/features/user/components/UserSearchSelect";
+import type { User } from "@/features/user/types/user.types";
 import { notificationService } from "../services/notification.service";
 
 interface Props {
@@ -29,8 +23,7 @@ interface Props {
 export default function UserNotificationPreferencesDialog({
   onOpenChange,
 }: Props) {
-  const [userId, setUserId] = useState("");
-  const users = useGetAllUsers();
+  const [user, setUser] = useState<User | null>(null);
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -42,21 +35,10 @@ export default function UserNotificationPreferencesDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>User</Label>
-            <Select value={userId} onValueChange={setUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select user" />
-              </SelectTrigger>
-              <SelectContent>
-                {users.data?.map((user) => (
-                  <SelectItem key={user._id} value={user._id}>
-                    {user.name} ({user.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <UserSearchSelect selected={user} onChange={setUser} />
           </div>
 
-          {userId && <PreferenceForm key={userId} userId={userId} />}
+          {user && <PreferenceForm key={user._id} userId={user._id} />}
         </div>
       </DialogContent>
     </Dialog>

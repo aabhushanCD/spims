@@ -1,5 +1,3 @@
-// UserTable.tsx
-
 import {
   Table,
   TableBody,
@@ -10,74 +8,93 @@ import {
 } from "@/components/ui/table";
 
 import { UserRoleBadge } from "./UserRoleBadge";
-
 import { UserStatusBadge } from "./UserStatusBadge";
-
 import { UserActions } from "./UserActions";
-import type { User } from "@/features/auth/context/authContext";
+import { formatDateTime } from "@/lib/format";
+import { canActOnUser } from "../lib/userPermissions";
+import type { User } from "../types/user.types";
 
 interface Props {
-  users?: User[];
-  canManage?: boolean;
-  onEdit?: (id: string) => void;
-
-  onDelete: (id: string) => void;
+  users: User[];
+  canManage: boolean;
+  currentUserId?: string;
+  onEdit: (user: User) => void;
+  onChangeRole: (user: User) => void;
+  onResetPassword: (user: User) => void;
+  onForceLogout: (user: User) => void;
+  onToggleActive: (user: User) => void;
+  onDelete: (user: User) => void;
 }
 
 export function UserTable({
   users,
-  canManage = false,
+  canManage,
+  currentUserId,
   onEdit,
+  onChangeRole,
+  onResetPassword,
+  onForceLogout,
+  onToggleActive,
   onDelete,
 }: Props) {
-    
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-
             <TableHead>Email</TableHead>
-
             <TableHead>Role</TableHead>
-
+            <TableHead>Verified</TableHead>
             <TableHead>Status</TableHead>
-
-            <TableHead></TableHead>
+            <TableHead>Last login</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
 
         <TableBody>
-          {users?.map((user) => (
-            <TableRow key={user._id}>
-              <TableCell className="font-medium">{user.name}</TableCell>
-
-              <TableCell>{user.email}</TableCell>
-
-              <TableCell>
-                <UserRoleBadge role={user.role} />
-              </TableCell>
-
-              <TableCell>
-                <UserStatusBadge isActive={user.isActive} />
-              </TableCell>
-
-              <TableCell>
-                {canManage ? (
-                  <UserActions
-                    id={user._id}
-                    onEdit={onEdit}
-                    onDelete={() => onDelete(user._id)}
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Read only
-                  </span>
-                )}
+          {users.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="h-20 text-center">
+                No users found.
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            users.map((user) => (
+              <TableRow key={user._id}>
+                <TableCell className="font-medium">{user.name}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>
+                  <UserRoleBadge role={user.role} />
+                </TableCell>
+                <TableCell>{user.emailVerified ? "Yes" : "No"}</TableCell>
+                <TableCell>
+                  <UserStatusBadge isActive={user.isActive} />
+                </TableCell>
+                <TableCell>
+                  {user.lastLogin ? formatDateTime(user.lastLogin) : "Never"}
+                </TableCell>
+                <TableCell>
+                  {canManage ? (
+                    <UserActions
+                      user={user}
+                      isSelf={!canActOnUser(currentUserId, user._id)}
+                      onEdit={onEdit}
+                      onChangeRole={onChangeRole}
+                      onResetPassword={onResetPassword}
+                      onForceLogout={onForceLogout}
+                      onToggleActive={onToggleActive}
+                      onDelete={onDelete}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground text-xs">
+                      Read only
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </div>

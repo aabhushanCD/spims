@@ -22,13 +22,13 @@ It is not production-hardened. The main risks are:
 | Mongoose models | 28 |
 | Router files | 23 (including `app.routes.ts`) |
 | Mounted route prefixes | 22 |
-| Route registrations (actual calls) | 193 |
-| Distinct live handlers | 193 |
-| Endpoint rows documented | 193 (stocktake, templates, reporting, barcode, supplier performance added in 6.4–6.6) |
+| Route registrations (actual calls) | 194 |
+| Distinct live handlers | 194 |
+| Endpoint rows documented | 194 (stocktake, templates, reporting, barcode, supplier performance added in 6.4–6.6) |
 | Transactions | 7 flows |
 | Migrations | 4 registered (`001`–`004`) |
 | Cron jobs | 3 active |
-| Tests | 80 unit files / 543 cases + 15 integration cases (10 HTTP + 5 migration/seeder) |
+| Tests | 80 unit files / 544 cases + 15 integration cases (10 HTTP + 5 migration/seeder) |
 
 ## 3. Module status matrix
 
@@ -59,7 +59,7 @@ It is not production-hardened. The main risks are:
 | Invoice | Implemented | `GET /sales/:id/invoice` with populated items, cashier/customer, payments, amount due | Client print view still uses the old field names (Phase 6.7) |
 | Prescriptions/barcode scanning | Not Implemented | Barcode field only | No scanning or prescription flow |
 | Docker/NGINX deployment | Declined | — | Not required for this project; no Dockerfile/compose/NGINX config will be added |
-| Automated tests | Implemented | 80 unit suites / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash provider behavior still unverified |
+| Automated tests | Implemented | 80 unit suites / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash provider behavior still unverified |
 
 ## 4. Implemented features
 
@@ -98,7 +98,7 @@ It is not production-hardened. The main risks are:
 | Inventory reconciliation | Single transactional write path; sync filter applies in both session and non-session calls; expiry flagging reconciles affected medicines immediately | Optimistic conflicts surface as `409` and must be retried by the caller |
 | Dashboard analytics | COGS profit, year parameter, timezone-aware series, expiring count fixed, cache invalidated on writes | No arbitrary date-range analytics |
 | Swagger | Typed OpenAPI 3.0 spec; Swagger UI served at `/api-docs` | Production docs are opt-in and owner-only |
-| Tests | 80 unit suites / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash behavior remains unverified |
+| Tests | 80 unit suites / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder) | Live SMTP/SMS/Upstash behavior remains unverified |
 
 ## 6. Not implemented
 
@@ -131,15 +131,15 @@ It is not production-hardened. The main risks are:
 |---|---|
 | `npm run lint` | PASS — 0 errors, 0 warnings (server and client) |
 | `npm run typecheck` | PASS (server `tsc --noEmit`, client `tsc -b`) |
-| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current client-parity suite is 80 unit files / 543 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
-| Client tests | 2 files, 17 tests passed (Phase 0 baseline; current client-parity suite is 24 files / 109 tests) |
+| Server tests | 22 files, 223 tests passed (Phase 0 baseline; current client-parity suite is 80 unit files / 544 tests + 15 integration cases (10 HTTP + 5 migration/seeder)) |
+| Client tests | 2 files, 17 tests passed (Phase 0 baseline; current client-parity suite is 26 files / 114 tests) |
 | `npm run build` | PASS (server `tsc`; client `tsc -b && vite build`; only the Vite chunk-size warning) |
 | `npm run audit` | PASS — 0 production vulnerabilities in both packages |
 
 ### Verified during this audit
 
 - `npx tsc --noEmit -p tsconfig.json` completes with no diagnostics.
-- `npx vitest run` passes: 80 files, 543 tests (server).
+- `npx vitest run` passes: 80 files, 544 tests (server).
 - Model tests confirm active batches with stock validate, inactive batches with stock are rejected, and all ten `referenceType` values validate (including `PURCHASE_RETURN`).
 
 ### Phase 4 state (2026-11-21)

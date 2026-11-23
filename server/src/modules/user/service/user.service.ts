@@ -254,6 +254,17 @@ export class UserService {
     return updated;
   }
 
+  async getUserStats() {
+    const [total, active, inactive, byRole] = await Promise.all([
+      this.userRepository.countAll(),
+      this.userRepository.countByStatus(true),
+      this.userRepository.countByStatus(false),
+      this.userRepository.countByRole(),
+    ]);
+
+    return { total, active, inactive, byRole };
+  }
+
   async getUsersPage(query: UserListQuery) {
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
     const rows = await this.userRepository.findPage(
