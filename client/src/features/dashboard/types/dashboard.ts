@@ -179,4 +179,5 @@ export interface DashboardPayload {
   notifications: NotificationSummary;
   profit: ProfitSummary;
   salesComparison: SalesComparison;
+  topSelling: TopSellingRow[];
 }

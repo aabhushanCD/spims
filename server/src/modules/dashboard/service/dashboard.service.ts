@@ -442,6 +442,7 @@ export class DashboardService {
       notifications,
       profit,
       salesComparison,
+      topSelling,
     ] = await Promise.all([
       this.getSummary(),
       this.getReorderSummary(),
@@ -451,6 +452,7 @@ export class DashboardService {
       this.getNotificationSummary(),
       this.getProfitSummary(),
       this.getSalesComparison(),
+      this.getTopSellingMedicines(5),
     ]);
 
     const result = {
@@ -462,6 +464,7 @@ export class DashboardService {
       notifications,
       profit,
       salesComparison,
+      topSelling,
     };
     await setCache(cacheKey, result, SUMMARY_CACHE_TTL_SECONDS);
     return result;
