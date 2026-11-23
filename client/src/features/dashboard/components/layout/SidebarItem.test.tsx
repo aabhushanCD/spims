@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Boxes, LayoutDashboard } from "lucide-react";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { renderWithProviders } from "@/test/render";
 import SidebarItem from "./SidebarItem";
 
@@ -94,5 +95,48 @@ describe("SidebarItem", () => {
     await actor.click(screen.getByRole("link", { name: "Stock" }));
 
     expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders an icon-only link with an accessible name when collapsed", () => {
+    renderWithProviders(
+      <TooltipProvider>
+        <SidebarItem
+          title="Dashboard"
+          icon={LayoutDashboard}
+          path="/"
+          collapsed
+        />
+      </TooltipProvider>,
+      { route: "/stock" },
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Dashboard" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+  });
+
+  it("opens a flyout submenu for a collapsed group", async () => {
+    const actor = userEvent.setup();
+
+    renderWithProviders(
+      <TooltipProvider>
+        <SidebarItem
+          title="Inventory"
+          icon={Boxes}
+          children={[{ title: "Stock", path: "/stock" }]}
+          collapsed
+        />
+      </TooltipProvider>,
+      { route: "/stock" },
+    );
+
+    await actor.click(screen.getByRole("button", { name: "Inventory" }));
+
+    expect(screen.getByText("Stock")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Stock" })).toHaveAttribute(
+      "href",
+      "/stock",
+    );
   });
 });
