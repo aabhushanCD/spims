@@ -16,22 +16,15 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 
-
-type MovementType = "SALE" | "PURCHASE" | "RETURN" | "ADJUSTMENT" | "EXPIRED";
-
-interface Activity {
-  _id: string;
-  movementType: MovementType;
-  quantity: number;
-  remarks: string;
-  createdAt: string;
-}
+import type { DashboardMovement, MovementType } from "../types/dashboard";
 
 interface Props {
-  activities: Activity[];
+  activities: DashboardMovement[];
 }
 
-const activityConfig = {
+const activityConfig: Partial<
+  Record<MovementType, { icon: typeof ShoppingCart; title: string; color: string }>
+> = {
   SALE: {
     icon: ShoppingCart,
     title: "Sale Completed",
@@ -58,6 +51,13 @@ const activityConfig = {
     color: "bg-red-100 text-red-700",
   },
 };
+
+const defaultActivity = {
+  icon: ArrowUpDown,
+  title: "Stock Adjusted",
+  color: "bg-purple-100 text-purple-700",
+};
+
 export default function ActivityTimeline({ activities }: Props) {
   return (
     <Card className="shadow-md">
@@ -71,8 +71,7 @@ export default function ActivityTimeline({ activities }: Props) {
         <div className="space-y-6 max-h-90 overflow-y-auto pr-2">
           {activities.map((activity, index) => {
             const config =
-              activityConfig[activity.movementType] ??
-              activityConfig.ADJUSTMENT;
+              activityConfig[activity.movementType] ?? defaultActivity;
             const Icon = config.icon;
 
             return (
