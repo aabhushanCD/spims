@@ -2,6 +2,17 @@ import type { LucideIcon } from "lucide-react";
 
 export type Role = "owner" | "inventory_manager" | "pharmacist";
 
+const ROLE_LABELS: Record<Role, string> = {
+  owner: "Owner",
+  inventory_manager: "Inventory manager",
+  pharmacist: "Pharmacist",
+};
+
+/** Human-readable role label for menus and account summaries. */
+export function formatRole(role: Role | null | undefined): string {
+  return role ? ROLE_LABELS[role] : "Unknown";
+}
+
 export interface NavChild {
   title: string;
   path: string;

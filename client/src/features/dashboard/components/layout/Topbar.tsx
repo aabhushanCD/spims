@@ -1,9 +1,8 @@
 import { format } from "date-fns";
-import { ChevronDown, Moon, Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 import {
   DropdownMenu,
@@ -17,27 +16,23 @@ import MobileSidebar from "@/components/MobileSidebar";
 import { useAuth } from "@/features/auth/context/authContext";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useNavigate } from "react-router";
+import { formatRole } from "@/lib/permissions";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Topbar() {
-  const { currentUser, toggleTheme, theme } = useAuth();
+  const { currentUser } = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
+  const initial =
+    currentUser?.name?.trim().charAt(0).toUpperCase() ||
+    currentUser?.email?.charAt(0).toUpperCase() ||
+    "U";
+
   return (
-    <header className={`bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md ${theme === "dark" ? "gray text-white " : ""}`}>
+    <header className="bg-background/80 sticky top-0 z-40 flex h-20 items-center justify-between border-b px-6 backdrop-blur-md">
       {/* Left */}
       <div className="flex items-center gap-4">
         <MobileSidebar />
-
-        <div className="hidden md:flex md:w-96">
-          <div className="relative w-full">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-
-            <Input
-              placeholder="Search medicines, suppliers..."
-              className="pl-10"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Right */}
@@ -50,33 +45,29 @@ export default function Topbar() {
           </p>
         </div>
 
-       
-          <NotificationDropdown />
+        <NotificationDropdown />
 
-          
-
-        <Button variant="ghost" size="icon" onClick={toggleTheme}>
-          <Moon className="h-5 w-5" />
-        </Button>
+        <ThemeToggle />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="h-9 w-9">
-                <AvatarFallback>
-                  {currentUser?.name[0]?.toUpperCase()}
-                </AvatarFallback>
+                <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
 
               <div className="hidden text-left md:block">
                 <p className="text-sm font-medium">{currentUser?.name}</p>
 
                 <p className="text-muted-foreground text-xs">
-                  {currentUser?.role}
+                  {formatRole(currentUser?.role)}
                 </p>
               </div>
 
-              <ChevronDown className="hidden h-4 w-4 md:block" />
+              <ChevronDown
+                className="hidden h-4 w-4 md:block"
+                aria-hidden="true"
+              />
             </Button>
           </DropdownMenuTrigger>
 
@@ -85,12 +76,6 @@ export default function Topbar() {
               onSelect={() => navigate("/settings/security")}
             >
               Profile &amp; security
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
-              onSelect={() => navigate("/settings/security")}
-            >
-              Account Settings
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />

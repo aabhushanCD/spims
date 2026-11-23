@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { LayoutDashboard, Users } from "lucide-react";
 
-import { canAccess, filterNavigation, type NavItem } from "./permissions";
+import {
+  canAccess,
+  filterNavigation,
+  formatRole,
+  type NavItem,
+} from "./permissions";
 
 const items: NavItem[] = [
   {
@@ -18,6 +23,19 @@ const items: NavItem[] = [
     ],
   },
 ];
+
+describe("formatRole", () => {
+  it("returns human-readable labels", () => {
+    expect(formatRole("owner")).toBe("Owner");
+    expect(formatRole("inventory_manager")).toBe("Inventory manager");
+    expect(formatRole("pharmacist")).toBe("Pharmacist");
+  });
+
+  it("handles a missing role", () => {
+    expect(formatRole(null)).toBe("Unknown");
+    expect(formatRole(undefined)).toBe("Unknown");
+  });
+});
 
 describe("canAccess", () => {
   it("allows every role when no roles are specified", () => {
