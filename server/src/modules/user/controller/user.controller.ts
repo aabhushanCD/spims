@@ -113,6 +113,19 @@ export class UserController {
     }
   }
 
+  async getUserStats(
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const stats = await this.userService.getUserStats();
+      res.status(200).json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAllUsers(
     req: Request,
     res: Response,

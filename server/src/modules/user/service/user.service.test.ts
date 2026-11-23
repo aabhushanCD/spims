@@ -19,6 +19,9 @@ describe("UserService", () => {
     updateAuthFields: vi.fn(),
     delete: vi.fn(),
     incrementTokenVersion: vi.fn(),
+    countAll: vi.fn(),
+    countByStatus: vi.fn(),
+    countByRole: vi.fn(),
   };
 
   const authSessionRepository = { revokeAllForUser: vi.fn() };
@@ -287,5 +290,28 @@ describe("UserService", () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: "USER_FORCE_LOGOUT" }),
     );
+  });
+
+  it("returns aggregate user stats without loading user arrays", async () => {
+    userRepository.countAll.mockResolvedValue(10);
+    userRepository.countByStatus.mockImplementation(
+      (isActive: boolean) => Promise.resolve(isActive ? 8 : 2),
+    );
+    userRepository.countByRole.mockResolvedValue({
+      owner: 1,
+      inventory_manager: 2,
+      pharmacist: 7,
+    });
+
+    await expect(createService().getUserStats()).resolves.toEqual({
+      total: 10,
+      active: 8,
+      inactive: 2,
+      byRole: {
+        owner: 1,
+        inventory_manager: 2,
+        pharmacist: 7,
+      },
+    });
   });
 });

@@ -46,6 +46,7 @@ Router-level roles: **`owner`, `pharmacist` only**. Every write route also requi
 | GET | `/users/status/:isActive/last-login/:date` | Filter | `true`/`false`, parseable `date` | `200` array | Reads path params |
 | GET | `/users/role/:role/last-login/:date` | Filter | `role`, `date` | `200` array | |
 | GET | `/users/role/:role/status/:isActive` | Filter | `role`, `true`/`false` | `200` array | Reads path params |
+| GET | `/users/stats` | Aggregate user counts | — | `200` `{ total, active, inactive, byRole }` | Registered before `GET /users/:id` |
 | GET | `/users/active` | Active users | — | `200` array | Registered before `GET /users/:id` |
 | GET | `/users/inactive` | Inactive users | — | `200` array | Replaces the misleading `GET /users/:id/inactive` |
 | GET | `/users/last-login/:date` | Users since date | `date` | `200` array | |
@@ -53,7 +54,7 @@ Router-level roles: **`owner`, `pharmacist` only**. Every write route also requi
 | PATCH | `/users/:id/role` | Change role | `{ role }` | `200` public user | Owner only; matches the client service call |
 | POST | `/users/:id/reset-password` | Send an admin password-reset link | no body | `200` `{ message }` | Owner only; revokes sessions; never returns a password; SMTP failure is `503` |
 | POST | `/users/:id/force-logout` | Revoke every session and access token | no body | `200` `{ message }` | Owner only; bumps the token version |
-| GET | `/audit` | Read auth/admin audit rows | `cursor?`, `limit?`, `action?`, `actorId?`, `entityType?`, `entityId?`, `status?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Owner only; cursor paginated |
+| GET | `/audit` | Read auth/admin audit rows | `cursor?`, `limit?`, `action?`, `actorId?`, `entityType?`, `entityId?`, `status?`, `from?`, `to?` | `200` `{ success, data: { items, nextCursor } }` | Owner only; cursor paginated; each row includes a populated `actor` when the actor still exists |
 
 Details: [users-and-roles.md](../modules/users-and-roles.md).
 

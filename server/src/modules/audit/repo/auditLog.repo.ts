@@ -67,6 +67,7 @@ export class AuditLogRepo {
       .find(query)
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit)
+      .populate("actorId", "name email role")
       .lean()
       .exec();
   }

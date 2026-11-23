@@ -36,6 +36,9 @@ router.post(
 );
 
 // Static and more specific routes must be registered before GET /:id.
+router.get("/stats", (req: Request, res: Response, next: NextFunction) =>
+  userController.getUserStats(req, res, next),
+);
 router.get("/active", (req: Request, res: Response, next: NextFunction) =>
   userController.getActiveUsers(req, res, next),
 );

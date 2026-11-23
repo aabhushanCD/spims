@@ -130,6 +130,24 @@ export class UserRepository {
     return await this.userModel.findByIdAndDelete(id).exec();
   }
 
+  async countAll(): Promise<number> {
+    return await this.userModel.countDocuments({}).exec();
+  }
+
+  async countByStatus(isActive: boolean): Promise<number> {
+    return await this.userModel.countDocuments({ isActive }).exec();
+  }
+
+  async countByRole(): Promise<Record<string, number>> {
+    const rows = await this.userModel
+      .aggregate<{ _id: string; count: number }>([
+        { $group: { _id: "$role", count: { $sum: 1 } } },
+      ])
+      .exec();
+
+    return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+  }
+
   async findAll(): Promise<IUser[]> {
     return await this.userModel.find().lean();
   }

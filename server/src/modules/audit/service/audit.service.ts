@@ -107,8 +107,42 @@ export class AuditService implements AuditRecorder {
       query.limit + 1,
     );
 
+    const items = rows.map((row) => {
+      const rawActor = row.actorId as unknown;
+
+      if (
+        rawActor &&
+        typeof rawActor === "object" &&
+        "name" in rawActor
+      ) {
+        const actor = rawActor as {
+          _id: unknown;
+          name?: string;
+          email?: string;
+          role?: string;
+        };
+
+        return {
+          ...row,
+          actorId: String(actor._id),
+          actor: {
+            _id: String(actor._id),
+            name: actor.name ?? "",
+            email: actor.email ?? "",
+            role: actor.role ?? null,
+          },
+        };
+      }
+
+      return {
+        ...row,
+        actorId: rawActor ? String(rawActor) : null,
+        actor: null,
+      };
+    });
+
     return buildPage(
-      rows,
+      items,
       query.limit,
       (row) => row.createdAt,
       (row) => String(row._id),
