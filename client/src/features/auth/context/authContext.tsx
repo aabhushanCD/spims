@@ -18,25 +18,48 @@ export type User = {
   emailVerified?: boolean;
 };
 
+type Theme = "light" | "dark";
+
+const THEME_STORAGE_KEY = "spims-theme";
+
+function getInitialTheme(): Theme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
 type AuthContextType = {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
   refreshCurrentUser: () => Promise<void>;
   isLoading: boolean;
   toggleTheme: () => void;
-  theme: "light" | "dark";
+  theme: Theme;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
   const [isLoading, setLoading] = useState(true);
 
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
   };
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   const refreshCurrentUser = useCallback(async () => {
     try {

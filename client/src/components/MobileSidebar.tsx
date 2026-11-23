@@ -1,6 +1,13 @@
-import { NavLink } from "react-router";
+import { useMemo, useState } from "react";
 
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 import { Button } from "@/components/ui/button";
 
@@ -8,88 +15,55 @@ import { Menu } from "lucide-react";
 import { sidebarItems as menuItems } from "@/features/dashboard/data/sidebar";
 import { useAuth } from "@/features/auth/context/authContext";
 import { filterNavigation } from "@/lib/permissions";
-import { useState } from "react";
+import Logo from "@/features/dashboard/components/layout/Logo";
+import SidebarItem from "@/features/dashboard/components/layout/SidebarItem";
 
 export default function MobileSidebar() {
   const { currentUser } = useAuth();
-  const visibleItems = filterNavigation(menuItems, currentUser?.role);
-  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const visibleItems = useMemo(
+    () => filterNavigation(menuItems, currentUser?.role),
+    [currentUser?.role],
+  );
+  const [open, setOpen] = useState(false);
 
-  const toggleMenu = (menuKey: string) => {
-    setOpenMenus((prev) => ({
-      ...prev,
-      [menuKey]: !prev[menuKey],
-    }));
-  };
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <Menu />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden"
+          aria-label="Open navigation"
+        >
+          <Menu aria-hidden="true" />
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="left" className="w-72">
-        <h1 className="mb-6 text-xl font-bold text-emerald-600">SPIMS</h1>
+      <SheetContent side="left" className="w-72 gap-0 p-0">
+        <SheetHeader className="flex h-20 shrink-0 flex-row items-center gap-0 border-b px-6">
+          <Logo />
+          <SheetTitle className="sr-only">Main navigation</SheetTitle>
+          <SheetDescription className="sr-only">
+            Browse SPIMS modules
+          </SheetDescription>
+        </SheetHeader>
 
-        <nav className="space-y-2">
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-
-            if (item.children?.length) {
-              return (
-                <div key={item.title}>
-                  <button
-                    type="button"
-                    onClick={() => toggleMenu(item.title)}
-                    className="hover:bg-muted flex w-full items-center justify-between rounded-xl px-4 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon size={20} />
-                      {item.title}
-                    </div>
-                  </button>
-
-                  {openMenus[item.title] && (
-                    <div className="mt-1 ml-8 space-y-1">
-                      {item.children.map((child) => (
-                        <NavLink
-                          key={child.path}
-                          to={child.path}
-                          className={({ isActive }) =>
-                            `block rounded-lg px-4 py-2 text-sm ${
-                              isActive
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "hover:bg-muted"
-                            }`
-                          }
-                        >
-                          {child.title}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <NavLink
-                key={item.path!}
-                to={item.path!}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-xl px-4 py-3 ${
-                    isActive
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "hover:bg-muted"
-                  }`
-                }
-              >
-                <Icon size={20} />
-                {item.title}
-              </NavLink>
-            );
-          })}
+        <nav
+          aria-label="Main navigation"
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-4"
+        >
+          <div className="space-y-1">
+            {visibleItems.map((item) => (
+              <SidebarItem
+                key={item.title}
+                title={item.title}
+                icon={item.icon}
+                path={item.path}
+                children={item.children}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
+          </div>
         </nav>
       </SheetContent>
     </Sheet>
