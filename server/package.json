@@ -26,6 +26,7 @@
     "db:seed:dry-run": "tsx src/scripts/seed.ts --dry-run",
     "notification:backfill": "tsx src/scripts/backfillNotificationRecipientTimestamps.ts",
     "notification:dedupe": "tsx src/scripts/dedupeNotificationRecipients.ts",
+    "email:test": "tsx src/scripts/sendTestEmail.ts",
     "audit": "npm audit --omit=dev --audit-level=high",
     "audit:all": "npm audit --audit-level=high"
   },

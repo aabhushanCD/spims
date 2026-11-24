@@ -6,7 +6,7 @@
 |---|---|---|
 | MongoDB | Implemented | Primary datastore |
 | Redis (ioredis) | Implemented | Cache and auth rate limiting |
-| SMTP / Nodemailer | Implemented | Lazy transport with phase timeouts; JSON/console fallback in development; production fails fast without `SMTP_HOST` |
+| Email providers | Implemented | SMTP (Nodemailer) or Brevo HTTPS API; lazy transport with phase timeouts; JSON/console fallback in development; production fails fast without a configured provider |
 | WebSocket (`ws`) | Implemented | In-process |
 | Upstash REST client | Not Implemented | Package installed, unused |
 | SMS provider | Implemented | Generic HTTP webhook (`SMS_WEBHOOK_URL`) |
@@ -15,46 +15,58 @@
 | Google OAuth | Not Implemented | Schema field only |
 | Docker/NGINX/CI deploy | Not present in repository | Claims exist in `SECURITY.md` |
 
-## 2. SMTP and email
+## 2. Email providers
 
 Source: `server/src/shared/provider/email.provider.ts`
 
-The transporter is created lazily on the first email, so importing the provider
-or the auth container performs no network call.
+Two transports are supported:
+
+- **`smtp`** — Nodemailer over `SMTP_HOST`/`SMTP_PORT`/`SMTP_*`.
+- **`brevo`** — Brevo's HTTPS API (`POST https://api.brevo.com/v3/smtp/email`)
+  with `BREVO_API_KEY`. This uses port 443 and works on hosts that block
+  outbound SMTP ports, such as Render free web services.
+
+`EMAIL_PROVIDER` selects the transport explicitly. When unset, `SMTP_HOST`
+wins (backward compatible), then `BREVO_API_KEY`, then the development JSON
+transport. Transports are created lazily on the first email, so importing the
+provider or the auth container performs no network call.
 
 ```ts
-const transporter = nodemailer.createTransport(
-  process.env.SMTP_HOST
-    ? {
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === "true",
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 20_000,
-        // auth only when SMTP_USER and SMTP_PASS are present
-      }
-    : { jsonTransport: true },
-);
+// Brevo path (simplified)
+await fetch("https://api.brevo.com/v3/smtp/email", {
+  method: "POST",
+  headers: { "api-key": process.env.BREVO_API_KEY, "content-type": "application/json" },
+  body: JSON.stringify({
+    sender: { name, email: process.env.EMAIL_FROM },
+    to: [{ email: message.to }],
+    subject: message.subject,
+    textContent: message.text,
+    htmlContent: message.html,
+  }),
+  signal: AbortSignal.timeout(15_000),
+});
 ```
 
 ### Behavior
 
 - No Ethereal account is created and no network call happens at import time.
-- If `SMTP_HOST` is absent, the JSON transport keeps the message in-process and
-  the text (including the verification/reset link) is logged to the server
+- If no provider is configured, the JSON transport keeps the message in-process
+  and the text (including the verification/reset link) is logged to the server
   console.
 - **Production fails fast**: `assertEmailConfig()` runs at boot and throws when
-  `NODE_ENV=production` without `SMTP_HOST`, so notification rows cannot be
-  marked `Sent` against a transport that writes nothing.
-- SMTP phases are bounded (10s connect/greeting, 20s socket), so a wedged server
-  cannot hold a recipient row in flight past the 15-minute stale-claim window.
+  `NODE_ENV=production` without a configured provider (`SMTP_HOST`, or
+  `EMAIL_PROVIDER=brevo` with `BREVO_API_KEY` and `EMAIL_FROM`), so notification
+  rows cannot be marked `Sent` against a transport that writes nothing.
+- SMTP phases are bounded (10s connect/greeting, 20s socket); the Brevo request
+  aborts after 15s.
+- Brevo non-2xx responses throw with the HTTP status and a truncated provider
+  message. The API key is never included in the error.
 - The auth module sends HTML + plain-text verification and password-reset
   emails through `modules/auth/services/auth.mailer.ts`.
 - `NotificationService.dispatchToRecipient` sends plain-text email
   notifications through the same provider.
 - Notification email failures are retried automatically at +1 minute and
-  +5 minutes when transient; permanent SMTP 5xx responses are terminal. The
+  +5 minutes when transient; permanent provider errors are terminal. The
   provider error is stored on the recipient row.
 - Auth emails still have no retry, bounce handling, or delivery tracking.
 
@@ -62,14 +74,19 @@ const transporter = nodemailer.createTransport(
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `SMTP_HOST` | no | SMTP host |
+| `EMAIL_PROVIDER` | no | `brevo` or `smtp`; unset auto-detects |
+| `BREVO_API_KEY` | with Brevo | Brevo API v3 key |
+| `EMAIL_FROM` | with Brevo | Verified sender address |
+| `EMAIL_FROM_NAME` | no | Sender display name (default `SPIMS`) |
+| `SMTP_HOST` | with SMTP | SMTP host |
 | `SMTP_PORT` | no | SMTP port |
 | `SMTP_SECURE` | no | `"true"` for TLS |
 | `SMTP_USER` | no | SMTP username |
 | `SMTP_PASS` | no | SMTP password |
-| `SMTP_FROM` | no | From address |
+| `SMTP_FROM` | no | From address for the SMTP transport |
 
-All `SMTP_*` variables are now listed in `.env.example`.
+All email variables are listed in `.env.example`. Send a one-off check with
+`npm run email:test -- you@example.com`.
 
 ### Usage
 
@@ -155,11 +172,14 @@ No HTTP client is used for business integrations.
 
 ## 11. Operational implications
 
-- A deployment must provide MongoDB and Redis. The SMTP path is best-effort in
-  development but mandatory in production.
-- Real email requires `SMTP_HOST` (and credentials when the server requires
-  auth). Production refuses to boot without it; in development verification and
-  reset links are logged to the console.
+- A deployment must provide MongoDB and Redis. Email is best-effort in
+  development but a provider is mandatory in production.
+- Real email requires either `SMTP_HOST` (and credentials when the server
+  requires auth) or `EMAIL_PROVIDER=brevo` with `BREVO_API_KEY` and
+  `EMAIL_FROM`. Production refuses to boot without a configured provider; in
+  development verification and reset links are logged to the console.
+- On Render free, outbound SMTP ports 25/465/587 are blocked; use the Brevo
+  HTTPS transport instead of Gmail/SMTP.
 - SMS requires `SMS_WEBHOOK_URL` and a recipient `phone`; otherwise the row fails with a clear, non-retryable error.
 - There is no integration health check; `/health` returns OK regardless of dependencies.
 - Notification email and SMS failures are retried at +1m/+5m; auth email still has no retry/outbox.
@@ -176,7 +196,7 @@ No HTTP client is used for business integrations.
 | CORS | `ALLOWED_ORIGINS` (JSON array) |
 | Port | `PORT` |
 | Cookies | `NODE_ENV` |
-| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` |
+| Email | `EMAIL_PROVIDER`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` (Brevo), or `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (SMTP) |
 | SMS | `SMS_WEBHOOK_URL`, optionally `SMS_API_KEY` |
 
 ## Related documents

@@ -593,10 +593,25 @@ CLIENT_URL=https://<frontend-host>
 TRUST_PROXY=true
 ```
 
+Email on Render free (outbound SMTP ports are blocked there, so use Brevo's
+HTTPS API):
+
+```
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=<secret>
+EMAIL_FROM=<verified sender address>
+EMAIL_FROM_NAME=SPIMS
+```
+
+Verify the sender in Brevo first, then run
+`npm --prefix server run email:test -- you@example.com`. With SMTP instead, set
+`EMAIL_PROVIDER=smtp` and the `SMTP_*` variables.
+
 `VITE_WS_URL` is explicit because the rewrite cannot proxy WebSockets.
 `NODE_ENV=production` makes cookies `Secure; SameSite=None`, which the direct
 socket connection needs. The backend refuses to boot in production without
-`JWT_REFRESH_SECRET` and `SMTP_HOST`.
+`JWT_REFRESH_SECRET` and a configured email provider (`SMTP_HOST`, or
+`EMAIL_PROVIDER=brevo` with `BREVO_API_KEY` and `EMAIL_FROM`).
 
 ---
 

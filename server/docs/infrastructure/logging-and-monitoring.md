@@ -141,7 +141,7 @@ Still not implemented:
 | 500 on many endpoints | Server console for Mongoose `CastError`/`ValidationError` |
 | Login fails unexpectedly | `JWT_SECRET`, cookie domain/SameSite, `ALLOWED_ORIGINS`, email-verification state |
 | Refresh always 401 | Cookie path `/api/auth`, `JWT_REFRESH_SECRET`, revoked/expired `AuthSession` |
-| Reset/verification link missing | `SMTP_HOST` unset (link is in `[Email:dev]` console output) or `CLIENT_URL` wrong |
+| Reset/verification link missing | No email provider configured (link is in `[Email:dev]` console output), Brevo sender not verified, or `CLIENT_URL` wrong |
 | Auth requests return 429 | Redis `rate-limit:*` counters |
 | Server exits at boot | `assertAuthConfig()` error, Redis `ping`, MongoDB URI |
 | Dashboard zeros | Collections empty, date filters (current month/year), or cached stale payload |

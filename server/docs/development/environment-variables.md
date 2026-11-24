@@ -29,12 +29,16 @@ All variables are read via `process.env`. No values are reproduced here.
 | `UPSTASH_REDIS_REST_TOKEN` | No | `config/redis.target.ts` | Password for converted Upstash URL | |
 | `LOG_LEVEL` | No | `shared/logger.ts` | Structured log level | `debug`, `info`, `warn`, `error`; default `info` |
 | `NODE_ENV` | No | Cookie and token config | Cookie security and production-required env checks | `production` enables `secure`, `SameSite=None`, and requires refresh/CLIENT env values |
-| `SMTP_HOST` | Production | `email.provider.ts` | SMTP host | In development, missing value uses the JSON transport that logs email text. In production, `assertEmailConfig()` refuses to boot without it |
+| `EMAIL_PROVIDER` | No | `email.provider.ts` | Active email transport | `brevo` (HTTPS API) or `smtp`; unset auto-detects: `SMTP_HOST` wins, then `BREVO_API_KEY`, then the development JSON transport |
+| `BREVO_API_KEY` | Production with Brevo | `email.provider.ts` | Brevo API v3 key | Sent in the `api-key` header to `https://api.brevo.com/v3/smtp/email`; uses HTTPS 443, so it works on Render free where SMTP ports are blocked |
+| `EMAIL_FROM` | Production with Brevo | `email.provider.ts` | Verified sender address | Required for Brevo; falls back to `SMTP_FROM` for SMTP. Must be verified in the Brevo account |
+| `EMAIL_FROM_NAME` | No | `email.provider.ts` | Sender display name | Default `SPIMS` |
+| `SMTP_HOST` | Production with SMTP | `email.provider.ts` | SMTP host | In development, a missing provider uses the JSON transport that logs email text. In production, `assertEmailConfig()` refuses to boot without a configured provider |
 | `SMTP_PORT` | No | `email.provider.ts` | SMTP port | Default `587` |
 | `SMTP_SECURE` | No | `email.provider.ts` | `"true"` for TLS | Default `false` |
 | `SMTP_USER` | No | `email.provider.ts` | SMTP username | Optional |
 | `SMTP_PASS` | No | `email.provider.ts` | SMTP password | Optional |
-| `SMTP_FROM` | No | `email.provider.ts` | From address | Defaults to `SMTP_USER` or `no-reply@spims.local` |
+| `SMTP_FROM` | No | `email.provider.ts` | From address for the SMTP transport | Defaults to `SMTP_USER` or `no-reply@spims.local` |
 | `SMS_WEBHOOK_URL` | For SMS | `sms.provider.ts` | SMS provider endpoint | Missing value makes SMS delivery fail non-retryably |
 | `SMS_API_KEY` | No | `sms.provider.ts` | Bearer token for the SMS webhook | Sent only when set |
 | `SEED_OWNER_EMAIL` | Seed only | `scripts/seed.ts` | First owner email | Required by `db:seed` |
@@ -71,6 +75,10 @@ UPSTASH_REDIS_REST_TOKEN=
 LOG_LEVEL=info
 ALLOWED_ORIGINS=["http://localhost:5173", "http://localhost:5174"]
 ENABLE_API_DOCS=false
+EMAIL_PROVIDER=
+BREVO_API_KEY=
+EMAIL_FROM=
+EMAIL_FROM_NAME=SPIMS
 SMTP_HOST=
 SMTP_PORT=
 SMTP_SECURE=
@@ -108,6 +116,10 @@ SEED_ALLOW_PRODUCTION=false
 | `PORT` | Integer string | `3000` |
 | `ALLOWED_ORIGINS` | JSON array of exact origins | `["https://app.example.com"]` |
 | `ENABLE_API_DOCS` | Boolean string | `true` |
+| `EMAIL_PROVIDER` | `brevo`, `smtp`, or `json` | `brevo` |
+| `BREVO_API_KEY` | Secret string | Provided by a secret manager; never committed |
+| `EMAIL_FROM` | Verified email address | `no-reply@example.com` |
+| `EMAIL_FROM_NAME` | String | `SPIMS` |
 | `UPSTASH_REDIS_REST_URL` | Redis URL for ioredis | `redis://host:6379` or `rediss://...` |
 | `SMS_WEBHOOK_URL` | HTTPS URL | `https://sms.example.com/send` |
 | `SMS_API_KEY` | Random string | Sent as `Authorization: Bearer <key>` |
@@ -130,6 +142,7 @@ SEED_ALLOW_PRODUCTION=false
 - Use different secrets per environment.
 - Rotate `JWT_SECRET` invalidates all tokens.
 - Do not put the Upstash REST token in client code.
+- Never log the Brevo API key or SMTP password; provider errors store only the status and response message.
 
 ## 6. Startup validation gaps
 
@@ -142,10 +155,26 @@ SEED_ALLOW_PRODUCTION=false
 | `ALLOWED_ORIGINS` | JSON parse with fallback |
 | Redis URL | `resolveRedisTarget` rejects unsupported schemes; connection is still verified by `ping` at startup |
 | `LOG_LEVEL` | Unknown values fall back to `info` |
-| SMTP | `assertEmailConfig()` requires `SMTP_HOST` in production; development falls back to the JSON transport |
+| Email | `assertEmailConfig()` requires `EMAIL_PROVIDER=brevo` with `BREVO_API_KEY` and `EMAIL_FROM`, or `SMTP_HOST`, in production; development falls back to the JSON transport |
 | SMS | Not validated at startup; missing `SMS_WEBHOOK_URL` fails each SMS recipient non-retryably |
 | `REPORTING_TIMEZONE` | `assertReportingConfig()` validates the IANA name at startup; defaults to `Asia/Kathmandu` |
 | `NODE_ENV` | Not validated; any value other than `production` behaves as development |
+
+### Email on Render free
+
+Render free web services block outbound traffic on ports 25, 465, and 587, so
+Gmail and other SMTP relays cannot be reached. Use the Brevo HTTPS API instead:
+
+```env
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=<secret>
+EMAIL_FROM=verified-sender@example.com
+EMAIL_FROM_NAME=SPIMS
+```
+
+The provider posts to `https://api.brevo.com/v3/smtp/email` over HTTPS 443.
+Verify the sender in Brevo first. `npm run email:test -- you@example.com` sends
+a one-off test using the configured environment.
 
 ## 7. Recommended additions (not implemented)
 
@@ -153,7 +182,7 @@ SEED_ALLOW_PRODUCTION=false
 - Enforce a minimum `JWT_SECRET` / `JWT_REFRESH_SECRET` length.
 - Support `REDIS_URL` explicitly and distinguish REST from TCP.
 - Make Redis optional at boot. Rate limiting currently fails open if Redis is unavailable.
-- Validate SMTP credentials before enabling email verification in production.
+- Validate email provider credentials before enabling email verification in production (`npm run email:test -- <recipient>`).
 
 ## Related documents
 
