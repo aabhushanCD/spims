@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import PageHeader from "@/components/common/PageToolbar";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import RelativeTime from "@/components/common/RelativeTime";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
-import { formatDate } from "@/lib/format";
 import CreateStocktakeDialog from "../components/CreateStocktakeDialog";
 import { useStocktakes } from "../hooks/useStocktakes";
 import type { StocktakeStatus } from "../types/stocktake.types";
@@ -125,11 +125,15 @@ export default function StocktakesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{stocktake.items.length}</TableCell>
-                      <TableCell>{formatDate(stocktake.createdAt)}</TableCell>
                       <TableCell>
-                        {stocktake.completedAt
-                          ? formatDate(stocktake.completedAt)
-                          : "-"}
+                        <RelativeTime value={stocktake.createdAt} />
+                      </TableCell>
+                      <TableCell>
+                        {stocktake.completedAt ? (
+                          <RelativeTime value={stocktake.completedAt} />
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button asChild variant="ghost" size="icon">

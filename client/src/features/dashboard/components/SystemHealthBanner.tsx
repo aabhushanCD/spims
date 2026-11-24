@@ -2,8 +2,8 @@ import { AlertTriangle } from "lucide-react";
 import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import RelativeTime from "@/components/common/RelativeTime";
 import { useAuth } from "@/features/auth/context/authContext";
-import { formatDateTime } from "@/lib/format";
 import { canAccess } from "@/lib/permissions";
 
 import type { SystemHealthSummary } from "../types/dashboard";
@@ -41,12 +41,13 @@ export default function SystemHealthBanner({ systemHealth }: Props) {
           </p>
 
           <p className="text-muted-foreground text-sm">
-            {visibleJobs
-              .map(
-                (job) =>
-                  `${job.jobName} (${formatDateTime(job.startedAt)}, ${job.status})`,
-              )
-              .join(" · ")}
+            {visibleJobs.map((job, index) => (
+              <span key={`${job.jobName}-${job.startedAt}`}>
+                {index > 0 ? " · " : ""}
+                {job.jobName} (<RelativeTime value={job.startedAt} />,{" "}
+                {job.status})
+              </span>
+            ))}
             {systemHealth.staleJobs.length > visibleJobs.length
               ? ` · +${systemHealth.staleJobs.length - visibleJobs.length} more`
               : ""}

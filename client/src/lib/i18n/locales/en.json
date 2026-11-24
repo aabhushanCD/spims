@@ -1,0 +1,132 @@
+{
+  "common": {
+    "justNow": "just now",
+    "loading": "Loading…",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "unknown": "Unknown"
+  },
+  "language": {
+    "en": "English",
+    "ne": "Nepali"
+  },
+  "role": {
+    "owner": "Owner",
+    "inventory_manager": "Inventory manager",
+    "pharmacist": "Pharmacist"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "reports": "Reports",
+    "notifications": "Notifications",
+    "inventory": "Inventory",
+    "medicines": "Medicines",
+    "batches": "Batches",
+    "stock": "Stock",
+    "movements": "Movements",
+    "reconciliation": "Reconciliation",
+    "stocktakes": "Stocktakes",
+    "reorder": "Reorder",
+    "purchase": "Purchase",
+    "purchaseOrders": "Purchase Orders",
+    "suppliers": "Suppliers",
+    "purchaseReturns": "Purchase Returns",
+    "masterData": "Master Data",
+    "genericNames": "Generic Names",
+    "categories": "Categories",
+    "brands": "Brands",
+    "units": "Units",
+    "sales": "Sales",
+    "salesOrders": "Sales Orders",
+    "customers": "Customers",
+    "returns": "Returns",
+    "settings": "Settings",
+    "users": "Users",
+    "security": "Security",
+    "notificationAdmin": "Notification Admin",
+    "templates": "Templates",
+    "auditLog": "Audit Log",
+    "preferences": "Preferences",
+    "mainNavigation": "Main navigation",
+    "browseModules": "Browse SPIMS modules"
+  },
+  "topbar": {
+    "profileSecurity": "Profile & security",
+    "logout": "Logout",
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme",
+    "language": "Language"
+  },
+  "auth": {
+    "welcomeBack": "Welcome Back",
+    "signInSubtitle": "Sign in to continue managing your pharmacy.",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign In",
+    "noAccount": "Don't have an account? Sign up",
+    "brand": {
+      "tagline": "Smart Pharmacy Inventory",
+      "headline": "Manage Your Pharmacy Smarter.",
+      "description": "Track inventory, manage medicine batches, suppliers, purchases, sales and reports from one intelligent platform.",
+      "inventoryTracking": "Inventory Tracking",
+      "inventoryTrackingText": "Know every medicine in stock in real time.",
+      "secureAuth": "Secure Authentication",
+      "secureAuthText": "Role-based access for administrators and staff.",
+      "batchExpiry": "Batch & Expiry Monitoring",
+      "batchExpiryText": "Never miss an expiry or low-stock alert."
+    }
+  },
+  "user": {
+    "searchUsers": "Search users...",
+    "role": "Role",
+    "selectRole": "Select role",
+    "allRoles": "All roles",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening",
+      "night": "Good night"
+    },
+    "welcomeBack": "Welcome back, {{name}}",
+    "attention": "Here's what needs your attention today.",
+    "checked": "Checked {{time}}"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "subtitle": "Choose how dates and the interface are presented for your account.",
+    "language": "Language",
+    "languageHint": "Applies to menus, labels, and messages that have been translated.",
+    "calendar": "Calendar",
+    "calendarHint": "Bikram Sambat is shown with the AD date alongside it.",
+    "timezone": "Workspace timezone",
+    "timezoneHint": "Dates are shown in the pharmacy workspace timezone, not the device timezone.",
+    "preview": "Preview",
+    "previewHint": "This is how a timestamp will look.",
+    "saved": "Preferences saved",
+    "saveFailed": "Could not save preferences"
+  },
+  "calendarMode": {
+    "auto": "Automatic",
+    "bs": "Bikram Sambat",
+    "ad": "AD only",
+    "both": "Both calendars"
+  },
+  "calendarModeHint": {
+    "auto": "BS with AD in Nepal, AD elsewhere.",
+    "bs": "BS primary with the AD date alongside.",
+    "ad": "Gregorian dates only.",
+    "both": "Show both calendars with equal weight."
+  },
+  "relative": {
+    "lastUsed": "Last used {{time}}",
+    "lastLogin": "Last login {{time}}"
+  }
+}

@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
+import AppDate from "@/components/common/AppDate";
 import { Badge } from "@/components/ui/badge";
 
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -157,9 +158,10 @@ export function MedicineSearch({
 
                   <p className="text-muted-foreground truncate text-xs">
                     Exp:{" "}
-                    {new Date(
-                      medicine.nextBatch.expiryDate,
-                    ).toLocaleDateString()}
+                    <AppDate
+                      value={medicine.nextBatch.expiryDate.slice(0, 10)}
+                      kind="date-only"
+                    />
                   </p>
                 </div>
 

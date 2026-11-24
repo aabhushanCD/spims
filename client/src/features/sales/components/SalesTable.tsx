@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import AppDate from "@/components/common/AppDate";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -77,7 +78,9 @@ export function SalesTable({ sales, isLoading, onDelete }: SalesTableProps) {
                 Rs. {sale?.totalAmount?.toFixed(2)}
               </TableCell>
 
-              <TableCell>{new Date(sale.createdAt).toLocaleString()}</TableCell>
+              <TableCell>
+                <AppDate value={sale.createdAt} style="datetime" />
+              </TableCell>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

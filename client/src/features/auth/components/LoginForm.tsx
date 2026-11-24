@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import EmailVerificationNotice from "./EmailVerificationNotice";
 import PasswordInput from "./PasswordInput";
 
 export default function LoginForm() {
+  const { t } = useTranslation();
   const loginMutation = useLogin();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -40,9 +42,9 @@ export default function LoginForm() {
     <Card className="w-full max-w-md rounded-3xl border-0 bg-white/90 shadow-2xl backdrop-blur-xl dark:bg-card/95">
       <CardContent className="p-8 sm:p-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold">Welcome Back</h1>
+          <h1 className="text-3xl font-bold">{t("auth.welcomeBack")}</h1>
           <p className="text-muted-foreground mt-2">
-            Sign in to continue managing your pharmacy.
+            {t("auth.signInSubtitle")}
           </p>
         </div>
 
@@ -52,7 +54,7 @@ export default function LoginForm() {
         >
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="login-email">
-              Email
+              {t("auth.email")}
             </label>
             <Input
               id="login-email"
@@ -76,13 +78,13 @@ export default function LoginForm() {
                 className="text-sm font-medium"
                 htmlFor="login-password"
               >
-                Password
+                {t("auth.password")}
               </label>
               <Link
                 to="/forgot-password"
                 className="text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
               >
-                Forgot password?
+                {t("auth.forgotPassword")}
               </Link>
             </div>
 
@@ -113,7 +115,7 @@ export default function LoginForm() {
             {loginMutation.isPending && (
               <Loader2 className="mr-2 animate-spin" />
             )}
-            Sign In
+            {t("auth.signIn")}
           </Button>
 
           <Button
@@ -121,7 +123,7 @@ export default function LoginForm() {
             type="button"
             onClick={() => navigate("/signup")}
           >
-            Don&apos;t have an account? Sign up
+            {t("auth.noAccount")}
           </Button>
         </form>
       </CardContent>

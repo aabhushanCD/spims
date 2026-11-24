@@ -11,7 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, formatPercent } from "@/lib/format";
+import RelativeTime from "@/components/common/RelativeTime";
+import { formatPercent } from "@/lib/format";
 import type { ReorderRecommendation } from "../types/smart.types";
 
 interface Props {
@@ -103,7 +104,9 @@ export default function ReorderTable({
                           </p>
                         )}
                     </TableCell>
-                    <TableCell>{formatDate(recommendation.generatedAt)}</TableCell>
+                    <TableCell>
+                      <RelativeTime value={recommendation.generatedAt} />
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {recommendation.status === "PENDING" && (

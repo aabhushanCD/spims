@@ -1,12 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  configureDateFormatting,
   formatCompactCurrency,
   formatCurrency,
   formatDate,
   formatDateTime,
   formatPercent,
 } from "./format";
+
+beforeEach(() => {
+  configureDateFormatting({
+    timeZone: "Asia/Kathmandu",
+    mode: "ad",
+    language: "en",
+  });
+});
 
 describe("format helpers", () => {
   it("formats currency with two decimals and a Rs. prefix", () => {
@@ -33,10 +42,34 @@ describe("format helpers", () => {
     expect(formatPercent(Number.NaN)).toBe("0.0%");
   });
 
-  it("formats dates deterministically through the locale formatter", () => {
+  it("formats instants in the configured workspace timezone", () => {
     const date = new Date("2026-02-10T10:00:00Z");
 
-    expect(formatDate(date)).toBe(date.toLocaleDateString());
-    expect(formatDateTime(date)).toBe(date.toLocaleString());
+    expect(formatDate(date)).toBe("10 Feb 2026");
+    expect(formatDateTime(date)).toContain("10 Feb 2026");
+    expect(formatDateTime(date)).toContain("15:45");
+  });
+
+  it("does not shift date-only values to the previous day", () => {
+    configureDateFormatting({
+      timeZone: "America/New_York",
+      mode: "ad",
+      language: "en",
+    });
+
+    expect(formatDate("2026-02-10")).toBe("10 Feb 2026");
+  });
+
+  it("renders BS primary with the AD date alongside", () => {
+    configureDateFormatting({
+      timeZone: "Asia/Kathmandu",
+      mode: "both",
+      language: "en",
+    });
+
+    const formatted = formatDate("2023-07-08");
+
+    expect(formatted).toContain("2080");
+    expect(formatted).toContain("8 Jul 2023");
   });
 });

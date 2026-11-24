@@ -1,6 +1,9 @@
 import { Pill, PackageCheck, ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const LeftPannel = () => {
+  const { t } = useTranslation();
+
   return (
     <div className="hidden w-1/2 bg-linear-to-br from-emerald-600 via-emerald-700 to-blue-700 p-16 text-white lg:flex lg:flex-col lg:justify-between">
       <div>
@@ -11,18 +14,17 @@ const LeftPannel = () => {
 
           <div>
             <h1 className="text-3xl font-bold">SPIMS</h1>
-            <p className="text-emerald-100">Smart Pharmacy Inventory</p>
+            <p className="text-emerald-100">{t("auth.brand.tagline")}</p>
           </div>
         </div>
 
         <div className="mt-20 max-w-lg">
           <h2 className="text-5xl font-bold leading-tight">
-            Manage Your Pharmacy Smarter.
+            {t("auth.brand.headline")}
           </h2>
 
           <p className="mt-6 text-lg text-emerald-100">
-            Track inventory, manage medicine batches, suppliers, purchases,
-            sales and reports from one intelligent platform.
+            {t("auth.brand.description")}
           </p>
         </div>
       </div>
@@ -30,20 +32,20 @@ const LeftPannel = () => {
       <div className="space-y-5">
         <Feature
           icon={<PackageCheck />}
-          title="Inventory Tracking"
-          text="Know every medicine in stock in real time."
+          title={t("auth.brand.inventoryTracking")}
+          text={t("auth.brand.inventoryTrackingText")}
         />
 
         <Feature
           icon={<ShieldCheck />}
-          title="Secure Authentication"
-          text="Role-based access for administrators and staff."
+          title={t("auth.brand.secureAuth")}
+          text={t("auth.brand.secureAuthText")}
         />
 
         <Feature
           icon={<Pill />}
-          title="Batch & Expiry Monitoring"
-          text="Never miss an expiry or low-stock alert."
+          title={t("auth.brand.batchExpiry")}
+          text={t("auth.brand.batchExpiryText")}
         />
       </div>
     </div>

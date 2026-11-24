@@ -17,7 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import AppDate from "@/components/common/AppDate";
+import RelativeTime from "@/components/common/RelativeTime";
 import {
   useAdminNotification,
   useDeleteAdminNotification,
@@ -69,7 +70,7 @@ export default function NotificationDetailDialog({
                 {detail.data.message}
               </p>
               <p className="text-muted-foreground text-xs">
-                {formatDateTime(detail.data.createdAt)}
+                <AppDate value={detail.data.createdAt} style="datetime" />
               </p>
             </div>
 
@@ -137,25 +138,33 @@ export default function NotificationDetailDialog({
                         <Badge variant="secondary">{recipient.status}</Badge>
                       </TableCell>
                       <TableCell>
-                        {recipient.sentAt
-                          ? formatDateTime(recipient.sentAt)
-                          : "-"}
+                        {recipient.sentAt ? (
+                          <RelativeTime value={recipient.sentAt} />
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>
-                        {recipient.readAt
-                          ? formatDateTime(recipient.readAt)
-                          : "-"}
+                        {recipient.readAt ? (
+                          <RelativeTime value={recipient.readAt} />
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>{recipient.attempts ?? "-"}</TableCell>
                       <TableCell>
-                        {recipient.lastAttemptAt
-                          ? formatDateTime(recipient.lastAttemptAt)
-                          : "-"}
+                        {recipient.lastAttemptAt ? (
+                          <RelativeTime value={recipient.lastAttemptAt} />
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>
-                        {recipient.nextAttemptAt
-                          ? formatDateTime(recipient.nextAttemptAt)
-                          : "-"}
+                        {recipient.nextAttemptAt ? (
+                          <RelativeTime value={recipient.nextAttemptAt} />
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell className="text-destructive max-w-48 truncate text-xs">
                         {recipient.error ?? "-"}

@@ -1,18 +1,36 @@
-/** Time-of-day greeting for the dashboard header. */
-export function getGreeting(hour: number): string {
+/** Time-of-day greeting bucket for the dashboard header. */
+export function getGreetingKey(
+  hour: number,
+): "morning" | "afternoon" | "evening" | "night" {
   if (hour >= 5 && hour < 12) {
-    return "Good morning";
+    return "morning";
   }
 
   if (hour >= 12 && hour < 17) {
-    return "Good afternoon";
+    return "afternoon";
   }
 
   if (hour >= 17 && hour < 21) {
-    return "Good evening";
+    return "evening";
   }
 
-  return "Good night";
+  return "night";
+}
+
+/** English greeting, retained for non-React callers and tests. */
+export function getGreeting(hour: number): string {
+  const key = getGreetingKey(hour);
+
+  switch (key) {
+    case "morning":
+      return "Good morning";
+    case "afternoon":
+      return "Good afternoon";
+    case "evening":
+      return "Good evening";
+    default:
+      return "Good night";
+  }
 }
 
 /** First name for the greeting, with a safe fallback. */

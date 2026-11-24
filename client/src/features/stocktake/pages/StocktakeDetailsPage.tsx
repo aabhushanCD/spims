@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useBatches } from "@/features/batch/hooks/useQueryBatch";
-import { formatDateTime } from "@/lib/format";
+import AppDate from "@/components/common/AppDate";
 import StocktakeEditDialog from "../components/StocktakeEditDialog";
 import { summarizeStocktake } from "../lib/stocktakeMath";
 import {
@@ -121,7 +121,8 @@ export default function StocktakeDetailsPage() {
             <div>
               <CardTitle>{data.stocktakeNumber}</CardTitle>
               <p className="text-muted-foreground mt-1 text-sm">
-                Started {formatDateTime(data.createdAt)}
+                Started{" "}
+                <AppDate value={data.createdAt} style="datetime" />
               </p>
             </div>
             <Badge

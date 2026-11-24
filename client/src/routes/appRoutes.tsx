@@ -27,6 +27,7 @@ import NotificationsPage from "@/features/notification/pages/NotificationsPage";
 import NotificationAdminPage from "@/features/notification/pages/NotificationAdminPage";
 import NotificationSettingsPage from "@/features/notification/pages/NotificationSettingsPage";
 import NotificationTemplatesPage from "@/features/notificationTemplate/pages/NotificationTemplatesPage";
+import PreferencesPage from "@/features/preferences/pages/PreferencesPage";
 import PurchasePage from "@/features/purchase/pages/PurchasePage";
 import SaleDetailsPage from "@/features/sales/pages/SaleDetailsPage";
 import SalesPage from "@/features/sales/pages/SalesPage";
@@ -145,6 +146,7 @@ export default function AppRoutes() {
             path="/settings/notifications"
             element={<NotificationSettingsPage />}
           />
+          <Route path="/settings/preferences" element={<PreferencesPage />} />
           <Route path="/settings/security" element={<SecurityPage />} />
         </Route>
 

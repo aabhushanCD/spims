@@ -1,13 +1,14 @@
-import { format } from "date-fns";
 import { motion, useReducedMotion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/context/authContext";
 import AddMedicineDialog from "@/features/medicine/components/AddMedicineDialog";
 import PurchaseDialog from "@/features/purchase/components/PurchaseDialog";
 import { SaleDialog } from "@/features/sales/components/SaleDialog";
-import { getFirstName, getGreeting } from "../lib/greeting";
+import { useDateFormat } from "@/lib/datetime/dateFormatContext";
+import { getFirstName, getGreetingKey } from "../lib/greeting";
 
 interface Props {
   lastUpdated?: number;
@@ -20,11 +21,14 @@ export default function DashboardHeader({
   isRefreshing = false,
   onRefresh,
 }: Props) {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const reduceMotion = useReducedMotion();
+  const { hour, format, time } = useDateFormat();
   const now = new Date();
-  const greeting = getGreeting(now.getHours());
+  const greeting = t(`dashboard.greeting.${getGreetingKey(hour(now))}`);
   const firstName = getFirstName(currentUser?.name);
+  const date = format(now, { style: "date" });
 
   return (
     <motion.header
@@ -38,12 +42,11 @@ export default function DashboardHeader({
         <p className="text-muted-foreground text-sm">{greeting} 👋</p>
 
         <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-          Welcome back, {firstName}
+          {t("dashboard.welcomeBack", { name: firstName })}
         </h1>
 
         <p className="text-muted-foreground mt-2 text-sm">
-          {format(now, "EEEE, d MMMM")} · Here&apos;s what needs your attention
-          today.
+          {date.full} · {t("dashboard.attention")}
         </p>
       </div>
 
@@ -52,7 +55,9 @@ export default function DashboardHeader({
         <div className="flex items-center gap-2">
           {lastUpdated ? (
             <span className="text-muted-foreground text-xs">
-              Checked {format(new Date(lastUpdated), "HH:mm")}
+              {t("dashboard.checked", {
+                time: time(new Date(lastUpdated)),
+              })}
             </span>
           ) : null}
 

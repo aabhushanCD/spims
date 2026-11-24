@@ -1,3 +1,22 @@
+import {
+  formatDate,
+  formatDateTime,
+  getDefaultDateFormatConfig,
+  setDefaultDateFormatConfig,
+  type DateFormatConfig,
+} from "./datetime/workspaceDate";
+
+export { formatDate, formatDateTime };
+
+/** Keeps plain formatter calls in sync with the active user preferences. */
+export function configureDateFormatting(config: DateFormatConfig): void {
+  setDefaultDateFormatConfig(config);
+}
+
+export function getDateFormattingConfig(): DateFormatConfig {
+  return getDefaultDateFormatConfig();
+}
+
 const currencyFormatter = new Intl.NumberFormat("en-NP", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -5,14 +24,6 @@ const currencyFormatter = new Intl.NumberFormat("en-NP", {
 
 export function formatCurrency(value: number): string {
   return `Rs. ${currencyFormatter.format(Number.isFinite(value) ? value : 0)}`;
-}
-
-export function formatDate(value: string | number | Date): string {
-  return new Date(value).toLocaleDateString();
-}
-
-export function formatDateTime(value: string | number | Date): string {
-  return new Date(value).toLocaleString();
 }
 
 export function formatPercent(value: number): string {

@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { DateFormatProvider } from "@/lib/datetime/dateFormatContext";
+import {
+  formatDateParts,
+  formatWeekday,
+} from "@/lib/datetime/workspaceDate";
 import { renderWithProviders } from "@/test/render";
 import Topbar from "./Topbar";
 
@@ -51,6 +56,40 @@ describe("Topbar", () => {
     expect(
       screen.getByRole("button", { name: "Switch to dark theme" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows BS primary and AD secondary dates in the workspace timezone", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T10:00:00Z"));
+
+    try {
+      const now = new Date();
+      const expected = formatDateParts(now, {
+        timeZone: "Asia/Kathmandu",
+        mode: "both",
+        language: "en",
+      });
+      const weekday = formatWeekday(now, "Asia/Kathmandu", "en");
+
+      renderWithProviders(
+        <DateFormatProvider
+          timeZone="Asia/Kathmandu"
+          mode="both"
+          language="en"
+        >
+          <Topbar collapsed={false} onToggleSidebar={vi.fn()} />
+        </DateFormatProvider>,
+      );
+
+      expect(screen.getByText(weekday)).toBeInTheDocument();
+      expect(screen.getByText(expected.primary)).toBeInTheDocument();
+      expect(expected.secondary).toBeDefined();
+      expect(
+        screen.getByText(expected.secondary as string),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("exposes the desktop sidebar toggle", () => {

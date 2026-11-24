@@ -20,8 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import RelativeTime from "@/components/common/RelativeTime";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
-import { formatDateTime } from "@/lib/format";
 import { useMovements } from "../hooks/useMovements";
 import type { MovementType } from "../types/inventory.types";
 
@@ -114,7 +114,7 @@ export default function InventoryMovementsPage() {
                   movements.data?.items.map((movement) => (
                     <TableRow key={movement._id}>
                       <TableCell>
-                        {formatDateTime(movement.createdAt)}
+                        <RelativeTime value={movement.createdAt} />
                       </TableCell>
                       <TableCell>
                         {movement.medicineId?.medicineName ?? "-"}

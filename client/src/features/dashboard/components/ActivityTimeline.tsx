@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
+import RelativeTime from "@/components/common/RelativeTime";
 
 import type { DashboardMovement, MovementType } from "../types/dashboard";
 
@@ -132,7 +132,7 @@ export default function ActivityTimeline({ activities }: Props) {
                     </p>
 
                     <p className="text-muted-foreground mt-1 text-xs">
-                      {formatDateTime(activity.createdAt)}
+                      <RelativeTime value={activity.createdAt} />
                     </p>
                   </div>
                 </motion.li>

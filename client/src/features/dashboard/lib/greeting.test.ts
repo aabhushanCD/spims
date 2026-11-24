@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getFirstName, getGreeting } from "./greeting";
+import { getFirstName, getGreeting, getGreetingKey } from "./greeting";
 
 describe("getGreeting", () => {
   it("uses the expected bucket for each part of the day", () => {
@@ -14,6 +14,13 @@ describe("getGreeting", () => {
     expect(getGreeting(20)).toBe("Good evening");
     expect(getGreeting(21)).toBe("Good night");
     expect(getGreeting(23)).toBe("Good night");
+  });
+
+  it("exposes stable keys for translation", () => {
+    expect(getGreetingKey(8)).toBe("morning");
+    expect(getGreetingKey(13)).toBe("afternoon");
+    expect(getGreetingKey(18)).toBe("evening");
+    expect(getGreetingKey(23)).toBe("night");
   });
 });
 

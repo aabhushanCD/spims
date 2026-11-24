@@ -8,8 +8,7 @@ import {
   Trash2,
   Wifi,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-
+import RelativeTime from "@/components/common/RelativeTime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -94,10 +93,7 @@ export default function SessionCard({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                Active{" "}
-                {formatDistanceToNow(new Date(session.lastUsedAt), {
-                  addSuffix: true,
-                })}
+                Active <RelativeTime value={session.lastUsedAt} />
               </span>
             </div>
           </div>

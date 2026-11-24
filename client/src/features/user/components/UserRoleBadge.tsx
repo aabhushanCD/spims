@@ -1,5 +1,7 @@
 // UserRoleBadge.tsx
 
+import { useTranslation } from "react-i18next";
+
 import { Badge } from "@/components/ui/badge";
 
 type UserRole = "owner" | "inventory_manager" | "pharmacist";
@@ -8,11 +10,7 @@ interface Props {
 }
 
 export function UserRoleBadge({ role }: Props) {
-  const roleLabel = {
-    owner: "Owner",
-    inventory_manager: "Inventory Manager",
-    pharmacist: "Pharmacist",
-  };
+  const { t } = useTranslation();
 
-  return <Badge variant="outline">{roleLabel[role]}</Badge>;
+  return <Badge variant="outline">{t(`role.${role}`)}</Badge>;
 }

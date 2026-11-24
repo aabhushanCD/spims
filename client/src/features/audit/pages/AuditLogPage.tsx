@@ -25,7 +25,8 @@ import PageHeader from "@/components/common/PageToolbar";
 import { getApiErrorMessage } from "@/api/getApiErrorMessage";
 import UserSearchSelect from "@/features/user/components/UserSearchSelect";
 import type { User } from "@/features/user/types/user.types";
-import { formatDateTime } from "@/lib/format";
+import AppDate from "@/components/common/AppDate";
+import RelativeTime from "@/components/common/RelativeTime";
 import AuditDetailDialog from "../components/AuditDetailDialog";
 import { useAuditLogs } from "../hooks/useAuditLogs";
 import type { AuditLog, AuditStatus } from "../types/audit.types";
@@ -177,7 +178,15 @@ export default function AuditLogPage() {
                   ) : (
                     logs.map((log) => (
                       <TableRow key={log._id}>
-                        <TableCell>{formatDateTime(log.createdAt)}</TableCell>
+                        <TableCell>
+                          <AppDate value={log.createdAt} style="datetime" />
+                          <span className="text-muted-foreground block text-[11px]">
+                            <RelativeTime
+                              value={log.createdAt}
+                              fallback="none"
+                            />
+                          </span>
+                        </TableCell>
                         <TableCell>
                           {log.actor?.name ?? log.actorId ?? "-"}
                         </TableCell>

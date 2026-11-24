@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Sheet,
@@ -19,6 +20,7 @@ import Logo from "@/features/dashboard/components/layout/Logo";
 import SidebarItem from "@/features/dashboard/components/layout/SidebarItem";
 
 export default function MobileSidebar() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const visibleItems = useMemo(
     () => filterNavigation(menuItems, currentUser?.role),
@@ -33,7 +35,7 @@ export default function MobileSidebar() {
           variant="ghost"
           size="icon"
           className="lg:hidden"
-          aria-label="Open navigation"
+          aria-label={t("nav.mainNavigation")}
         >
           <Menu aria-hidden="true" />
         </Button>
@@ -42,14 +44,16 @@ export default function MobileSidebar() {
       <SheetContent side="left" className="w-72 gap-0 p-0">
         <SheetHeader className="flex h-20 shrink-0 flex-row items-center gap-0 border-b px-6">
           <Logo />
-          <SheetTitle className="sr-only">Main navigation</SheetTitle>
+          <SheetTitle className="sr-only">
+            {t("nav.mainNavigation")}
+          </SheetTitle>
           <SheetDescription className="sr-only">
-            Browse SPIMS modules
+            {t("nav.browseModules")}
           </SheetDescription>
         </SheetHeader>
 
         <nav
-          aria-label="Main navigation"
+          aria-label={t("nav.mainNavigation")}
           className="min-h-0 flex-1 overflow-y-auto px-3 py-4"
         >
           <div className="space-y-1">

@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import "@/lib/i18n";
 import { afterAll, afterEach, beforeAll, expect } from "vitest";
 import { cleanup } from "@testing-library/react";
 import * as axeMatchers from "vitest-axe/matchers";
