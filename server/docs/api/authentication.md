@@ -19,9 +19,11 @@
 
 Source: `server/src/modules/auth/routes/auth.route.ts`
 
-All routes pass through `verifyOrigin`, which rejects browser requests whose
-`Origin` is not in `ALLOWED_ORIGINS`. Requests without an `Origin` header are
-allowed for CLI/server-to-server use.
+All routes pass through `verifyOrigin`. State-changing requests (`POST`,
+`PATCH`, `PUT`, `DELETE`) must send an `Origin` in `ALLOWED_ORIGINS`; production
+rejects a missing or non-allow-listed origin. Safe methods (`GET`, `HEAD`,
+`OPTIONS`) are exempt because same-origin reads do not send `Origin` and CSRF
+does not apply to them; cross-origin reads are governed by CORS.
 
 ## 2. Cookies
 
@@ -35,6 +37,19 @@ Both cookies are `httpOnly`. In production they are `secure` and
 
 The refresh cookie is scoped to `/api/auth`, so it is not sent to inventory,
 sales, or other API routes.
+
+### Same-origin requirement for the CSRF cookie
+
+The CSRF double-submit cookie (`csrfToken`) must be readable by JavaScript on
+the page that calls the API. Serve the SPA and the API from the same public
+origin in production, for example by rewriting `/api/*` on the frontend host to
+the backend (the repository ships this in `client/vercel.json`). If the SPA is
+on a different site from the API, the browser never exposes the API cookie to
+`document.cookie` and every unsafe request fails with `CSRF_TOKEN_INVALID`.
+
+Set `NODE_ENV=production` on the backend so auth cookies use `Secure;
+SameSite=None`. `SameSite=None` is also required while the notification
+WebSocket connects directly to the backend rather than through the proxy.
 
 ## 3. Token contract
 

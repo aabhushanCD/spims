@@ -570,6 +570,34 @@ SMS_API_KEY=
 `NODE_ENV=production`. Existing deployments should rotate to a fresh
 `JWT_REFRESH_SECRET` rather than reusing `JWT_SECRET`.
 
+### Deployment topology
+
+Serve the SPA and the API from the same public origin, otherwise the browser
+will not expose the `csrfToken` cookie to the SPA and unsafe requests fail with
+`CSRF_TOKEN_INVALID`. The client ships a Vercel rewrite (`client/vercel.json`)
+that forwards `/api/*` to the backend.
+
+Vercel environment:
+
+```
+VITE_API_BASE_URL=/api
+VITE_WS_URL=wss://<backend-host>/ws
+```
+
+Backend environment:
+
+```
+NODE_ENV=production
+ALLOWED_ORIGINS=["https://<frontend-host>"]
+CLIENT_URL=https://<frontend-host>
+TRUST_PROXY=true
+```
+
+`VITE_WS_URL` is explicit because the rewrite cannot proxy WebSockets.
+`NODE_ENV=production` makes cookies `Secure; SameSite=None`, which the direct
+socket connection needs. The backend refuses to boot in production without
+`JWT_REFRESH_SECRET` and `SMTP_HOST`.
+
 ---
 
 # ▶ Running the Project

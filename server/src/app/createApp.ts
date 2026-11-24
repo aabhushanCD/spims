@@ -1,4 +1,8 @@
-import express, { type Request, type Response } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -97,6 +101,15 @@ export function createApp(
     }),
   );
   app.use(cookieParser());
+
+  // API responses are user-specific and must never be stored by a shared
+  // cache. This matters when the API is reached through an edge proxy (for
+  // example a Vercel rewrite) that caches external responses.
+  app.use("/api", (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
+
   app.use(csrfProtection);
   app.use(express.json());
   app.use(requestLogger);

@@ -303,6 +303,7 @@ describe("HTTP integration flows", () => {
   it("exposes workspace config and persists localization preferences", async () => {
     const config = await request(app).get("/api/config");
     expect(config.status).toBe(200);
+    expect(config.headers["cache-control"]).toBe("no-store");
     expect(config.body).toEqual({
       reportingTimeZone: getReportingTimeZone(),
     });
