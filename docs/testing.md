@@ -104,6 +104,9 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `user.service.test.ts` | Owner-only create/update/delete/toggle/role changes, admin reset/force logout, session revocation and token-version bumps, password hashing, invalid-role rejection, aggregate user stats |
 | `user.route.test.ts` | Static-before-dynamic ordering, single status route, removed `/:id/inactive`, role-change route |
 | `user.schema.test.ts` | ObjectId/role/status/date params, strict delete body |
+| `preferences.schema.test.ts` | Language/calendar values, empty and unknown-key rejection |
+| `publicUser.test.ts` | Preference normalization for legacy documents, no secret leakage |
+| `config.route.test.ts` | Public reporting timezone, environment override |
 | `register.schema.test.ts` | Public registration strips a supplied `role` |
 | `validate.middleware.test.ts` | Body/params/query parsing, Express query getter replacement, existing 400 shape |
 | `globalError.middleware.test.ts` | AppError passthrough, `CastError` → 400, unknown error → 500 |
@@ -168,7 +171,15 @@ and live SMTP/SMS providers remain covered only by fakes or not at all.
 | `user.service.contract.test.ts` (client) | MSW contract for stats and blank-search omission |
 | `notificationPayload.test.ts` (client) | Template JSON parsing, primitive-value validation, notification-admin role helper |
 | `permissions.test.ts` (client) | Role-aware navigation filtering |
-| `format.test.ts` (client) | Currency, date, and percent formatting |
+| `format.test.ts` (client) | Currency, percent, deterministic AD/BS date formatting, date-only safety |
+| `workspaceDate.test.ts` (client) | Zoned parts, known AD→BS conversion, auto mode, BS range fallback, Devanagari output |
+| `relativeTime.test.ts` (client) | Just-now/minutes/hours/day buckets, future timestamps, workspace-timezone day boundaries, absolute fallback |
+| `preferences.types.test.ts` (client) | Preference defaults, partial merge, invalid-value normalization |
+| `preferencesContext.test.tsx` (client) | Server preference application, optimistic language/calendar updates, workspace timezone |
+| `PreferencesPage.test.tsx` (client) | Language/calendar controls, workspace timezone, save mutations |
+| `Topbar.test.tsx` (client) | BS primary/AD secondary date rendering in the workspace timezone, role label, account menu |
+| `AppDate.test.tsx` (client) | BS + AD rendering, AD-only mode, `time` semantics and tooltip |
+| `RelativeTime.test.tsx` (client) | Relative label, exact absolute tooltip, absolute fallback |
 | `saleQuery.test.ts` / `salePayload.test.ts` (client) | Blank-search omission, FEFO payload contract |
 | `invoiceMapper.test.ts` (client) | Invoice batch mapping and payment summary |
 | `validatePayment.test.ts` (client) | Partial/full/over-payment validation |

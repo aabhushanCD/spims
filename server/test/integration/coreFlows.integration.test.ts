@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import bcrypt from "bcrypt";
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import request from "supertest";
@@ -90,6 +91,7 @@ import PurchaseOrder from "../../src/modules/purchase/model/purchaseOrder.model.
 import SmartReorder from "../../src/modules/smartReorder/model/smartReorder.model.ts";
 import AuditLog from "../../src/modules/audit/model/auditLog.model.ts";
 import { generateAccessToken } from "../../src/modules/auth/utils/authTokens.ts";
+import { getReportingTimeZone } from "../../src/config/reporting.config.ts";
 
 let replSet: MongoMemoryReplSet | undefined;
 let app: ReturnType<typeof import("../../src/app/createApp.ts").createApp>;
@@ -270,6 +272,108 @@ describe("HTTP integration flows", () => {
     const ui = await request(app).get("/api-docs/");
     expect(ui.status).toBe(200);
     expect(ui.headers["content-type"]).toContain("text/html");
+  });
+
+  it("returns the public user directly on login", async () => {
+    const email = `login-${new Types.ObjectId().toString()}@test.local`;
+    await User.create({
+      name: "Login User",
+      email,
+      password: await bcrypt.hash("correct-horse-battery", 10),
+      role: "pharmacist",
+      emailVerified: true,
+      isActive: true,
+    });
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "correct-horse-battery" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      email,
+      role: "pharmacist",
+      preferences: { language: "en", calendarMode: "auto" },
+    });
+    expect(response.body).not.toHaveProperty("accessToken");
+    expect(response.body).not.toHaveProperty("refreshToken");
+    expect(response.headers["set-cookie"]?.join(";")).toContain("token=");
+  });
+
+  it("exposes workspace config and persists localization preferences", async () => {
+    const config = await request(app).get("/api/config");
+    expect(config.status).toBe(200);
+    expect(config.body).toEqual({
+      reportingTimeZone: getReportingTimeZone(),
+    });
+
+    const before = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", authCookie);
+    expect(before.status).toBe(200);
+    expect(before.body.preferences).toEqual({
+      language: "en",
+      calendarMode: "auto",
+    });
+
+    const updated = await authenticated(
+      request(app).patch("/api/auth/me/preferences"),
+    ).send({ language: "ne", calendarMode: "bs" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.preferences).toEqual({
+      language: "ne",
+      calendarMode: "bs",
+    });
+
+    const after = await request(app)
+      .get("/api/auth/me")
+      .set("Cookie", authCookie);
+    expect(after.body.preferences).toEqual({
+      language: "ne",
+      calendarMode: "bs",
+    });
+
+    const invalid = await authenticated(
+      request(app).patch("/api/auth/me/preferences"),
+    ).send({ language: "fr" });
+    expect(invalid.status).toBe(400);
+
+    const unauthenticated = await request(app)
+      .patch("/api/auth/me/preferences")
+      .set("Cookie", `csrfToken=${CSRF_TOKEN}`)
+      .set("X-CSRF-Token", CSRF_TOKEN)
+      .send({ language: "ne" });
+    expect(unauthenticated.status).toBe(401);
+  });
+
+  it("lets an inventory manager update their own preferences", async () => {
+    const manager = await User.create({
+      name: "Integration Manager",
+      email: `manager-${new Types.ObjectId().toString()}@test.local`,
+      password: "not-used-by-token-tests",
+      role: "inventory_manager",
+      emailVerified: true,
+      isActive: true,
+    });
+    const token = generateAccessToken({
+      userId: manager._id.toString(),
+      email: manager.email,
+      role: "inventory_manager",
+      sessionId: new Types.ObjectId().toString(),
+      ver: 0,
+    });
+
+    const response = await request(app)
+      .patch("/api/auth/me/preferences")
+      .set("Cookie", `token=${token}; csrfToken=${CSRF_TOKEN}`)
+      .set("X-CSRF-Token", CSRF_TOKEN)
+      .send({ calendarMode: "both" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.preferences).toEqual({
+      language: "en",
+      calendarMode: "both",
+    });
   });
 
   it("completes a purchase receipt with batch, aggregate, and movement", async () => {

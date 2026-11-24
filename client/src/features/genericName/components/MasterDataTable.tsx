@@ -1,5 +1,6 @@
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
+import AppDate from "@/components/common/AppDate";
 import { Card, CardContent } from "@/components/ui/card";
 
 import {
@@ -58,7 +59,7 @@ export default function MasterDataTable({
                 <TableCell>{item.isActive ? "Yes" : "No"}</TableCell>
 
                 <TableCell>
-                  {new Date(item.createdAt).toLocaleDateString()}
+                  <AppDate value={item.createdAt} />
                 </TableCell>
 
                 <TableCell>

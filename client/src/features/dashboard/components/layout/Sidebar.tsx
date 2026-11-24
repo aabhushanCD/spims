@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { Link } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { sidebarItems } from "../../data/sidebar";
 
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useAuth } from "@/features/auth/context/authContext";
-import { filterNavigation, formatRole } from "@/lib/permissions";
+import { filterNavigation } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import Logo from "./Logo";
 import SidebarItem from "./SidebarItem";
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function Sidebar({ collapsed = false }: Props) {
+  const { t } = useTranslation();
   const logout = useLogout();
   const { currentUser } = useAuth();
   const filteredSidebarItem = filterNavigation(sidebarItems, currentUser?.role);
@@ -30,8 +32,10 @@ export default function Sidebar({ collapsed = false }: Props) {
     currentUser?.name?.trim().charAt(0).toUpperCase() ||
     currentUser?.email?.charAt(0).toUpperCase() ||
     "U";
-  const displayName = currentUser?.name ?? "Signed in";
-  const displayRole = formatRole(currentUser?.role);
+  const displayName = currentUser?.name ?? t("common.unknown");
+  const displayRole = currentUser?.role
+    ? t(`role.${currentUser.role}`)
+    : t("common.unknown");
 
   return (
     <aside
@@ -53,7 +57,7 @@ export default function Sidebar({ collapsed = false }: Props) {
 
       {/* Navigation */}
       <ScrollArea className="min-h-0 flex-1 px-3 py-5">
-        <nav aria-label="Main navigation">
+        <nav aria-label={t("nav.mainNavigation")}>
           <div className="space-y-1">
             {filteredSidebarItem.map((item) => (
               <SidebarItem
@@ -100,13 +104,15 @@ export default function Sidebar({ collapsed = false }: Props) {
                     logout.mutate();
                   }}
                   disabled={logout.isPending}
-                  aria-label="Logout"
+                  aria-label={t("topbar.logout")}
                 >
                   <LogOut size={18} aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
 
-              <TooltipContent side="right">Logout</TooltipContent>
+              <TooltipContent side="right">
+                {t("topbar.logout")}
+              </TooltipContent>
             </Tooltip>
           </div>
         ) : (
@@ -134,7 +140,7 @@ export default function Sidebar({ collapsed = false }: Props) {
               disabled={logout.isPending}
             >
               <LogOut size={18} aria-hidden="true" />
-              {logout.isPending ? "Signing out..." : "Logout"}
+              {logout.isPending ? t("common.loading") : t("topbar.logout")}
             </Button>
           </>
         )}

@@ -1,6 +1,7 @@
 import type { Model } from "mongoose";
 import type { IUser } from "../model/user.model.js";
 import type { CreateUserDto, UpdateUserDto } from "../schema/user.schema.js";
+import type { UserPreferences } from "../types/preferences.ts";
 import type mongoose from "mongoose";
 import { escapeRegex } from "../../../shared/utils/escapeRegex.ts";
 import {
@@ -123,6 +124,33 @@ export class UserRepository {
   async update(id: string, updateData: UpdateUserDto): Promise<IUser | null> {
     return await this.userModel
       .findByIdAndUpdate(id, updateData, { new: true })
+      .exec();
+  }
+
+  /**
+   * Merges nested preference fields so changing language does not reset the
+   * calendar mode (and vice versa).
+   */
+  async updatePreferences(
+    id: string,
+    preferences: Partial<UserPreferences>,
+  ): Promise<IUser | null> {
+    const updates: Record<string, unknown> = {};
+
+    if (preferences.language !== undefined) {
+      updates["preferences.language"] = preferences.language;
+    }
+
+    if (preferences.calendarMode !== undefined) {
+      updates["preferences.calendarMode"] = preferences.calendarMode;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return await this.findById(id);
+    }
+
+    return await this.userModel
+      .findByIdAndUpdate(id, { $set: updates }, { new: true })
       .exec();
   }
 

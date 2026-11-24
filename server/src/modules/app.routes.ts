@@ -1,6 +1,7 @@
 import express from "express";
 
 import authRoutes from "./auth/routes/auth.route.js";
+import configRoutes from "./config/routes/config.route.ts";
 import userRoutes from "./user/routes/user.route.js";
 
 import medicineRoutes from "./medicine/routes/medicine.route.js";
@@ -31,6 +32,9 @@ import notificationTemplateRoutes from "./notification/routes/notificationTempla
 const router = express.Router();
 
 router.use(apiRateLimiter);
+
+// public workspace configuration (reporting timezone for date display)
+router.use("/config", configRoutes);
 
 // auth and user-related routes
 router.use("/auth", authRoutes);

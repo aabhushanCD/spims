@@ -54,6 +54,7 @@ describe("OpenAPI specification", () => {
   it("documents every mounted module prefix", () => {
     const expectedPrefixes = [
       "/auth",
+      "/config",
       "/users",
       "/audit",
       "/medicines",

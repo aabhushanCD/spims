@@ -10,7 +10,7 @@ import {
 import { UserRoleBadge } from "./UserRoleBadge";
 import { UserStatusBadge } from "./UserStatusBadge";
 import { UserActions } from "./UserActions";
-import { formatDateTime } from "@/lib/format";
+import RelativeTime from "@/components/common/RelativeTime";
 import { canActOnUser } from "../lib/userPermissions";
 import type { User } from "../types/user.types";
 
@@ -72,7 +72,11 @@ export function UserTable({
                   <UserStatusBadge isActive={user.isActive} />
                 </TableCell>
                 <TableCell>
-                  {user.lastLogin ? formatDateTime(user.lastLogin) : "Never"}
+                  {user.lastLogin ? (
+                    <RelativeTime value={user.lastLogin} />
+                  ) : (
+                    "Never"
+                  )}
                 </TableCell>
                 <TableCell>
                   {canManage ? (

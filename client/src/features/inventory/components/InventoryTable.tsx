@@ -7,6 +7,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
+import RelativeTime from "@/components/common/RelativeTime";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ export function InventoryTable({ inventory, onAction }: InventoryTableProps) {
                 </TableCell>
 
                 <TableCell>
-                  {new Date(item.lastUpdated).toLocaleDateString()}
+                  <RelativeTime value={item.lastUpdated} />
                 </TableCell>
                 <TableCell>
                   {onAction && (

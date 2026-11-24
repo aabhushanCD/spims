@@ -1,8 +1,8 @@
 import type { KeyboardEvent } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { Bell, Mail, MessageSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import RelativeTime from "@/components/common/RelativeTime";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type {
@@ -112,9 +112,7 @@ export default function NotificationItem({
 
         <span className="mt-1.5 flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground text-[11px]">
-            {formatDistanceToNow(new Date(notification.createdAt), {
-              addSuffix: true,
-            })}
+            <RelativeTime value={notification.createdAt} />
           </span>
 
           {statusLabel && (

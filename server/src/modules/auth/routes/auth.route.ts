@@ -21,6 +21,7 @@ import { loginSchema } from "../schema/login.schema.ts";
 import { registerSchema } from "../schema/register.schema.ts";
 import { resetPasswordSchema } from "../schema/resetPassword.schema.ts";
 import { verifyEmailSchema } from "../schema/verifyEmail.schema.ts";
+import { updatePreferencesSchema } from "../../user/schema/preferences.schema.ts";
 
 const router = express.Router();
 
@@ -165,6 +166,15 @@ router.get(
   verifyToken,
   (req: Request, res: Response, next: NextFunction) => {
     authController.getCurrentUser(req, res, next);
+  },
+);
+
+router.patch(
+  "/me/preferences",
+  verifyToken,
+  validate(updatePreferencesSchema),
+  (req: Request, res: Response, next: NextFunction) => {
+    authController.updatePreferences(req, res, next);
   },
 );
 

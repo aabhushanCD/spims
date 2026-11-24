@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -29,11 +31,13 @@ export function UserToolbar({
   onRoleChange,
   onStatusChange,
 }: Props) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Input
         className="max-w-xs"
-        placeholder="Search users..."
+        placeholder={t("user.searchUsers")}
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
       />
@@ -43,13 +47,17 @@ export function UserToolbar({
         onValueChange={(value) => onRoleChange(value as UserRole | "ALL")}
       >
         <SelectTrigger className="w-44">
-          <SelectValue placeholder="Role" />
+          <SelectValue placeholder={t("user.role")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All roles</SelectItem>
-          <SelectItem value="owner">Owner</SelectItem>
-          <SelectItem value="inventory_manager">Inventory Manager</SelectItem>
-          <SelectItem value="pharmacist">Pharmacist</SelectItem>
+          <SelectItem value="ALL">{t("user.allRoles")}</SelectItem>
+          <SelectItem value="owner">{t("role.owner")}</SelectItem>
+          <SelectItem value="inventory_manager">
+            {t("role.inventory_manager")}
+          </SelectItem>
+          <SelectItem value="pharmacist">
+            {t("role.pharmacist")}
+          </SelectItem>
         </SelectContent>
       </Select>
 
@@ -60,12 +68,12 @@ export function UserToolbar({
         }
       >
         <SelectTrigger className="w-36">
-          <SelectValue placeholder="Status" />
+          <SelectValue placeholder={t("user.status")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All statuses</SelectItem>
-          <SelectItem value="active">Active</SelectItem>
-          <SelectItem value="inactive">Inactive</SelectItem>
+          <SelectItem value="ALL">{t("user.allStatuses")}</SelectItem>
+          <SelectItem value="active">{t("user.active")}</SelectItem>
+          <SelectItem value="inactive">{t("user.inactive")}</SelectItem>
         </SelectContent>
       </Select>
 

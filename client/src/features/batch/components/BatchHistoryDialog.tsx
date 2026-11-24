@@ -15,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+import AppDate from "@/components/common/AppDate";
+import RelativeTime from "@/components/common/RelativeTime";
+import { formatCurrency } from "@/lib/format";
 import { useBatchHistory } from "../hooks/useQueryBatch";
 import type { Batch } from "../types/batch.types";
 
@@ -34,7 +36,10 @@ export default function BatchHistoryDialog({ batch, onOpenChange }: Props) {
           <DialogTitle>Batch {batch.batchNumber}</DialogTitle>
           <DialogDescription>
             {batch.medicineId?.medicineName ?? "Medicine"} · expiry{" "}
-            {new Date(batch.expiryDate).toLocaleDateString()}
+            <AppDate
+              value={batch.expiryDate.slice(0, 10)}
+              kind="date-only"
+            />
           </DialogDescription>
         </DialogHeader>
 
@@ -84,7 +89,9 @@ export default function BatchHistoryDialog({ batch, onOpenChange }: Props) {
 
               {history.data?.movements.map((movement) => (
                 <TableRow key={movement._id}>
-                  <TableCell>{formatDateTime(movement.createdAt)}</TableCell>
+                  <TableCell>
+                    <RelativeTime value={movement.createdAt} />
+                  </TableCell>
                   <TableCell>{movement.movementType}</TableCell>
                   <TableCell>{movement.quantity}</TableCell>
                   <TableCell className="text-xs">

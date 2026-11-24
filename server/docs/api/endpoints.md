@@ -14,6 +14,16 @@ Complete reference for every route registered in the backend.
 - **CSRF:** every response sets a non-HttpOnly `csrfToken` cookie. Unsafe requests (`POST`, `PUT`, `PATCH`, `DELETE`) must echo it in `X-CSRF-Token`; only the login/register/refresh/recovery endpoints are exempt (they are origin-checked).
 - Route handlers that `throw new Error(...)` from a service (batch module) become **500**, not 404/400.
 
+## Configuration
+
+Source: `server/src/modules/config/routes/config.route.ts`
+
+| Method | Path | Purpose | Auth / roles | Success |
+|---|---|---|---|---|
+| GET | `/config` | Public workspace configuration | Public | `200` `{ reportingTimeZone }` |
+
+`reportingTimeZone` comes from `REPORTING_TIMEZONE` (default `Asia/Kathmandu`) and is the single source of truth for reporting boundaries and client-side date display.
+
 ## Auth
 
 Source: `server/src/modules/auth/routes/auth.route.ts`
@@ -23,7 +33,14 @@ Source: `server/src/modules/auth/routes/auth.route.ts`
 | POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password` (`role` is stripped) | `registerSchema` | `201` `{ message, user: public user }` |
 | POST | `/auth/login` | Authenticate and set cookies | Public | `email`, `password` | `loginSchema` | `200` public user; sets `token` and `refreshToken` cookies |
 | POST | `/auth/logout` | Clear cookies and revoke the access token | Cookie JWT / any | — | — | `200` `{ message }` |
-| GET | `/auth/me` | Current user | Cookie JWT / any | — | — | `200` public user |
+| GET | `/auth/me` | Current user, including localization preferences | Cookie JWT / any | — | — | `200` public user |
+| PATCH | `/auth/me/preferences` | Update own language/calendar preference | Cookie JWT / any | `language?` (`en`, `ne`), `calendarMode?` (`auto`, `bs`, `ad`, `both`); at least one required | `updatePreferencesSchema` | `200` updated public user |
+
+Public users include:
+
+```json
+"preferences": { "language": "en", "calendarMode": "auto" }
+```
 
 Endpoint-specific errors: `400` validation, `401` wrong password, `404` user not found, `409` duplicate email.
 

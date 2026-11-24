@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { ChevronDown, type LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   DropdownMenu,
@@ -46,8 +47,10 @@ export default function SidebarItem({
   collapsed = false,
   onNavigate,
 }: SidebarItemProps) {
+  const { t } = useTranslation();
   const { pathname } = useLocation();
   const panelId = useId();
+  const label = t(title);
   const hasActiveChild = Boolean(
     children?.some((child) => isNavPathActive(pathname, child.path)),
   );
@@ -63,7 +66,7 @@ export default function SidebarItem({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={title}
+              aria-label={label}
               className={cn(
                 "flex w-full items-center justify-center rounded-lg px-0 py-2.5 text-sm font-medium transition-colors",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
@@ -75,7 +78,7 @@ export default function SidebarItem({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent side="right" align="start" className="w-48">
-            <DropdownMenuLabel>{title}</DropdownMenuLabel>
+            <DropdownMenuLabel>{label}</DropdownMenuLabel>
 
             <DropdownMenuSeparator />
 
@@ -92,7 +95,7 @@ export default function SidebarItem({
                       active && "text-emerald-700 dark:text-emerald-300",
                     )}
                   >
-                    {child.title}
+                    {t(child.title)}
                   </NavLink>
                 </DropdownMenuItem>
               );
@@ -120,7 +123,7 @@ export default function SidebarItem({
           <span className="flex items-center gap-3">
             <Icon size={18} aria-hidden="true" />
 
-            <span>{title}</span>
+            <span>{label}</span>
           </span>
 
           <ChevronDown
@@ -144,7 +147,7 @@ export default function SidebarItem({
                 )
               }
             >
-              {child.title}
+              {t(child.title)}
             </NavLink>
           ))}
         </div>
@@ -158,7 +161,7 @@ export default function SidebarItem({
       to={path ?? "/"}
       end={path === "/"}
       onClick={onNavigate}
-      aria-label={collapsed ? title : undefined}
+      aria-label={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -170,7 +173,7 @@ export default function SidebarItem({
     >
       <Icon size={18} aria-hidden="true" />
 
-      {!collapsed && <span className="truncate">{title}</span>}
+      {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   );
 
@@ -182,7 +185,7 @@ export default function SidebarItem({
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
 
-      <TooltipContent side="right">{title}</TooltipContent>
+      <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
 }

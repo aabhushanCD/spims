@@ -1,5 +1,5 @@
-import { format } from "date-fns";
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import MobileSidebar from "@/components/MobileSidebar";
 import { useAuth } from "@/features/auth/context/authContext";
 import { useLogout } from "@/features/auth/hooks/useLogout";
 import { useNavigate } from "react-router";
-import { formatRole } from "@/lib/permissions";
+import LanguageSwitcher from "@/features/preferences/components/LanguageSwitcher";
+import { useDateFormat } from "@/lib/datetime/dateFormatContext";
 import SidebarToggle from "./SidebarToggle";
 import ThemeToggle from "./ThemeToggle";
 
@@ -26,9 +27,14 @@ interface Props {
 }
 
 export default function Topbar({ collapsed, onToggleSidebar }: Props) {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const logout = useLogout();
   const navigate = useNavigate();
+  const { weekday, format } = useDateFormat();
+  const now = new Date();
+  const weekdayLabel = weekday(now);
+  const date = format(now, { style: "date" });
   const initial =
     currentUser?.name?.trim().charAt(0).toUpperCase() ||
     currentUser?.email?.charAt(0).toUpperCase() ||
@@ -45,14 +51,20 @@ export default function Topbar({ collapsed, onToggleSidebar }: Props) {
       {/* Right */}
       <div className="flex items-center gap-4">
         <div className="hidden text-right lg:block">
-          <p className="text-sm font-medium">{format(new Date(), "EEEE")}</p>
+          <p className="text-sm font-medium">{weekdayLabel}</p>
 
-          <p className="text-muted-foreground text-xs">
-            {format(new Date(), "dd MMM yyyy")}
-          </p>
+          <p className="text-muted-foreground text-xs">{date.primary}</p>
+
+          {date.secondary ? (
+            <p className="text-muted-foreground text-[11px]">
+              {date.secondary}
+            </p>
+          ) : null}
         </div>
 
         <NotificationDropdown />
+
+        <LanguageSwitcher />
 
         <ThemeToggle />
 
@@ -67,7 +79,9 @@ export default function Topbar({ collapsed, onToggleSidebar }: Props) {
                 <p className="text-sm font-medium">{currentUser?.name}</p>
 
                 <p className="text-muted-foreground text-xs">
-                  {formatRole(currentUser?.role)}
+                  {currentUser?.role
+                    ? t(`role.${currentUser.role}`)
+                    : t("common.unknown")}
                 </p>
               </div>
 
@@ -82,7 +96,7 @@ export default function Topbar({ collapsed, onToggleSidebar }: Props) {
             <DropdownMenuItem
               onSelect={() => navigate("/settings/security")}
             >
-              Profile &amp; security
+              {t("topbar.profileSecurity")}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -91,7 +105,7 @@ export default function Topbar({ collapsed, onToggleSidebar }: Props) {
               variant="destructive"
               onSelect={() => logout.mutate()}
             >
-              Logout
+              {t("topbar.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

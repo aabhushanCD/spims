@@ -11,173 +11,182 @@ import {
 
 import type { NavItem } from "@/lib/permissions";
 
+/**
+ * Titles are i18n keys. SidebarItem translates them at render time so the
+ * navigation follows the active language without duplicating the tree.
+ */
 export const sidebarItems: NavItem[] = [
   {
-    title: "Dashboard",
+    title: "nav.dashboard",
     icon: LayoutDashboard,
     path: "/",
   },
 
   {
-    title: "Reports",
+    title: "nav.reports",
     icon: BarChart3,
     path: "/reports",
   },
 
   {
-    title: "Notifications",
+    title: "nav.notifications",
     icon: Bell,
     path: "/notifications",
   },
 
   {
-    title: "Inventory",
+    title: "nav.inventory",
     icon: Boxes,
 
     children: [
       {
-        title: "Medicines",
+        title: "nav.medicines",
         path: "/medicines",
       },
 
       {
-        title: "Batches",
+        title: "nav.batches",
         path: "/batches",
       },
 
       {
-        title: "Stock",
+        title: "nav.stock",
         path: "/stock",
       },
 
       {
-        title: "Movements",
+        title: "nav.movements",
         path: "/inventory/movements",
       },
 
       {
-        title: "Reconciliation",
+        title: "nav.reconciliation",
         path: "/inventory/reconciliation",
       },
 
       {
-        title: "Stocktakes",
+        title: "nav.stocktakes",
         path: "/stocktakes",
         roles: ["owner", "inventory_manager"],
       },
 
       {
-        title: "Reorder",
+        title: "nav.reorder",
         path: "/smart-reorders",
       },
     ],
   },
 
   {
-    title: "Purchase",
+    title: "nav.purchase",
     icon: ShoppingCart,
 
     children: [
       {
-        title: "Purchase Orders",
+        title: "nav.purchaseOrders",
         path: "/purchase-orders",
       },
 
       {
-        title: "Suppliers",
+        title: "nav.suppliers",
         path: "/suppliers",
       },
 
       {
-        title: "Purchase Returns",
+        title: "nav.purchaseReturns",
         path: "/purchase-returns",
       },
     ],
   },
 
   {
-    title: "Master Data",
+    title: "nav.masterData",
     icon: Database,
 
     children: [
       {
-        title: "Generic Names",
+        title: "nav.genericNames",
         path: "/generic-names",
       },
 
       {
-        title: "Categories",
+        title: "nav.categories",
         path: "/categories",
       },
 
       {
-        title: "Brands",
+        title: "nav.brands",
         path: "/brands",
       },
 
       {
-        title: "Units",
+        title: "nav.units",
         path: "/units",
       },
     ],
   },
 
   {
-    title: "Sales",
+    title: "nav.sales",
     icon: DollarSign,
     children: [
       {
-        title: "Sales Orders",
+        title: "nav.salesOrders",
         path: "/sales",
       },
 
       {
-        title: "Customers",
+        title: "nav.customers",
         path: "/customers",
       },
 
       {
-        title: "Returns",
+        title: "nav.returns",
         path: "/returns",
       },
     ],
   },
 
   {
-    title: "Settings",
+    title: "nav.settings",
     icon: Settings,
 
     children: [
       {
-        title: "Users",
+        title: "nav.users",
         path: "/users",
         // The server mounts /users for owner and pharmacist only.
         roles: ["owner", "pharmacist"],
       },
 
       {
-        title: "Security",
+        title: "nav.security",
         path: "/settings/security",
       },
 
       {
-        title: "Notifications",
+        title: "nav.preferences",
+        path: "/settings/preferences",
+      },
+
+      {
+        title: "nav.notifications",
         path: "/settings/notifications",
       },
 
       {
-        title: "Notification Admin",
+        title: "nav.notificationAdmin",
         path: "/notifications/admin",
         roles: ["owner", "pharmacist"],
       },
 
       {
-        title: "Templates",
+        title: "nav.templates",
         path: "/notification-templates",
       },
 
       {
-        title: "Audit Log",
+        title: "nav.auditLog",
         path: "/audit",
         roles: ["owner"],
       },

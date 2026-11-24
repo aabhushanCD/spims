@@ -332,7 +332,7 @@ All request `limit=100` and discard `nextCursor`. Only the notification inbox im
 
 - `Rs. ${value.toFixed(2)}` is repeated in tables and invoices.
 - Dates use `toLocaleDateString` / `toLocaleString` without a shared helper.
-- Reporting is timezone-aware server-side (`REPORTING_TIMEZONE`), but the client has no formatting policy.
+- Reporting is timezone-aware server-side (`REPORTING_TIMEZONE`). The client now uses the same timezone through `GET /api/config`, with shared BS/AD formatters and relative timestamps. See `docs/development/localization-and-dates.md`.
 
 **Fix**
 

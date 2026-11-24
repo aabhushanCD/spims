@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { authServices } from "../services/authServices";
+import type { UserPreferences } from "@/features/preferences/types/preferences.types";
 
 export type User = {
   _id: string;
@@ -16,6 +17,7 @@ export type User = {
   role: "owner" | "inventory_manager" | "pharmacist";
   isActive: boolean;
   emailVerified?: boolean;
+  preferences?: UserPreferences;
 };
 
 type Theme = "light" | "dark";

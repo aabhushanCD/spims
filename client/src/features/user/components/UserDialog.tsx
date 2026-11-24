@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useCreateUser } from "../hooks/useMutateUser";
 import {
   Dialog,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 
 const UserDialog = () => {
+  const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
 
   const createUser = useCreateUser();
@@ -100,7 +102,7 @@ const UserDialog = () => {
           {/* Role */}
 
           <div>
-            <label className="text-sm font-medium">Role</label>
+            <label className="text-sm font-medium">{t("user.role")}</label>
 
             <Select
               defaultValue="pharmacist"
@@ -109,16 +111,18 @@ const UserDialog = () => {
               }}
             >
               <SelectTrigger className="mt-2 h-12">
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder={t("user.selectRole")} />
               </SelectTrigger>
 
               <SelectContent>
-                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="owner">{t("role.owner")}</SelectItem>
 
-                <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                <SelectItem value="pharmacist">
+                  {t("role.pharmacist")}
+                </SelectItem>
 
                 <SelectItem value="inventory_manager">
-                  Inventory Manager
+                  {t("role.inventory_manager")}
                 </SelectItem>
               </SelectContent>
             </Select>
