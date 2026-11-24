@@ -31,7 +31,7 @@ Source: `server/src/modules/auth/routes/auth.route.ts`
 | Method | Path | Purpose | Auth / roles | Body / query | Validation | Success |
 |---|---|---|---|---|---|---|
 | POST | `/auth/register` | Create a local user | Public | `name`, `email`, `password` (`role` is stripped) | `registerSchema` | `201` `{ message, user: public user }` |
-| POST | `/auth/login` | Authenticate and set cookies | Public | `email`, `password` | `loginSchema` | `200` `{ user: public user, accessToken, refreshToken, sessionId }`; sets `token` and `refreshToken` cookies |
+| POST | `/auth/login` | Authenticate and set cookies | Public | `email`, `password` | `loginSchema` | `200` public user; sets `token` and `refreshToken` cookies |
 | POST | `/auth/logout` | Clear cookies and revoke the access token | Cookie JWT / any | — | — | `200` `{ message }` |
 | GET | `/auth/me` | Current user, including localization preferences | Cookie JWT / any | — | — | `200` public user |
 | PATCH | `/auth/me/preferences` | Update own language/calendar preference | Cookie JWT / any | `language?` (`en`, `ne`), `calendarMode?` (`auto`, `bs`, `ad`, `both`); at least one required | `updatePreferencesSchema` | `200` updated public user |

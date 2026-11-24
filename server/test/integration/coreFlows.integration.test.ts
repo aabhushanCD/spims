@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import bcrypt from "bcrypt";
 import mongoose, { Types } from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import request from "supertest";
@@ -271,6 +272,32 @@ describe("HTTP integration flows", () => {
     const ui = await request(app).get("/api-docs/");
     expect(ui.status).toBe(200);
     expect(ui.headers["content-type"]).toContain("text/html");
+  });
+
+  it("returns the public user directly on login", async () => {
+    const email = `login-${new Types.ObjectId().toString()}@test.local`;
+    await User.create({
+      name: "Login User",
+      email,
+      password: await bcrypt.hash("correct-horse-battery", 10),
+      role: "pharmacist",
+      emailVerified: true,
+      isActive: true,
+    });
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "correct-horse-battery" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      email,
+      role: "pharmacist",
+      preferences: { language: "en", calendarMode: "auto" },
+    });
+    expect(response.body).not.toHaveProperty("accessToken");
+    expect(response.body).not.toHaveProperty("refreshToken");
+    expect(response.headers["set-cookie"]?.join(";")).toContain("token=");
   });
 
   it("exposes workspace config and persists localization preferences", async () => {

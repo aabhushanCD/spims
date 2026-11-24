@@ -13,10 +13,8 @@ export function useLogin() {
   return useMutation({
     mutationFn: authServices.loginService,
 
-    onSuccess(result) {
-      // The API returns `{ user, accessToken, refreshToken, sessionId }`; the
-      // authenticated context stores the public user, not the token envelope.
-      setCurrentUser(result.user);
+    onSuccess(user) {
+      setCurrentUser(user);
       toast.success("Login successful!");
       navigate("/");
     },

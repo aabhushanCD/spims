@@ -311,15 +311,6 @@ export const swaggerSpec: Record<string, unknown> = {
           calendarMode: { type: "string", enum: ["auto", "bs", "ad", "both"] },
         },
       },
-      AuthResponse: {
-        type: "object",
-        properties: {
-          user: ref("PublicUser"),
-          accessToken: { type: "string" },
-          refreshToken: { type: "string" },
-          sessionId: { type: "string" },
-        },
-      },
       PublicUser: {
         type: "object",
         properties: {
@@ -895,7 +886,7 @@ export const swaggerSpec: Record<string, unknown> = {
         responses: {
           200: ok(
             "Authenticated; sets token and refreshToken cookies",
-            ref("AuthResponse"),
+            ref("PublicUser"),
           ),
           401: errorResponse("Invalid email or password"),
           423: errorResponse("Account locked; Retry-After is set"),
@@ -908,7 +899,7 @@ export const swaggerSpec: Record<string, unknown> = {
         summary: "Rotate the refresh token",
         security: [],
         responses: {
-          200: ok("New cookies and rotated session", ref("AuthResponse")),
+          200: ok("New cookies and rotated session", ref("PublicUser")),
           401: errorResponse("Invalid refresh token"),
         },
       }),
