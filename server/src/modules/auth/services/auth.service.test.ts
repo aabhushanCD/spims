@@ -46,6 +46,7 @@ function buildUser(overrides: Record<string, unknown> = {}) {
     emailVerified: true,
     provider: "local",
     lastLogin: null,
+    preferences: { language: "en", calendarMode: "auto" },
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     ...overrides,
@@ -59,6 +60,7 @@ describe("AuthService", () => {
     findById: vi.fn(),
     create: vi.fn(),
     updateAuthFields: vi.fn(),
+    updatePreferences: vi.fn(),
     incrementTokenVersion: vi.fn(),
     findByPasswordResetTokenHash: vi.fn(),
     findByEmailVerificationTokenHash: vi.fn(),
@@ -779,9 +781,43 @@ describe("AuthService", () => {
         _id: "user-1",
         email: "asha@example.com",
         emailVerified: true,
+        preferences: { language: "en", calendarMode: "auto" },
       });
       expect(result).not.toHaveProperty("password");
       expect(result).not.toHaveProperty("refreshToken");
+    });
+  });
+
+  describe("updatePreferences", () => {
+    it("merges only the supplied preference fields", async () => {
+      userRepository.updatePreferences.mockResolvedValue(
+        buildUser({ preferences: { language: "ne", calendarMode: "bs" } }),
+      );
+
+      const result = await createService().updatePreferences("user-1", {
+        language: "ne",
+      });
+
+      expect(userRepository.updatePreferences).toHaveBeenCalledWith("user-1", {
+        language: "ne",
+      });
+      expect(result.preferences).toEqual({
+        language: "ne",
+        calendarMode: "bs",
+      });
+    });
+
+    it("rejects when the user does not exist", async () => {
+      userRepository.updatePreferences.mockResolvedValue(null);
+
+      await expect(
+        createService().updatePreferences("missing", {
+          calendarMode: "ad",
+        }),
+      ).rejects.toMatchObject({
+        message: "User not found",
+        statusCode: 404,
+      });
     });
   });
 });

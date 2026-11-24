@@ -35,7 +35,8 @@ It is not production-hardened. The main risks are:
 | Module | Status | Evidence | Main gaps |
 |---|---|---|---|
 | Authentication | Implemented | Register/login/refresh/logout, email verification, password reset, sessions, rate limiting, lockout, immediate token revocation, shared HTTP/WS origin policy | No MFA, no Google OAuth, no geo-IP database |
-| Users & roles | Implemented | CRUD, owner-only writes, JWT-authoritative delete, role change revokes sessions, admin reset, force logout, hashed passwords, audit trail | Flat RBAC outside user management |
+| Users & roles | Implemented | CRUD, owner-only writes, JWT-authoritative delete, role change revokes sessions, admin reset, force logout, hashed passwords, audit trail, per-user language/calendar preferences | Flat RBAC outside user management |
+| Localization & dates | Implemented | English/Nepali UI resources, per-user language/calendar preference, public reporting timezone config, BS primary/AD secondary display, relative timestamps | Remaining admin pages still fall back to English; BS date pickers are not implemented |
 | Medicine catalog | Implemented | CRUD + 4 lookup tables, duplicate checks, unit validation, reference-safe lookup deletes, escaped search, active filtering, cursor pagination, barcode lookup, compound unique index | Batch/price data in list not exposed |
 | Suppliers | Implemented | CRUD, uniqueness, reliability score, open-PO delete guard, performance endpoint | No supplier audit trail |
 | Inventory (aggregate) | Implemented | CRUD, increase/decrease, reserve/release, sync, single write path, version CAS, unique medicine index, reconciliation report, stocktake lifecycle | Stocktake UI absent; reservations not order-linked |

@@ -1,4 +1,8 @@
 import type { IUser, UserRole } from "../model/user.model.ts";
+import {
+  normalizeUserPreferences,
+  type UserPreferences,
+} from "../types/preferences.ts";
 
 export interface PublicUser {
   _id: string;
@@ -9,6 +13,7 @@ export interface PublicUser {
   emailVerified: boolean;
   provider: "local" | "google";
   lastLogin: Date | null;
+  preferences: UserPreferences;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +31,7 @@ export type UserLike = Pick<
 > & {
   _id: unknown;
   emailVerified?: boolean | null;
+  preferences?: Partial<UserPreferences> | null;
 };
 
 export function toPublicUser(user: UserLike): PublicUser {
@@ -38,6 +44,7 @@ export function toPublicUser(user: UserLike): PublicUser {
     emailVerified: user.emailVerified !== false,
     provider: user.provider,
     lastLogin: user.lastLogin,
+    preferences: normalizeUserPreferences(user.preferences),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

@@ -6,6 +6,7 @@ import type { JWTUserPayload } from "../../../types/global.ts";
 import type { EmailInputDto } from "../schema/email.schema.ts";
 import type { LoginInputDto } from "../schema/login.schema.ts";
 import type { RegisterInputDto } from "../schema/register.schema.ts";
+import type { UpdatePreferencesDto } from "../../user/schema/preferences.schema.ts";
 import type { ResetPasswordInputDto } from "../schema/resetPassword.schema.ts";
 import type { VerifyEmailInputDto } from "../schema/verifyEmail.schema.ts";
 import type { AuthService } from "../services/auth.service.ts";
@@ -145,6 +146,19 @@ export class AuthController {
     try {
       const user = getAuthenticatedUser(req);
       const result = await this.authService.getCurrentUser(user.userId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updatePreferences(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = getAuthenticatedUser(req);
+      const result = await this.authService.updatePreferences(
+        user.userId,
+        req.body as UpdatePreferencesDto,
+      );
       res.json(result);
     } catch (error) {
       next(error);

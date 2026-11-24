@@ -237,6 +237,7 @@ export const swaggerSpec: Record<string, unknown> = {
   ],
   tags: [
     { name: "Authentication", description: "Registration, login, sessions, and password reset." },
+    { name: "Configuration", description: "Public workspace configuration." },
     { name: "Users", description: "User administration and audit." },
     { name: "Medicines", description: "Medicine catalog and lookup tables." },
     { name: "Suppliers", description: "Supplier management." },
@@ -303,6 +304,22 @@ export const swaggerSpec: Record<string, unknown> = {
           isActive: { type: "boolean" },
         },
       },
+      Preferences: {
+        type: "object",
+        properties: {
+          language: { type: "string", enum: ["en", "ne"] },
+          calendarMode: { type: "string", enum: ["auto", "bs", "ad", "both"] },
+        },
+      },
+      AuthResponse: {
+        type: "object",
+        properties: {
+          user: ref("PublicUser"),
+          accessToken: { type: "string" },
+          refreshToken: { type: "string" },
+          sessionId: { type: "string" },
+        },
+      },
       PublicUser: {
         type: "object",
         properties: {
@@ -314,6 +331,7 @@ export const swaggerSpec: Record<string, unknown> = {
           emailVerified: { type: "boolean" },
           provider: { type: "string", enum: ["local", "google"] },
           lastLogin: { type: "string", format: "date-time", nullable: true },
+          preferences: ref("Preferences"),
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
@@ -825,6 +843,25 @@ export const swaggerSpec: Record<string, unknown> = {
       delete: op({ tag: "Sales", summary: "Delete a customer", params: [idParam], responses: { 200: ok("Deleted", ref("Success")), 404: errorResponse("Not found") } }),
     },
 
+    "/config": {
+      get: op({
+        tag: "Configuration",
+        summary: "Public workspace configuration",
+        security: [],
+        responses: {
+          200: ok("Workspace configuration", {
+            type: "object",
+            properties: {
+              reportingTimeZone: {
+                type: "string",
+                example: "Asia/Kathmandu",
+              },
+            },
+          }),
+        },
+      }),
+    },
+
     "/auth/register": {
       post: op({
         tag: "Authentication",
@@ -856,14 +893,25 @@ export const swaggerSpec: Record<string, unknown> = {
           },
         },
         responses: {
-          200: ok("Authenticated; sets token and refreshToken cookies", ref("PublicUser")),
+          200: ok(
+            "Authenticated; sets token and refreshToken cookies",
+            ref("AuthResponse"),
+          ),
           401: errorResponse("Invalid email or password"),
           423: errorResponse("Account locked; Retry-After is set"),
         },
       }),
     },
     "/auth/refresh": {
-      post: op({ tag: "Authentication", summary: "Rotate the refresh token", security: [], responses: { 200: ok("New cookies"), 401: errorResponse("Invalid refresh token") } }),
+      post: op({
+        tag: "Authentication",
+        summary: "Rotate the refresh token",
+        security: [],
+        responses: {
+          200: ok("New cookies and rotated session", ref("AuthResponse")),
+          401: errorResponse("Invalid refresh token"),
+        },
+      }),
     },
     "/auth/logout": {
       post: op({ tag: "Authentication", summary: "Logout and revoke the current access token", security: [], responses: { 200: ok("Logged out") } }),
@@ -885,6 +933,24 @@ export const swaggerSpec: Record<string, unknown> = {
     },
     "/auth/me": {
       get: op({ tag: "Authentication", summary: "Current user", responses: { 200: ok("Current user", ref("PublicUser")) } }),
+    },
+    "/auth/me/preferences": {
+      patch: op({
+        tag: "Authentication",
+        summary: "Update the current user's localization preferences",
+        body: {
+          type: "object",
+          properties: {
+            language: { type: "string", enum: ["en", "ne"] },
+            calendarMode: { type: "string", enum: ["auto", "bs", "ad", "both"] },
+          },
+        },
+        responses: {
+          200: ok("Updated preferences", ref("PublicUser")),
+          400: errorResponse("Invalid or empty preferences"),
+          401: errorResponse("Unauthorized"),
+        },
+      }),
     },
     "/auth/sessions": {
       get: op({ tag: "Authentication", summary: "List active sessions", responses: { 200: ok("Sessions", { type: "array", items: { type: "object", additionalProperties: true } }) } }),

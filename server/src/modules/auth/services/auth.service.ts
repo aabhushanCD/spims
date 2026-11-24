@@ -3,11 +3,13 @@ import { Types } from "mongoose";
 
 import { AppError } from "../../../shared/error.ts";
 import type { IUser } from "../../user/model/user.model.ts";
+import type { UserPreferences } from "../../user/types/preferences.ts";
 import type { UserRepository } from "../../user/repo/user.repo.ts";
 import type { AuthSessionRepo } from "../repo/authSession.repo.ts";
 import type { CreateAuthSessionDto } from "../repo/authSession.repo.ts";
 import type { LoginInputDto } from "../schema/login.schema.ts";
 import type { RegisterInputDto } from "../schema/register.schema.ts";
+import type { UpdatePreferencesDto } from "../../user/schema/preferences.schema.ts";
 import type { RequestContext } from "../../../shared/utils/requestContext.ts";
 import {
   getClientUrl,
@@ -632,6 +634,34 @@ export class AuthService {
 
   async getCurrentUser(userId: string) {
     const user = await this.userRepository.findById(userId);
+
+    if (!user) {
+      throw this.appError.notFound("User not found");
+    }
+
+    return toPublicUser(user);
+  }
+
+  /**
+   * Self-service localization preferences. This deliberately lives on the auth
+   * module's "current user" surface because the `/users` router is restricted
+   * to owners and pharmacists, while every role must be able to set its own
+   * language and calendar preference.
+   */
+  async updatePreferences(userId: string, preferences: UpdatePreferencesDto) {
+    const changes: Partial<
+      Pick<UserPreferences, "language" | "calendarMode">
+    > = {};
+
+    if (preferences.language !== undefined) {
+      changes.language = preferences.language;
+    }
+
+    if (preferences.calendarMode !== undefined) {
+      changes.calendarMode = preferences.calendarMode;
+    }
+
+    const user = await this.userRepository.updatePreferences(userId, changes);
 
     if (!user) {
       throw this.appError.notFound("User not found");

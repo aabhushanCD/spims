@@ -1,5 +1,13 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+import {
+  CALENDAR_MODES,
+  DEFAULT_USER_PREFERENCES,
+  LANGUAGES,
+  type CalendarMode,
+  type Language,
+} from "../types/preferences.ts";
+
 export type UserRole = "owner" | "pharmacist" | "inventory_manager";
 
 export interface IUser extends Document {
@@ -11,6 +19,10 @@ export interface IUser extends Document {
   notificationPreferences: {
     email: boolean;
     sms: boolean;
+  };
+  preferences: {
+    language: Language;
+    calendarMode: CalendarMode;
   };
   isActive: boolean;
   emailVerified: boolean;
@@ -52,6 +64,19 @@ const UserSchema = new Schema<IUser>(
     notificationPreferences: {
       email: { type: Boolean, default: true },
       sms: { type: Boolean, default: true },
+    },
+
+    preferences: {
+      language: {
+        type: String,
+        enum: LANGUAGES,
+        default: DEFAULT_USER_PREFERENCES.language,
+      },
+      calendarMode: {
+        type: String,
+        enum: CALENDAR_MODES,
+        default: DEFAULT_USER_PREFERENCES.calendarMode,
+      },
     },
 
     password: {
