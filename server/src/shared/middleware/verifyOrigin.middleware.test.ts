@@ -8,8 +8,8 @@ const originalEnv = {
   NODE_ENV: process.env.NODE_ENV,
 };
 
-function run(origin?: string) {
-  const req = { headers: { origin } } as unknown as Request;
+function run(method = "POST", origin?: string) {
+  const req = { method, headers: { origin } } as unknown as Request;
   const res = {
     status: vi.fn(),
     json: vi.fn(),
@@ -42,26 +42,42 @@ describe("verifyOrigin", () => {
   });
 
   it("allows an allow-listed origin", () => {
-    const { next, res } = run("https://spims.example.com");
+    const { next, res } = run("POST", "https://spims.example.com");
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
   });
 
   it("rejects a non-allow-listed origin", () => {
-    const { next, res } = run("https://evil.example.com");
+    const { next, res } = run("POST", "https://evil.example.com");
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
   it("allows missing Origin outside production", () => {
-    const { next } = run();
+    const { next } = run("POST");
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("rejects missing Origin in production", () => {
+  it("rejects missing Origin in production for state-changing methods", () => {
     process.env.NODE_ENV = "production";
-    const { next, res } = run();
+    const { next, res } = run("POST");
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it("allows safe methods without an Origin in production", () => {
+    process.env.NODE_ENV = "production";
+    for (const method of ["GET", "HEAD", "OPTIONS"]) {
+      const { next, res } = run(method);
+      expect(next).toHaveBeenCalledOnce();
+      expect(res.status).not.toHaveBeenCalled();
+    }
+  });
+
+  it("allows safe methods from any origin in production", () => {
+    process.env.NODE_ENV = "production";
+    const { next, res } = run("GET", "https://evil.example.com");
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
   });
 });

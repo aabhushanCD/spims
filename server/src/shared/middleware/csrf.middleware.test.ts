@@ -1,7 +1,17 @@
 import type { NextFunction, Request, Response } from "express";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { csrfProtection } from "./csrf.middleware.ts";
+
+const originalNodeEnv = process.env.NODE_ENV;
+
+afterEach(() => {
+  if (originalNodeEnv === undefined) {
+    delete process.env.NODE_ENV;
+  } else {
+    process.env.NODE_ENV = originalNodeEnv;
+  }
+});
 
 function buildRequest(options: {
   method?: string;
@@ -44,6 +54,22 @@ describe("csrfProtection", () => {
       "csrfToken",
       expect.any(String),
       expect.objectContaining({ httpOnly: false, path: "/" }),
+    );
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("uses production cookie flags for the issued token", () => {
+    process.env.NODE_ENV = "production";
+    const req = buildRequest({ method: "GET" });
+    const res = buildResponse();
+    const next = vi.fn() as NextFunction;
+
+    csrfProtection(req, res, next);
+
+    expect(res.cookie).toHaveBeenCalledWith(
+      "csrfToken",
+      expect.any(String),
+      expect.objectContaining({ secure: true, sameSite: "none" }),
     );
     expect(next).toHaveBeenCalledOnce();
   });
